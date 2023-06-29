@@ -11,6 +11,7 @@ MODULE SBM_CONSTRAINTS
       SUBROUTINE SBMMODEL_QCI_CONSTRAINTS(NATOMS)
          USE QCI_KEYS, ONLY: XSTART, XFINAL
          USE QCIFILEHANDLER, ONLY: GETUNIT, FILE_LENGTH
+         USE HELPER_FNCTS, ONLY: DISTANCE_TWOATOMS
          IMPLICIT NONE
          INTEGER, INTENT(IN) :: NATOMS
          INTEGER :: NDUMMY ! counter for constraints
@@ -68,6 +69,7 @@ MODULE SBM_CONSTRAINTS
                SBM_CONDISTREF(NDUMMY) = (DF+DS)/2.0D0
                SBM_CONCUT(NDUMMY) = ABS(DF-DS)/2.0D0                             
             END DO
+            CLOSE(CONUNIT)
          END IF
          WRITE(*,*) " sbm_constraints> Identified ", SBM_NCONST, " constraints"
          WRITE(*,*) "                  Bonds: ", NATOMS-1, ", angles: ", NATOMS-2, ", additional constraints: ", NADDCONSTR
@@ -87,20 +89,5 @@ MODULE SBM_CONSTRAINTS
          IF (ALLOCATED(SBM_CONDISTREF)) DEALLOCATE(SBM_CONDISTREF)
          IF (ALLOCATED(SBM_CONCUT)) DEALLOCATE(SBM_CONCUT)
       END SUBROUTINE DEALLOC_SBM_CONST
-
-      SUBROUTINE DISTANCE_TWOATOMS(NATOMS, X, IDX1, IDX2, DIST)
-         IMPLICIT NONE
-         INTEGER, INTENT(IN) :: NATOMS
-         REAL(KIND = REAL64) :: X(3*NATOMS)
-         INTEGER, INTENT(IN) :: IDX1, IDX2
-         REAL(KIND = REAL64) :: DIST
-         REAL(KIND = REAL64) :: XYZ1(3), XYZ2(3)
-         INTEGER :: J
-         DO J = 1,3
-            XYZ1(J) = X(3*(IDX1-1)+J)
-            XYZ2(J) = X(3*(IDX2-1)+J)
-         END DO
-         DIST = SQRT((XYZ1(1)-XYZ2(1))**2 + (XYZ1(2)-XYZ2(2))**2 + (XYZ1(3)-XYZ2(3))**2)
-      END SUBROUTINE DISTANCE_TWOATOMS
 
 END MODULE SBM_CONSTRAINTS
