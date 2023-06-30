@@ -25,21 +25,99 @@ MODULE AMBER_CONSTRAINTS
          LOGICAL :: YESNO ! do we have a contact file
          INTEGER :: CONUNIT ! unit for opening file
          INTEGER :: NADDCONSTR ! number of additional constraints
-         INTEGER :: IDX1, IDX2 !indices read in from file
+         INTEGER :: IDX1, IDX2 !indices for atoms
 
+         ! parse topology
+         CALL PARSE_TOPOLOGY()
          ! check for additional constraints in file
          INQUIRE(FILE=AMBERCONSTRFILE, EXIST=YESNO)
          IF (YESNO) THEN
-            NADDCONSTR = FILE_LENGTH(SBMCONTACTFILE)
+            NADDCONSTR = FILE_LENGTH(AMBERCONTACTFILE)
          ELSE
             NADDCONSTR = 0
          END IF
          ! allocate arrays
          AMBER_NCONST = NBOND + NANGLE + NADDCONSTR
-         !TODO: allocate and deallocate routines
-         !add bond and angle parsing and constraintfile
-         CALL ALLOC_SBM_CONST()
+         ! allocate the required arrays
+         CALL ALLOC_AMBER_CONSTR()
+         NDUMMY = 0
+         ! add bond constraints
+         DO J1=1,NBOND
+            NDUMMY = NDUMMY + 1
+            IDX1 = BONDS(J1,1)
+            IDX2 = BONDS(J1,2)
+            CALL DISTANCE_TWOATOMS(NATOMS, XSTART, IDX1, IDX2, DS)
+            CALL DISTANCE_TWOATOMS(NATOMS, XFINAL, IDX1, IDX2, DF)
+            IF (IDX1.LT.IDX2) THEN
+               AMBER_CONI(NDUMMY) = IDX1
+               AMBER_CONJ(NDUMMY) = IDX2
+            ELSE
+               AMBER_CONI(NDUMMY) = IDX2
+               AMBER_CONJ(NDUMMY) = IDX1
+            END IF
+            AMBER_CONDISTREF(NDUMMY) = (DF+DS)/2.0D0
+            AMBER_CONCUT(NDUMMY) = ABS(DF-DS)/2.0D0
+         END DO
+         ! add angle constraints
+         DO J1=1,NBOND
+            NDUMMY = NDUMMY + 1
+            IDX1 = ANGLES(J1,1)
+            IDX2 = ANGLES(J1,2)
+            CALL DISTANCE_TWOATOMS(NATOMS, XSTART, IDX1, IDX2, DS)
+            CALL DISTANCE_TWOATOMS(NATOMS, XFINAL, IDX1, IDX2, DF)
+            IF (IDX1.LT.IDX2) THEN
+               AMBER_CONI(NDUMMY) = IDX1
+               AMBER_CONJ(NDUMMY) = IDX2
+            ELSE
+               AMBER_CONI(NDUMMY) = IDX2
+               AMBER_CONJ(NDUMMY) = IDX1
+            END IF
+            AMBER_CONDISTREF(NDUMMY) = (DF+DS)/2.0D0
+            AMBER_CONCUT(NDUMMY) = ABS(DF-DS)/2.0D0
+         END DO
+         ! now add additional constraints from file provided
+         IF (YESNO) THEN
+            CONUNIT = GETUNIT()
+            OPEN(CONUNIT,FILE=AMBERCONSTRFILE,STATUS='OLD')
+            DO J1=1,NADDCONSTR
+               READ(CONUNIT,*) IDX1, IDX2
+               NDUMMY = NDUMMY + 1
+               CALL DISTANCE_TWOATOMS(NATOMS, XSTART, IDX1, IDX2, DS)
+               CALL DISTANCE_TWOATOMS(NATOMS, XFINAL, IDX1, IDX2, DF) 
+               IF (IDX1.LT.IDX2) THEN
+                  AMBER_CONI(NDUMMY) = IDX1
+                  AMBER_CONJ(NDUMMY) = IDX2
+               ELSE
+                  AMBER_CONI(NDUMMY) = IDX2
+                  AMBER_CONJ(NDUMMY) = IDX1
+               END IF
+               AMBER_CONDISTREF(NDUMMY) = (DF+DS)/2.0D0
+               AMBER_CONCUT(NDUMMY) = ABS(DF-DS)/2.0D0                             
+            END DO
+            CLOSE(CONUNIT)
+         END IF
+         DEALLOCATE(BONDS,ANGLES)
+         WRITE(*,*) " amber_constraints> Identified ", AMBER_NCONST, " constraints"
+         WRITE(*,*) "                    Bonds: ", NBOND, ", angles: ", NANGLE, ", additional constraints: ", NADDCONSTR
+
       END SUBROUTINE AMBER_QCI_CONSTRAINTS
+
+      ! allocate amber constraints array
+      SUBROUTINE ALLOC_AMBER_CONSTR()
+         CALL DEALLOC_AMBER_CONST()
+         ALLOCATE(AMBER_CONI(AMBER_NCONST))
+         ALLOCATE(AMBER_CONJ(AMBER_NCONST))
+         ALLOCATE(AMBER_CONDISTREF(AMBER_NCONST))
+         ALLOCATE(AMBER_CONCUT(AMBER_NCONST))
+      END SUBROUTINE ALLOC_AMBER_CONSTR
+
+      ! dealloc amber constraints arrays
+      SUBROUTINE DEALLOC_AMBER_CONSTR()
+         IF (ALLOCATED(AMBER_CONI)) DEALLOCATE(AMBER_CONI)
+         IF (ALLOCATED(AMBER_CONJ)) DEALLOCATE(AMBER_CONJ)
+         IF (ALLOCATED(AMBER_CONDISTREF)) DEALLOCATE(AMBER_CONDISTREF)
+         IF (ALLOCATED(AMBER_CONCUT)) DEALLOCATE(AMBER_CONCUT)
+      END SUBROUTINE DEALLOC_AMBER_CONSTR
 
       ! parse topology
       SUBROUTINE PARSE_TOPOLOGY()
