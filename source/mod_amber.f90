@@ -1,6 +1,9 @@
 MODULE AMBER_CONSTRAINTS
    USE QCIPREC
    IMPLICIT NONE
+   INTEGER :: NBACKBONE
+   INTEGER :: NRES
+   INTEGER, ALLOCATABLE :: BACKBONE(:)
    INTEGER :: AMBER_NCONST = 0
    INTEGER, ALLOCATABLE :: AMBER_CONI(:), AMBER_CONJ(:)
    REAL(KIND = REAL64), ALLOCATABLE :: AMBER_CONDISTREF(:)
@@ -11,6 +14,8 @@ MODULE AMBER_CONSTRAINTS
    INTEGER, ALLOCATABLE :: ANGLES(:,:)
    INTEGER :: NBOND = 0
    INTEGER :: NANGLE = 0
+   INTEGER, ALLOCATABLE :: RESFINAL
+   CHARACTER(LEN=4), ALLOCATABLE :: AMBER_NAMES(:), RESNAMES(:)
 
    CONTAINS
       ! from AMBER
@@ -25,6 +30,7 @@ MODULE AMBER_CONSTRAINTS
          LOGICAL :: YESNO ! do we have a contact file
          INTEGER :: CONUNIT ! unit for opening file
          INTEGER :: NADDCONSTR ! number of additional constraints
+         INTEGER :: NBIOCONSTR ! biological constraints - cis-trans and planarity 
          INTEGER :: IDX1, IDX2 !indices for atoms
 
          ! parse topology
@@ -36,6 +42,7 @@ MODULE AMBER_CONSTRAINTS
          ELSE
             NADDCONSTR = 0
          END IF
+
          ! allocate arrays
          AMBER_NCONST = NBOND + NANGLE + NADDCONSTR
          ! allocate the required arrays
@@ -102,6 +109,33 @@ MODULE AMBER_CONSTRAINTS
 
       END SUBROUTINE AMBER_QCI_CONSTRAINTS
 
+      SUBROUTINE GET_BACKBONE(NATOMS)
+         IMPLICIT NONE
+         INTEGER, INTENT(IN) :: NATOMS
+         INTEGER :: NDUMMY
+         INTEGER :: DUMMY_BB(NATOMS)
+         CHARACTER(LEN=4) :: ATNAME
+         INTEGER :: J1
+
+         NDUMMY = 0
+         DO J1=1,NATOMS
+            ATNAME = ADJUSTL(TRIM(AMBER_NAMES(J1)))
+            IF ((ATNAME.EQ.'C').OR.(ATNAME.EQ.'O').OR.(ATNAME.EQ.'N').OR.(ATNAME.EQ.'H').OR.(ATNAME.EQ.'CA') &
+                .OR.(ATNAME.EQ.'HA').OR.(ATNAME.EQ.'CB').OR.(ATNAME.EQ.'HA2').OR.(ATNAME.EQ.'HA3').OR.(ATNAME.EQ.'P') &
+                .OR.(ATNAME.EQ.'OP1').OR.(ATNAME.EQ.'OP2').OR.(ATNAME.EQ."O5'").OR.(ATNAME.EQ."C5'").OR.(ATNAME.EQ."H5'") &
+                .OR.(ATNAME.EQ."H5''").OR.(ATNAME.EQ."C4'").OR.(ATNAME.EQ."H4'").OR.(ATNAME.EQ."O4'").OR.(ATNAME.EQ."C3'") &
+                .OR.(ATNAME.EQ."H3'").OR.(ATNAME.EQ."C2'").OR.(ATNAME.EQ."O3'").OR.(ATNAME.EQ."HO3'").OR.(ATNAME.EQ."HO5'")) THEN
+               NDUMMY = NDUMMY + 1
+               DUMMY_BB(NDUMMY) = J1
+            END IF
+         END DO
+
+         NBACKBONE = NDUMMY
+         ALLOCATE(BACKBONE(NBACKBONE))
+         BACKBONE(1:NBACKBONE) = DUMMY_BB(1:NBACKBONE)
+
+      END SUBROUTINE GET_BACKBONE
+
       ! allocate amber constraints array
       SUBROUTINE ALLOC_AMBER_CONSTR()
          CALL DEALLOC_AMBER_CONST()
@@ -133,6 +167,7 @@ MODULE AMBER_CONSTRAINTS
          CHARACTER(25) :: ENTRIES(NWORDS)='' !array of entries per line
          INTEGER :: NBONDH, NBONDA, NANGH, NANGA
          INTEGER :: NLINES
+         INTEGER :: J1, J2
          INTEGER, ALLOCATABLE :: INDICES(:)
          INTEGER, PARAMETER :: NENT_NBONDH = 10 ! entries per line in the topology
          INTEGER, PARAMETER :: NENT_NBONDA = 10 ! entries per line in the topology
@@ -163,8 +198,10 @@ MODULE AMBER_CONSTRAINTS
             READ(TOPUNIT,'(A)') ENTRY
             CALL READ_LINE(ENTRY,NWORDS,ENTRIES) 
             IF (ENTRIES(2).EQ.'POINTERS') THEN
-               READ(TOPUNIT,*)                             !ignore format identifier after flag
+               !ignore format identifier after flag
+               READ(TOPUNIT,*)                             
                LINECOUNTER = LINECOUNTER + 1
+               ! the first line contains the information we ar eintereste din 
                READ(TOPUNIT,'(A)') ENTRY
                LINECOUNTER = LINECOUNTER + 1
                CALL READ_LINE(ENTRY,NWORDS,ENTRIES)
@@ -173,13 +210,65 @@ MODULE AMBER_CONSTRAINTS
                NBOND = NBONDH + NBONDA
                WRITE(MYUNIT,'(A,I8)') 'readtopology> Number of bonds:',NBOND
                ALLOCATE(BONDS(NBOND,2))
-               READ(ENTRIES(3),'(I8)') NANGH
-               READ(ENTRIES(4),'(I8)') NANGA
+               READ(ENTRIES(5),'(I8)') NANGH
+               READ(ENTRIES(6),'(I8)') NANGA
                NANGLE = NANGH + NANGA
                WRITE(MYUNIT,'(A,I8)') 'readtopology> Number of angles:',NANGLE
                ALLOCATE(ANGLES(NANGLE,2))
+               READ(TOPUNIT,'(A)') ENTRY
+               LINECOUNTER = LINECOUNTER + 1
+               CALL READ_LINE(ENTRY,NWORDS,ENTRIES)
+               READ(ENTRIES(2),'(I8)') NRES
+               ALLOCATE(RESNAMES(NRES))
+               ALLOCATE(AMBER_NAMES(NATOMS))
             END IF
             
+            IF (ENTRIES(2).EQ. 'ATOM_NAME') THEN
+               !ignore format identifier after flag
+               READ(TOPUNIT,*)                             
+               LINECOUNTER = LINECOUNTER + 1
+               CALL GET_NLINES(NATOMS, 1, 20, NLINES)
+               DO J1=1,NLINES
+                  READ(TOPUNIT,'(A)') ENTRY
+                  LINECOUNTER = LINECOUNTER + 1
+                  DO J2=1,20
+                     IF (((J1-1)*20+J2).GT.NATOMS) EXIT
+                     AMBER_NAMES((J1-1)*20+J2)(1:4) = ENTRY(4*(J2-1)+1:4*J2)
+                  END DO
+               END DO
+            END IF
+
+            IF (ENTRIES(2).EQ. 'RESIDUE_LABEL') THEN
+               !ignore format identifier after flag
+               READ(TOPUNIT,*)                             
+               LINECOUNTER = LINECOUNTER + 1
+               CALL GET_NLINES(NATOMS, 1, 20, NLINES)
+               DO J1=1,NLINES
+                  READ(TOPUNIT,'(A)') ENTRY
+                  LINECOUNTER = LINECOUNTER + 1
+                  DO J2=1,20
+                     IF (((J1-1)*20+J2).GT.NRES) EXIT
+                     RESNAMES((J1-1)*20+J2)(1:4) = ENTRY(4*(J2-1)+1:4*J2)
+                  END DO
+               END DO
+            END IF
+
+            IF (ENTRIES(2).EQ. 'RESIDUE_POINTER') THEN
+               !ignore format identifier after flag
+               READ(TOPUNIT,*)                             
+               LINECOUNTER = LINECOUNTER + 1
+               CALL GET_NLINES(NATOMS, 1, 10, NLINES)
+               DO J1=1,NLINES
+                  READ(TOPUNIT,'(A)') ENTRY
+                  LINECOUNTER = LINECOUNTER + 1
+                  DO J2=1,20
+                     IF (((J1-1)*10+J2).GT.NRES) EXIT
+                     READ(ENTRIES(J2),'(I8)') RESFINAL(J1-1)*20+J2)
+                  END DO
+               END DO
+            END IF
+            RESIDUE_POINTER
+
             IF (ENTRIES(2).EQ. 'BONDS_INC_HYDROGEN') THEN
                READ(TOPUNIT,*)                             !ignore format identifier after flag
                LINECOUNTER = LINECOUNTER + 1
@@ -270,10 +359,10 @@ MODULE AMBER_CONSTRAINTS
       END SUBROUTINE PARSE_TOPOLOGY
 
       SUBROUTINE GET_NLINES(NENTRIES, PERENTRY, ENTRIESPERLINE, NLINES)
-         INTEGER, INTENT(IN) :: NENTRIES
-         INTEGER, INTENT(IN) :: PERENTRY
-         INTEGER, INTENT(IN) :: ENTRIESPERLINE
-         INTEGER, INTENT(OUT) :: NLINES
+         INTEGER, INTENT(IN) :: NENTRIES ! total entries (for example number of bonds)
+         INTEGER, INTENT(IN) :: PERENTRY ! number of data for each entry (for example bonds have 3 integers - atom i and j and type)
+         INTEGER, INTENT(IN) :: ENTRIESPERLINE ! entries per line (fixed by format identifiers)
+         INTEGER, INTENT(OUT) :: NLINES ! number of lines
          INTEGER :: MODVAL
 
          MODVAL = MOD(NENTRIES*PERENTRY,ENTRIESPERLINE)
