@@ -5,7 +5,15 @@ MODULE QCICONSTRAINTS
    CONTAINS
       ! create constraints
       SUBROUTINE CREATE_CONSTRAINTS()
-         
+         !call the routines that get us the constraints:
+         ! AMBER | HiRE | SMB | endpoints | constraintlist | geometries
+
+         ! clean constraint list - remove all duplicates
+
+         ! check percolation 
+
+         ! deal with freezing
+
       END SUBROUTINE CREATE_CONSTRAINTS
 
       ! from HiRE
