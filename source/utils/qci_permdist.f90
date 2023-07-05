@@ -48,6 +48,12 @@ MODULE QCIPERMDIST
    REAL(KIND=REAL64) :: PDISTANCE
    REAL(KIND=REAL64) :: NOPDISTANCE
     
+   ! minperm variables
+   ! Save the largest arrays between iterations to reduce allocations.
+   ! cc, kk: Sparse matrix of distances
+   INTEGER(KIND = INT64), ALLOCATABLE :: CC(:), KK(:)
+
+
    CONTAINS
 
       SUBROUTINE ALLOC_QCIPERM(NATOMS)
@@ -860,11 +866,163 @@ MODULE QCIPERMDIST
       END SUBROUTINE ROTXZ
 
 
-      SUBROUTINE NEWMINDIST2()
+      SUBROUTINE NEWMINDIST2(RA,RB,NATOMS,DIST,DEBUG,RMAT,CMXA,CMYA,CMZA,CMXB,CMYB,CMZB,DWORST)
+         IMPLICIT NONE
+         INTEGER, INTENT(IN) :: NATOMS
+         REAL(KIND = REAL64), INTENT(IN) :: RA(3*NATOMS), RB(3*NATOMS)
+         REAL(KIND = REAL64), INTENT(OUT) :: DIST, DWORST
+         REAL(KIND = REAL64), INTENT(OUT) :: RMAT(3,3)
+         REAL(KIND = REAL64), INTENT(OUT) :: CMXA, CMYA, CMZA, CMXB, CMYB, CMZB
+         LOGICAL, INTENT(IN) :: DEBUG
 
+         REAL(KIND = REAL64) :: XA(3*NATOMS), XB(3*NATOMS) ! copy of coordinates to be manipulated
+         INTEGER :: J1, JMIN, J2 ! counters
+         REAL(KIND = REAL64) :: QMAT(4,4), Q1, Q2, Q3, Q4, XM, YM, ZM, XP, YP, ZP ! quaternion
+         REAL(KIND = REAL64) :: DIAG(4), TEMPA(3*NOPT), ! arrays needed for diagonalisation
+         INTEGER :: INFO ! exit status for dysev
+         REAL(KIND = REAL64) :: MINV
+         REAL(KIND = REAL64) :: DISTANCE, SCDUM
+
+         !copy coordinates so we can manipulate them
+         XA(1:3*NATOMS)=RA(1:3*NATOMS)
+         XB(1:3*NATOMS)=RB(1:3*NATOMS)
+
+         ! Move centre of coordinates of XA and XB to the origin
+         CMXA=0.0D0; CMYA=0.0D0; CMZA=0.0D0
+         DO J1=1,NATOMS
+            CMXA=CMXA+XA(3*(J1-1)+1)
+            CMYA=CMYA+XA(3*(J1-1)+2)
+            CMZA=CMZA+XA(3*(J1-1)+3)
+         ENDDO
+         CMXA=CMXA/NATOMS; CMYA=CMYA/NATOMS; CMZA=CMZA/NATOMS
+         DO J1=1,NATOMS
+            XA(3*(J1-1)+1)=XA(3*(J1-1)+1)-CMXA
+            XA(3*(J1-1)+2)=XA(3*(J1-1)+2)-CMYA
+            XA(3*(J1-1)+3)=XA(3*(J1-1)+3)-CMZA
+         ENDDO
+         CMXB=0.0D0; CMYB=0.0D0; CMZB=0.0D0
+         DO J1=1,NATOMS
+            CMXB=CMXB+XB(3*(J1-1)+1)
+            CMYB=CMYB+XB(3*(J1-1)+2)
+            CMZB=CMZB+XB(3*(J1-1)+3)
+         ENDDO
+         CMXB=CMXB/NATOMS; CMYB=CMYB/NATOMS; CMZB=CMZB/NATOMS
+         DO J1=1,NATOMS
+            XB(3*(J1-1)+1)=XB(3*(J1-1)+1)-CMXB
+            XB(3*(J1-1)+2)=XB(3*(J1-1)+2)-CMYB
+            XB(3*(J1-1)+3)=XB(3*(J1-1)+3)-CMZB
+         ENDDO
+
+         !  The formula below is not invariant to overall translation because XP, YP, ZP
+         !  involve a sum of coordinates! We need to have XA and XB coordinate centres both 
+         !  at the origin!!
+         QMAT(1:4,1:4)=0.0D0
+         DO J1=1,NSIZE
+            XM=XA(3*(J1-1)+1)-XB(3*(J1-1)+1)
+            YM=XA(3*(J1-1)+2)-XB(3*(J1-1)+2)
+            ZM=XA(3*(J1-1)+3)-XB(3*(J1-1)+3)
+            XP=XA(3*(J1-1)+1)+XB(3*(J1-1)+1)
+            YP=XA(3*(J1-1)+2)+XB(3*(J1-1)+2)
+            ZP=XA(3*(J1-1)+3)+XB(3*(J1-1)+3)
+         !  PRINT '(A,I8,6G18.8)','J1,XM,YM,ZM,XP,YP,ZP=',J1,XM,YM,ZM,XP,YP,ZP
+            QMAT(1,1)=QMAT(1,1)+XM**2+YM**2+ZM**2
+            QMAT(1,2)=QMAT(1,2)+YP*ZM-YM*ZP
+            QMAT(1,3)=QMAT(1,3)+XM*ZP-XP*ZM
+            QMAT(1,4)=QMAT(1,4)+XP*YM-XM*YP
+            QMAT(2,2)=QMAT(2,2)+YP**2+ZP**2+XM**2
+            QMAT(2,3)=QMAT(2,3)+XM*YM-XP*YP
+            QMAT(2,4)=QMAT(2,4)+XM*ZM-XP*ZP
+            QMAT(3,3)=QMAT(3,3)+XP**2+ZP**2+YM**2
+            QMAT(3,4)=QMAT(3,4)+YM*ZM-YP*ZP
+            QMAT(4,4)=QMAT(4,4)+XP**2+YP**2+ZM**2
+         ENDDO
+         QMAT(2,1)=QMAT(1,2); QMAT(3,1)=QMAT(1,3); QMAT(3,2)=QMAT(2,3); QMAT(4,1)=QMAT(1,4); QMAT(4,2)=QMAT(2,4); QMAT(4,3)=QMAT(3,4)
+         CALL DSYEV('V','U',4,QMAT,4,DIAG,TEMPA,9*NATOMS,INFO)
+         IF (INFO.NE.0) PRINT '(A,I6,A)',' newmindist2> WARNING - INFO=',INFO,' in DSYEV'
+
+         MINV=1.0D200
+         JMIN=1
+         DO J1=1,4
+            IF (DIAG(J1).LT.MINV) THEN
+            JMIN=J1
+            MINV=DIAG(J1)
+            ENDIF
+         ENDDO
+         IF (MINV.LT.0.0D0) THEN
+            IF (ABS(MINV).LT.1.0D-6) THEN
+            MINV=0.0D0
+            ELSE
+            PRINT '(A,G20.10,A)',' newmindist2> WARNING MINV is ',MINV,' change to absolute value'
+            MINV=-MINV
+            ENDIF
+         ENDIF
+         DIST=SQRT(MINV) 
+
+         !  IF (DEBUG) PRINT '(A,G20.10,A,I6)',' newmindist2> minimum residual is ',DIAG(JMIN),' for eigenvector ',JMIN
+         Q1=QMAT(1,JMIN); Q2=QMAT(2,JMIN); Q3=QMAT(3,JMIN); Q4=QMAT(4,JMIN)
+         ! RMAT will contain the matrix that maps XB onto the best correspondence with XA
+         RMAT(1,1)=Q1**2+Q2**2-Q3**2-Q4**2
+         RMAT(1,2)=2*(Q2*Q3+Q1*Q4)
+         RMAT(1,3)=2*(Q2*Q4-Q1*Q3)
+         RMAT(2,1)=2*(Q2*Q3-Q1*Q4)
+         RMAT(2,2)=Q1**2+Q3**2-Q2**2-Q4**2
+         RMAT(2,3)=2*(Q3*Q4+Q1*Q2)
+         RMAT(3,1)=2*(Q2*Q4+Q1*Q3)
+         RMAT(3,2)=2*(Q3*Q4-Q1*Q2)
+         RMAT(3,3)=Q1**2+Q4**2-Q2**2-Q3**2
+
+         ! Test the rotation, check the distance, and find the biggest atomic displacement
+         CALL NEWROTGEOM(NATOMS,XB,RMAT,0.0D0,0.0D0,0.0D0)
+         DWORST=0.0D0
+         DISTANCE=0.0D0
+         DO J2=1,NATOMS
+            SCDUM=(XA(3*(J2-1)+1)-XB(3*(J2-1)+1))**2+(XA(3*(J2-1)+2)-XB(3*(J2-1)+2))**2+(XA(3*(J2-1)+3)-XB(3*(J2-1)+3))**2
+            DISTANCE=DISTANCE+SCDUM
+            IF (SCDUM.GT.DWORST) DWORST=SCDUM
+         ENDDO
+         DISTANCE=SQRT(DISTANCE)
+         DWORST=SQRT(DWORST)
       END SUBROUTINE NEWMINDIST2
 
-      SUBROUTINE MINPERM()
+      SUBROUTINE MINPERM(N, P, Q, SX, SY, SZ, PBC, PERM, DIST, WORSTDIST, WORSTRADIUS)
+         IMPLICIT NONE
+         INTEGER, INTENT(IN) :: N ! system size
+         REAL(KIND = REAL64), INTENT(IN) :: P(3*N), Q(3*N) ! coordinates
+         REAL(KIND = REAL64), INTENT(IN) :: SX, SY, SZ ! box length
+         REAL(KIND = REAL64), INTENT(IN) :: WORSTDIST, WORSTRADIUS
+         LOGICAL, INTENT(IN) :: PBC ! periodic boundary conditions?
+         INTEGER, INTENT(OUT) :: PERM(N) ! Permutation so that p(i) <--> q(perm(i))
+         REAL(KIND = REAL64), INTENT(OUT) :: DIST ! Minimum attainable distance
+
+         REAL(KIND = REAL64) :: S(3), DUMMY
+         DOUBLE PRECISION, PARAMETER :: SCALE = 1.0D6 ! Precision
+         INTEGER, PARAMETER :: MAXNEI = 60 ! Maximum number of closest neighbours
+         !     Internal variables
+         !     first:
+         !       Sparse matrix of distances
+         !     first(i):
+         !       Beginning of row i in data,index vectors
+         !     kk(first(i)..first(i+1)-1):
+         !       Column indexes of existing elements in row i
+         !     cc(first(i)..first(i+1)-1):
+         !       Matrix elements of row i
+         INTEGER(KIND=INT64) :: FIRST(N+1), X(N), Y(N)
+         INTEGER(KIND=INT64) :: U(N), V(N), H
+         INTEGER :: M, I, J, K, L, L2, T, A, I3, J3
+         INTEGER(KIND=INT64) :: N8, SZ8, D
+         INTEGER :: NDONE, J1, J2
+
+         ! allocate KK and CC
+         IF (.NOT. ALLOCATED(KK)) ALLOCATE(KK(N*MAXNEI))
+         IF (SIZE(KK) .NE. N*MAXNEI) THEN
+             DEALLOCATE(KK)
+             ALLOCATE(KK(N*MAXNEI))
+         END IF
+         IF (.NOT. ALLOCATED(CC)) ALLOCATE(CC(N*MAXNEI))
+         IF (SIZE(CC) .NE. N*MAXNEI) THEN
+             DEALLOCATE(CC)
+             ALLOCATE(CC(N*MAXNEI))
+         END IF
 
       END SUBROUTINE MINPERM
 
