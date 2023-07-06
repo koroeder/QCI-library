@@ -51,7 +51,7 @@ MODULE QCIPERMDIST
    ! minperm variables
    ! Save the largest arrays between iterations to reduce allocations.
    ! cc, kk: Sparse matrix of distances
-   INTEGER(KIND = INT64), ALLOCATABLE :: CC(:), KK(:)
+   INTEGER, ALLOCATABLE :: CC(:), KK(:)
 
 
    CONTAINS
@@ -1024,6 +1024,127 @@ MODULE QCIPERMDIST
              ALLOCATE(CC(N*MAXNEI))
          END IF
 
+         S(1)=SX; S(2)=SY; S(3)=SZ
+         M = MIN(MAXNEI,N)
+         SZ8 = M*N
+         N8 = N
+
+         DO I=0,N
+            FIRST(I+1) = I*M + 1
+         ENDDO
+   
+         IF (M.EQ.N) THEN
+            ! compute the full matrix
+            DO I=1,N
+               K = FIRST(I) - 1
+               DO J=1,N
+                  CC(K+J) = PERMDIST(P(3*I-2), Q(3*J-2), S, PBC) * SCALE
+                  KK(K+J) = J
+               END DO
+            END DO
+         ELSE
+            ! We need to store the distances of the maxnei closeest neighbors
+            ! of each particle. The following builds a heap to keep track of
+            ! the maxnei closest neighbours seen so far. It might be more
+            ! efficient to use quick-select instead... (This is definately
+            ! true in the limit of infinite systems.)
+            DO I=1,N
+               K=FIRST(I)-1
+               DO J=1,M
+                  CC(K+J) = PERMDIST(P(3*I-2), Q(3*J-2), S, PBC) * SCALE
+                  KK(K+J) = J
+                  L = J
+10                IF (L.LE.1) GOTO 11
+                  L2 = L/2
+                  IF (CC(K+L2).LT.CC(K+L)) THEN
+                     H = CC(K+L2)
+                     CC(K+L2) = CC(K+L)
+                     CC(K+L) = H
+                     T = KK(K+L2)
+                     KK(K+L2) = KK(K+L)
+                     KK(K+L) = T
+                     L = L2
+                     GOTO 10
+                  ENDIF
+11             ENDDO
+
+               DO J=M+1,N
+                  D = PERMDIST(P(3*I-2), Q(3*J-2), S, PBC) * SCALE
+                  IF (D.LT.CC(K+1)) THEN
+                     CC(K+1) = D
+                     KK(K+1) = J
+                     L = 1
+20                   L2 = 2*L
+                     IF (L2+1.GT.M) GOTO 21
+                     IF (CC(K+L2+1).GT.CC(K+L2)) THEN
+                        A = K+L2+1
+                     ELSE
+                        A = K+L2
+                     END IF
+                     IF (CC(A).GT.CC(K+L)) THEN
+                        H = CC(A)
+                        CC(A) = CC(K+L)
+                        CC(K+L) = H
+                        T = KK(A)
+                        KK(A) = KK(K+L)
+                        KK(K+L) = T
+                        L = A - K
+                        GOTO 20
+                     ENDIF
+21                   IF (L2.LE.M) THEN ! split IF statements to avoid a segmentation fault
+                        IF (CC(K+L2).GT.CC(K+L)) THEN
+                           H = CC(K+L2)
+                           CC(K+L2) = CC(K+L)
+                           CC(K+L) = H
+                           T = KK(K+L2)
+                           KK(K+L2) = KK(K+L)
+                           KK(K+L) = T
+                        END IF
+                     END IF
+                  END IF
+               END DO
+            END DO
+         ENDIF
+
+         ! Call bipartite matching routine
+         CALL JOVOSAP(N8, SZ8, CC, KK, FIRST, X, Y, U, V, H)
+         ! If initial guess correct, deduce solution distance, which is not done in jovosap
+         IF (H.LT.0) THEN
+            H = 0
+            DO I=1,n
+               J = FIRST(I)
+30             IF (J.GT.N*MAXNEI) THEN
+                  DO J1=1,N
+                     PERM(J1) = J1
+                  END DO
+                  RETURN
+               END IF
+               IF (KK(J).NE.X(I)) THEN
+                  J = J + 1
+                  GOTO 30
+               END IF
+               H = H + CC(J)
+            END DO
+         END IF
+
+         DO I=1,N
+            PERM(I) = X(I)
+            IF (PERM(I).GT.N) PERM(I) = N
+            IF (PERM(I).LT.1) PERM(I) = 1
+         ENDDO
+
+         DIST = DBLE(H)/SCALE
+   
+         WORSTDIST=-1.0D0
+         DO I=1,N
+           DUMMY=(p(3*(i-1)+1)-q(3*(perm(i)-1)+1))**2+(p(3*(i-1)+2)-q(3*(perm(i)-1)+2))**2+(p(3*(i-1)+3)-q(3*(perm(i)-1)+3))**2
+            IF (DUMMY.GT.WORSTDIST) THEN
+               WORSTDIST=DUMMY 
+               WORSTRADIUS=p(3*(i-1)+1)**2+p(3*(i-1)+2)**2+p(3*(i-1)+3)**2
+            ENDIF
+         ENDDO
+         WORSTDIST=SQRT(WORSTDIST)
+         WORSTRADIUS=MAX(SQRT(WORSTRADIUS),1.0D0)
       END SUBROUTINE MINPERM
 
       SUBROUTINE NEWROTGEOM(NATOMS,COORDS,MYROTMAT,CX,CY,CZ)
@@ -1051,5 +1172,281 @@ MODULE QCIPERMDIST
          ENDDO
       END SUBROUTINE NEWROTGEOM
 
+      !     permdist is the distance or weight function. It is coded
+!     separately for clarity. Just hope that the compiler
+!     knows how to to do proper inlining!
+!     Input
+!       p,q: Coordinates
+!       s  : Boxlengths (or dummy if open B.C.)
+!       pbc: Periodic boundary conditions?
+
+      PURE REAL(KIND=REAL64) FUNCTION PERMDIST(P, Q, S, PBC)
+         IMPLICIT NONE
+         REAL(KIND=REAL64), INTENT(IN) :: P(3), Q(3) ! coordinates
+         REAL(KIND=REAL64), INTENT(IN) :: S(3) ! box coordinates
+         LOGICAL, INTENT(IN) :: PBC
+
+         REAL(KIND=REAL64) :: T, D
+         INTEGER :: I
+
+         D = 0.0d0
+         IF (PBC) THEN
+            DO I = 1, 3
+               IF (S(I).NE.0.0D0) THEN
+                  T = Q(I) - P(I)
+                  T = T - S(I)*ANINT(T/S(I))
+                  D = D + T*T
+               ENDIF
+            END DO
+         ELSE
+            D = (Q(1) - P(1))**2+(Q(2) - P(2))**2+(Q(3) - P(3))**2
+         END IF
+         PERMDIST = D
+      END FUNCTION PERMDIST
+
+!     The following routine performs weighted bipartite matching for a sparse non-negative integer weight matrix.
+!     "A Shortest Augmenting Path Algorithm for Dense and Sparse Linear Assignment Problems," Computing 38, 325-340, 1987
+!     by R. Jonker and A. Volgenant, University of Amsterdam.
+
+      SUBROUTINE JOVOSAP(N,SZ,CC,KK,FIRST,X,Y,U,V,H)
+         IMPLICIT NONE
+         INTEGER, INTENT(IN) :: N ! number of rows and columns
+         INTEGER, INTENT(IN) :: SZ
+         INTEGER, INTENT(INOUT) :: CC(SZ), KK(SZ), FIRST(N+1)
+         INTEGER, INTENT(OUT) :: X(N)   ! X = COL ASSIGNED TO ROW
+         INTEGER, INTENT(OUT) :: Y(N)   ! Y = ROW ASSIGNED TO COL
+         INTEGER, INTENT(OUT) :: U(N)   ! U = DUAL ROW VARIABLE
+         INTEGER, INTENT(OUT) :: V(N)   ! V = DUAL COLUMN VARIABLE
+         INTEGER, INTENT(OUT) :: H   ! H = VALUE OF OPTIMAL SOLUTION
+
+         INTEGER, PARAMETER :: BIGINT = 1.0D12
+         INTEGER :: J, J0, J1, I, I0, K, L, L0, T, T0, CNT
+         INTEGER :: TODO(N), FREE(N), MIN, D(N)
+         INTEGER :: V0, VJ
+         LOGICAL :: OK(N)
+
+
+         INTEGER*8 TD,DJ
+         INTEGER*8 LAB(N)
+
+         ! INITIALIZATION
+         Y(1:N) = 0
+         X(1:N) = 0
+         TODO(1:N)=0
+         H = -1
+         J1 = 0
+         V(1:N) = BIGINT
+         DO I=1,N
+            X(I) = 0
+            DO T=FIRST(I),FIRST(I+1)-1
+               J = KK(T)
+               IF (CC(T).LT.V(J)) THEN
+                  V(J) = CC(T)
+                  Y(J) = I
+               END IF
+            ENDDO
+         ENDDO
+
+         DO J=1,N
+            J0 = N-J+1
+            I = Y(J0)
+            IF (I.EQ.0) RETURN
+            IF (X(I).NE.0) THEN
+               X(I) = -ABS(X(I))
+               Y(J0) = 0
+            ELSE
+               X(I) = J0
+            END IF
+         ENDDO
+
+         L=0
+         DO I=1,N
+            IF (X(I).EQ.0) THEN
+               L=L+1
+               FREE(L) = I
+            ELSE IF (X(I).LT.0) THEN
+               X(I) = -X(I)
+            ELSE
+               J1 = X(I)
+               MIN = BIGINIT
+               DO T=FIRST(I),FIRST(I+1)-1
+                  J = KK(T)
+                  IF (J.EQ.J1) CYCLE
+                  IF (CC(T)-V(J).LT.MIN) MIN=CC(T)-V(J)
+               ENDDO
+               V(J1)=V(J1)-MIN
+            END IF
+         END DO
+
+         ! Improve initial solution
+         CNT = 0
+         IF (L.EQ.0) RETURN
+         
+         DO WHILE ((L.GT.0).AND.(CNT.LT.2)) 
+            L0 = L
+            K = 1
+            L = 0
+            DO WHILE (K.LE.L0) 
+               I = FREE(K)
+               K = K+1
+               V0 = BIGINT
+               VJ = BIGINT
+               DO T=FIRST(I),FIRST(I+1)-1
+                  J=KK(T)
+                  H=CC(T)-V(J)
+                  IF (H.LT.VJ) THEN
+                     IF (H.GE.V0) THEN
+                        VJ=H
+                        J1=J
+                     ELSE
+                        VJ=V0
+                        V0=H
+                        J1=J0
+                        J0=J
+                     END IF
+                  END IF
+               END DO
+
+               I0=Y(J0)
+               IF (I0.NE.0) THEN
+                  IF (V0.LT.VJ) THEN
+                     V(J0) = V(J0) - VJ+V0
+                  ELSE
+                     IF (I0.EQ.0) GOTO 43
+                     J0=J1
+                     I0=Y(J1)
+                  END IF
+                  IF (I0.NE.0) THEN
+                     IF (V0.LT.VJ) THEN
+                        K=K-1
+                        FREE(K)=I0
+                     ELSE
+                        L=L+1
+                        FREE(L)=I0
+                     END IF
+                  END IF
+               END IF
+               X(I)=J0
+               Y(J0)=I
+            END DO
+            CNT=CNT+1
+         END DO 
+
+         ! AUGMENTATION PART
+         L0=L
+         DO L=1,L0
+            OK(1:N) = .FALSE.
+            D(1:N) = BIGINT
+            MIN=BIGINT
+            I0=FREE(L)
+            TD=N
+            DO T=FIRST(I0),FIRST(I0+1)-1
+               J=KK(T)
+               DJ=CC(T)-V(J)
+               D(J)=DJ
+               LAB(J)=I0
+               IF (DJ.LE.MIN) THEN
+                 IF (DJ.LT.MIN) THEN
+                   MIN=DJ
+                   K=1
+                   TODO(1)=J
+                 ELSE
+                   K=K+1
+                   TODO(K)=J
+                 END IF
+               END IF
+            END DO
+            DO H=1,K
+               J=TODO(H)
+               IF (J.EQ.0) RETURN
+               IF (Y(J).EQ.0) GOTO 80
+               OK(J)=.TRUE.
+            END DO
+            ! REPEAT UNTIL A FREE ROW HAS BEEN FOUND
+60          IF (K.EQ.0) RETURN
+            J0=TODO(K)
+            K=K-1
+            I=Y(J0)
+            TODO(TD)=J0
+            TD=TD-1
+            T0=FIRST(I)
+            T=T0-1
+            T=T+1  !61
+            DO WHILE (KK(T).NE.J0) 
+               T=T+1
+            END DO
+            H=CC(T)-V(J0)-MIN
+            DO T=T0,FIRST(I+1)-1
+               J=KK(T)
+               IF (.NOT. OK(J)) THEN
+                  VJ=CC(T)-H-V(J)
+                  IF (VJ.LT.D(J)) THEN
+                     D(J)=VJ
+                     LAB(J)=I
+                     IF (VJ.EQ.MIN) THEN
+                        IF (Y(J).EQ.0) GOTO 70
+                        K=K+1
+                        TODO(K)=J
+                        OK(J)=.TRUE.
+                     END IF
+                  END IF
+               END IF
+            END DO
+            IF (K.NE.0) GOTO 60
+            MIN=BIGINT-1
+            DO J=1,N
+               IF (D(J).LE.MIN) THEN
+                  IF (.NOT. OK(J)) THEN
+                     IF (D(J).LT.MIN) THEN
+                        MIN=D(J)
+                        K=1
+                        TODO(1)=J
+                     ELSE
+                        K=K+1
+                        TODO(K)=J
+                     END IF
+                  END IF
+               END IF
+            END DO
+            DO J0=1,K
+               J=TODO(J0)
+               IF (Y(J).EQ.0) GOTO 70
+               OK(J)=.TRUE.
+            END DO
+            GOTO 60
+70          IF (MIN.EQ.0) GOTO 80
+            DO K=TD+1,N
+               J0=TODO(K)
+               V(J0)=V(J0)+D(J0)-MIN
+            END DO
+80          I=LAB(J)
+            Y(J)=I
+            K=J
+            J=X(I)
+            X(I)=K
+            IF (I0.NE.I) GOTO 80
+         END DO
+
+         H=0
+         DO I=1,N
+            J=X(I)
+            T=FIRST(I)
+            IF (T.GT.SZ) THEN
+               PRINT '(A,I6,A)','minperm> WARNING D - atom ',I,' not matched - maximum number of neighbours too small?'
+               RETURN
+            ENDIF
+            DO WHILE (KK(T).NE.J)
+               T=T+1
+               IF (T.GT.SZ) THEN
+                  PRINT '(A,I6,A)','minperm> WARNING D - atom ',I,' not matched - maximum number of neighbours too small?'
+                  RETURN
+               ENDIF 
+            END DO GOTO
+            DJ=CC(T)
+            U(I)=DJ-V(J)
+            H=H+DJ
+         END DO
+   
+      END SUBROUTINE JOVOSAP
 
 END MODULE QCIPERMDIST 
