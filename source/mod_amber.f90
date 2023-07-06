@@ -133,8 +133,10 @@ MODULE AMBER_CONSTRAINTS
          NBACKBONE = NDUMMY
          ALLOCATE(BACKBONE(NBACKBONE))
          BACKBONE(1:NBACKBONE) = DUMMY_BB(1:NBACKBONE)
-
       END SUBROUTINE GET_BACKBONE
+
+
+
 
       ! allocate amber constraints array
       SUBROUTINE ALLOC_AMBER_CONSTR()
@@ -175,7 +177,7 @@ MODULE AMBER_CONSTRAINTS
          INTEGER, PARAMETER :: NENT_NANGA = 10 ! entries per line in the topology
          INTEGER, PARAMETER :: NPERENT_BOND = 3 ! integers per bond entry
          INTEGER, PARAMETER :: NPERENT_ANG = 4 ! integers per angle entry 
-
+         CHARACTER(4) :: NAMES_CURR(20)
 
          !check topology exists
          INQUIRE(FILE=TOPFILENAME, EXIST=YESNO)
@@ -219,7 +221,8 @@ MODULE AMBER_CONSTRAINTS
                LINECOUNTER = LINECOUNTER + 1
                CALL READ_LINE(ENTRY,NWORDS,ENTRIES)
                READ(ENTRIES(2),'(I8)') NRES
-               ALLOCATE(RESNAMES(NRES))
+               ALLOCATE(RESNAMES(NRES),RES_START(NRES),RES_END(NRES),RESTYPE(NRES))
+               RESTYPE(1:NRES) = 0
                ALLOCATE(AMBER_NAMES(NATOMS))
             END IF
             
@@ -227,13 +230,16 @@ MODULE AMBER_CONSTRAINTS
                !ignore format identifier after flag
                READ(TOPUNIT,*)                             
                LINECOUNTER = LINECOUNTER + 1
-               CALL GET_NLINES(NATOMS, 1, 20, NLINES)
+               NLINES = NATOMS/20
+               IF (NATOMS.GT.NLINES*20) NLINES=NLINES+1
+               NDUMMY = 1
                DO J1=1,NLINES
-                  READ(TOPUNIT,'(A)') ENTRY
+                  READ(TOPUNIT,'(20 A4)') NAMES_CURR
                   LINECOUNTER = LINECOUNTER + 1
                   DO J2=1,20
-                     IF (((J1-1)*20+J2).GT.NATOMS) EXIT
-                     AMBER_NAMES((J1-1)*20+J2)(1:4) = ENTRY(4*(J2-1)+1:4*J2)
+                     AMBER_NAMES(NDUMMY)= NAMES_CURR(J4)
+                     NDUMMY=NDUMMY+1
+                     IF(NDUMMY.GT.NATOMS) EXIT
                   END DO
                END DO
             END IF
@@ -242,13 +248,16 @@ MODULE AMBER_CONSTRAINTS
                !ignore format identifier after flag
                READ(TOPUNIT,*)                             
                LINECOUNTER = LINECOUNTER + 1
-               CALL GET_NLINES(NATOMS, 1, 20, NLINES)
+               NLINES = NRES/20
+               IF (NRES.GT.NLINES*20) NLINES=NLINES+1
+               NDUMMY=1
                DO J1=1,NLINES
-                  READ(TOPUNIT,'(A)') ENTRY
+                  READ(TOPUNIT,'(20 A4)') NAMES_CURR
                   LINECOUNTER = LINECOUNTER + 1
                   DO J2=1,20
-                     IF (((J1-1)*20+J2).GT.NRES) EXIT
-                     RESNAMES((J1-1)*20+J2)(1:4) = ENTRY(4*(J2-1)+1:4*J2)
+                     RESNAMES(NDUMMY) = NAMES_CURR(J4)
+                     NDUMMY = NDUMMY+1
+                     IF(NDUMMY.GT.NRES) EXIT
                   END DO
                END DO
             END IF
@@ -257,33 +266,42 @@ MODULE AMBER_CONSTRAINTS
                !ignore format identifier after flag
                READ(TOPUNIT,*)                             
                LINECOUNTER = LINECOUNTER + 1
-               CALL GET_NLINES(NATOMS, 1, 10, NLINES)
-               DO J1=1,NLINES
+               NLINES=NRES/10   
+               IF(NRES.GT.NLINES*10) NLINES=NLINES+1 
+               NDUMMY=1
+               DO J1=1,LINES !go through all lines  
                   READ(TOPUNIT,'(A)') ENTRY
                   LINECOUNTER = LINECOUNTER + 1
-                  DO J2=1,20
-                     IF (((J1-1)*10+J2).GT.NRES) EXIT
-                     READ(ENTRIES(J2),'(I8)') RESFINAL(J1-1)*20+J2)
-                  END DO
-               END DO
-            END IF
-            RESIDUE_POINTER
+                  CALL READ_LINE(ENTRY,NWORDS,ENTRIES) 
+                  J2=1
+                  DO WHILE(J2.LE.10)
+                     READ(ENTRIES(J2),'(I8)') INTDUM
+                     RES_START(NDUMMY) = INTDUM
+                     IF (NDUMMY.GT.1) RES_END(NDUMMY-1) = INTDUM - 1 
+                     J2=J2+1
+                     NDUMMY = NDUMMY+1               
+                     IF(NDUMMY.GT.NRES) EXIT
+                  ENDDO
+                  RES_END(NDUMMY-1) = NATOMS
+               ENDDO
+            ENDIF
 
             IF (ENTRIES(2).EQ. 'BONDS_INC_HYDROGEN') THEN
                READ(TOPUNIT,*)                             !ignore format identifier after flag
                LINECOUNTER = LINECOUNTER + 1
-               CALL GET_NLINES(NBONDH, NPERENT_BOND, NENT_NBONDH, NLINES)
-               ALLOCATE(INDICES(NENT_NBONDH*NLINES))
+               NLINES=(3*NBONDH)/10
+               IF (NLINES*10.LT.NBONDH*3) NLINES=NLINES+1
+               ALLOCATE(INDICES(10*NLINES))
                DO J1=1,NLINES
                   READ(TOPUNIT,*) ENTRY
                   LINECOUNTER = LINECOUNTER + 1
                   CALL READ_LINE(ENTRY,NWORDS,ENTRIES)
-                  DO J2=1,NENT_NBONDH
-                     READ(ENTRIES(J2), '(I8)') INDICES((J1-1)*NENT_BONDH+J2) 
+                  DO J2=1,10
+                     READ(ENTRIES(J2), '(I8)') INDICES((J1-1)*10+J2) 
                   END DO
                END DO
                DO J1=1,NBONDH
-                  IDX = (J1-1)*NPERENT_BOND
+                  IDX = (J1-1)*3
                   BONDS(IDX,1) = INDICES(IDX+1)/3+1
                   BONDS(IDX,2) = INDICES(IDX+2)/3+1
                END DO
@@ -293,18 +311,19 @@ MODULE AMBER_CONSTRAINTS
             IF (ENTRIES(2).EQ. 'BONDS_WITHOUT_HYDROGEN') THEN
                READ(TOPUNIT,*)                             !ignore format identifier after flag
                LINECOUNTER = LINECOUNTER + 1
-               CALL GET_NLINES(NBONDA, NPERENT_BOND, NENT_NBONDA, NLINES)
-               ALLOCATE(INDICES(NENT_NBONDA*NLINES))
+               NLINES=(3*NBONDA)/10
+               IF (NLINES*10.LT.NBONDA*3) NLINES=NLINES+1
+               ALLOCATE(INDICES(10*NLINES))
                DO J1=1,NLINES
                   READ(TOPUNIT,*) ENTRY
                   LINECOUNTER = LINECOUNTER + 1
                   CALL READ_LINE(ENTRY,NWORDS,ENTRIES)
                   DO J2=1,NENT_NBONDA
-                     READ(ENTRIES(J2), '(I8)') INDICES((J1-1)*NENT_BONDA+J2) 
+                     READ(ENTRIES(J2), '(I8)') INDICES((J1-1)*10+J2) 
                   END DO
                END DO
                DO J1=1,NBONDA
-                  IDX = (J1-1)*NPERENT_BOND
+                  IDX = (J1-1)*3
                   BONDS(NBONDH+IDX,1) = INDICES(IDX+1)/3+1
                   BONDS(NBONDH+IDX,2) = INDICES(IDX+2)/3+1
                END DO
@@ -314,18 +333,19 @@ MODULE AMBER_CONSTRAINTS
             IF (ENTRIES(2).EQ. 'ANGLES_INC_HYDROGEN') THEN
                READ(TOPUNIT,*)                             !ignore format identifier after flag
                LINECOUNTER = LINECOUNTER + 1
-               CALL GET_NLINES(NANGH, NPERENT_ANG, NENT_NANGH, NLINES)
-               ALLOCATE(INDICES(NENT_NANGH*NLINES))
+               NLINES=(3*NANGH)/10
+               IF (NLINES*10.LT.NANGH*3) NLINES=NLINES+1
+               ALLOCATE(INDICES(10*NLINES))
                DO J1=1,NLINES
                   READ(TOPUNIT,*) ENTRY
                   LINECOUNTER = LINECOUNTER + 1
                   CALL READ_LINE(ENTRY,NWORDS,ENTRIES)
-                  DO J2=1,NENT_NANGH
-                     READ(ENTRIES(J2), '(I8)') INDICES((J1-1)*NENT_ANGH+J2) 
+                  DO J2=1,10
+                     READ(ENTRIES(J2), '(I8)') INDICES((J1-1)*10+J2) 
                   END DO
                END DO
                DO J1=1,NANGH
-                  IDX = (J1-1)*NPERENT_ANG
+                  IDX = (J1-1)*3
                   ANGLES(IDX,1) = INDICES(IDX+1)/3+1 ! atom i 
                   ANGLES(IDX,2) = INDICES(IDX+3)/3+1 ! atom k
                END DO
@@ -335,18 +355,19 @@ MODULE AMBER_CONSTRAINTS
             IF (ENTRIES(2).EQ. 'ANGLES_WITHOUT_HYDROGEN') THEN
                READ(TOPUNIT,*)                             !ignore format identifier after flag
                LINECOUNTER = LINECOUNTER + 1
-               CALL GET_NLINES(NANGA, NPERENT_ANG, NENT_NANGA, NLINES)
-               ALLOCATE(INDICES(NENT_NANGA*NLINES))
+               NLINES=(3*NANGH)/10
+               IF (NLINES*10.LT.NANGA*3) NLINES=NLINES+1
+               ALLOCATE(INDICES(10*NLINES))
                DO J1=1,NLINES
                   READ(TOPUNIT,*) ENTRY
                   LINECOUNTER = LINECOUNTER + 1
                   CALL READ_LINE(ENTRY,NWORDS,ENTRIES)
-                  DO J2=1,NENT_NANGA
-                     READ(ENTRIES(J2), '(I8)') INDICES((J1-1)*NENT_ANGA+J2) 
+                  DO J2=1,10
+                     READ(ENTRIES(J2), '(I8)') INDICES((J1-1)*10+J2) 
                   END DO
                END DO
                DO J1=1,NANGA
-                  IDX = (J1-1)*NPERENT_ANG
+                  IDX = (J1-1)*3
                   ANGLES(NANGH+IDX,1) = INDICES(IDX+1)/3+1 ! atom i 
                   ANGLES(NANGH+IDX,2) = INDICES(IDX+3)/3+1 ! atom k
                END DO
@@ -355,19 +376,81 @@ MODULE AMBER_CONSTRAINTS
 
          END DO
          CLOSE(TOPUNIT)
-
+         DO J1=1,NRES
+            CALL CHECK_RES(J1,AAT,DNAT,RNAT)
+            IF (AAT) THEN
+               RESTYPE(J1) = 1
+            ELSE IF (DNAT) THEN
+               RESTYPE(J1) = 2
+            ELSE IF (RNAT) THEN
+               RESTYPE(J1) = 3
+            ENDIF
+         ENDDO
       END SUBROUTINE PARSE_TOPOLOGY
 
-      SUBROUTINE GET_NLINES(NENTRIES, PERENTRY, ENTRIESPERLINE, NLINES)
-         INTEGER, INTENT(IN) :: NENTRIES ! total entries (for example number of bonds)
-         INTEGER, INTENT(IN) :: PERENTRY ! number of data for each entry (for example bonds have 3 integers - atom i and j and type)
-         INTEGER, INTENT(IN) :: ENTRIESPERLINE ! entries per line (fixed by format identifiers)
-         INTEGER, INTENT(OUT) :: NLINES ! number of lines
-         INTEGER :: MODVAL
+        ! check if residue is an amino acid - brute force ...
+      SUBROUTINE CHECK_RES(RESID,AAT,DNAT,RNAT)
+         IMPLICIT NONE
+         INTEGER, INTENT(IN) :: RESID
+         LOGICAL, INTENT(OUT) :: AAT, DNAT, RNAT
+         CHARACTER(4) :: DNAME
+         LOGICAL :: TERTEST
+         
+         DNAME = ADJUSTL(TRIM(RESNAMES(RESID)))
+         AAT = .FALSE.
+         RNAT = .FALSE.
+         DNAT = .FALSE.
+         TERTEST = .FALSE.
+60       CONTINUE
+         IF ((DNAME.EQ."ALA").OR.(DNAME.EQ."ARG").OR.(DNAME.EQ."ASH").OR.  &
+            (DNAME.EQ."ASN").OR.(DNAME.EQ."ASP").OR.(DNAME.EQ."CYM").OR.  &
+            (DNAME.EQ."CYS").OR.(DNAME.EQ."CYX").OR.(DNAME.EQ."GLH").OR.  &
+            (DNAME.EQ."GLN").OR.(DNAME.EQ."GLU").OR.(DNAME.EQ."GLY").OR.  &
+            (DNAME.EQ."HID").OR.(DNAME.EQ."HIE").OR.(DNAME.EQ."HIP").OR.  &
+            (DNAME.EQ."HYP").OR.(DNAME.EQ."ILE").OR.(DNAME.EQ."LEU").OR.  &
+            (DNAME.EQ."LYN").OR.(DNAME.EQ."LYS").OR.(DNAME.EQ."MET").OR.  &
+            (DNAME.EQ."PHE").OR.(DNAME.EQ."PRO").OR.(DNAME.EQ."SER").OR.  &
+            (DNAME.EQ."THR").OR.(DNAME.EQ."TRP").OR.(DNAME.EQ."TYR").OR.  &
+            (DNAME.EQ."VAL")) THEN
+            AAT = .TRUE.
+         ELSE IF ((DNAME.EQ."A").OR.(DNAME.EQ."A3").OR.(DNAME.EQ."A5").OR.(DNAME.EQ."AN").OR.  &
+                  (DNAME.EQ."C").OR.(DNAME.EQ."C3").OR.(DNAME.EQ."C5").OR.(DNAME.EQ."CN").OR.  &
+                  (DNAME.EQ."G").OR.(DNAME.EQ."G3").OR.(DNAME.EQ."G5").OR.(DNAME.EQ."GN").OR.  &
+                  (DNAME.EQ."U").OR.(DNAME.EQ."U3").OR.(DNAME.EQ."U5").OR.(DNAME.EQ."UN")) THEN
+            RNAT = .TRUE.
+         ELSE IF ((DNAME.EQ."DA").OR.(DNAME.EQ."DA3").OR.(DNAME.EQ."DA5").OR.(DNAME.EQ."DAN").OR.  &
+                  (DNAME.EQ."DC").OR.(DNAME.EQ."DC3").OR.(DNAME.EQ."DC5").OR.(DNAME.EQ."DCN").OR.  &
+                  (DNAME.EQ."DG").OR.(DNAME.EQ."DG3").OR.(DNAME.EQ."DG5").OR.(DNAME.EQ."DGN").OR.  &
+                  (DNAME.EQ."DT").OR.(DNAME.EQ."DT3").OR.(DNAME.EQ."DT5").OR.(DNAME.EQ."DTN")) THEN
+            DNAT = .TRUE.
+         ENDIF
+         !make sure it is not a terminal residue (we technically should never encounter one)
+         IF (((.NOT.AAT).AND.(.NOT.TERTEST)).AND.((DNAME(1:1).EQ."N").OR.(DNAME(1:1).EQ."C"))) THEN
+            TERTEST=.TRUE.
+            DNAME = DNAME(2:4)
+            GOTO 60
+         ENDIF
+      END SUBROUTINE CHECK_RES
 
-         MODVAL = MOD(NENTRIES*PERENTRY,ENTRIESPERLINE)
-         NLINES = (NENTRIES*PERENTRY-MODVAL)/ENTRIESPERLINE
-         IF (MODVAL.NE.0) NLINES = NLINES + 1
-      END SUBROUTINE GET_NLINES
+      !get atom id from name for given residue
+      !returns 0 if atom does not exist in residue
+      SUBROUTINE GET_ATOMID(ATNAME,RESID,ATOMID)
+         IMPLICIT NONE
+         INTEGER, INTENT(IN) :: RESID
+         CHARACTER(*), INTENT(IN) :: ATNAME
+         INTEGER, INTENT(OUT) :: ATOMID
+         INTEGER :: FIRST, LAST, J1
+         
+         ATOMID = 0
+         FIRST=RES_START(RESID)
+         LAST=RES_END(RESID)
+         DO J1=FIRST,LAST
+            IF (ADJUSTL(TRIM(ATNAMES(J1))).EQ.ADJUSTL(TRIM(ATNAME))) THEN
+               ATOMID = J1
+               EXIT
+            ENDIF
+         ENDDO
+         RETURN
+      END SUBROUTINE GET_ATOMID
 
 END MODULE AMBER_CONSTRAINTS
