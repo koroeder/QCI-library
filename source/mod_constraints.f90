@@ -75,6 +75,34 @@ MODULE QCICONSTRAINTS
 
       END SUBROUTINE CREATE_CONSTRAINTS
 
+      SUBROUTINE GET_GEOMCONSTRAINTS()
+         USE CONGEOM
+         IMPLICIT NONE
+         LOGICAL :: PERCT
+         INTEGER :: COUNTER
+         REAL(KIND = REAL64), PARAMETER :: TOLMOD = 1.1
+         INTEGER, PARAMETER :: MAXCYCLES = 5
+
+         CALL READ_GEOMS()
+         PERCT = .FALSE.
+         COUNTER = 0
+         DO WHILE (.NOT.PERCT)
+            COUNTER = COUNTER + 1
+            IF (COUNTER.GT.MAXCYCLES) THEN
+               WRITE(*,*) " get_geomconstraints> Canot not find a percolating network - STOP"
+               STOP
+            END IF
+            IF (USEENDPOINTS) THEN
+               CALL CREATE_FROM_ENDPOINTS()
+            ELSE
+               CALL CREATE_FROM_GEOMETRIES(TOLMOD**(COUNTER-1))
+            END IF
+            CALL CHECK_PERCOLATION(NATOMS, PERCT)
+         END DO
+
+      END SUBROUTINE GET_GEOMCONSTRAINTS
+
+
       SUBROUTINE ALLOC_CONSTR()
          CALL DEALLOC_CONSTR()
          ALLOCATE(CONI(NCONSTRAINT))
