@@ -7,42 +7,88 @@ MODULE QCICONSTRAINTS
    REAL(KIND = REAL64), ALLOCATABLE :: CONCUT(:)
 
    CONTAINS
-      ! create constraints
+
+      ! create constraints and check them
       SUBROUTINE CREATE_CONSTRAINTS()
-         !call the routines that get us the constraints:
-         ! AMBER | HiRE | SMB | endpoints | constraintlist | geometries
+         USE QCIKEYS, ONLY: NATOMS
+         USE SBM_CONSTRAINTS, ONLY: SBMMODEL_QCI_CONSTRAINTS, DEALLOC_SBM_CONST, SBM_NCONST, &
+                                    SBM_CONI, SBM_CONJ, SBM_CONDISTREF, SBM_CONCUT
+         USE AMBER_CONSTRAINTS, ONLY: AMBER_QCI_CONSTRAINTS, DEALLOC_AMBER_CONSTR, GET_BACKBONE, AMBER_NCONST, &
+                                      AMBER_CONI, AMBER_CONJ, AMBER_CONDISTREF, AMBER_CONCUT
+         USE HIRE_CONSTRAINTS, ONLY: HIRE_QCI_CONSTRAINTS, DEALLOC_HIRE_CONSTR, GET_BACKBONE_HIRE, HIRE_NCONST, &
+                                     HIRE_CONI, HIRE_CONJ, HIRE_CONDISTREF, HIRE_CONCUT
+         IMPLICIT NONE
+         LOGICAL :: PERCT
 
-         ! clean constraint list - remove all duplicates
-
+         !call the routines that get us the constraints
+         IF (QCIAMBERT) THEN
+            CALL AMBER_QCI_CONSTRAINTS()
+            IF (QCIBBT) THEN
+               CALL GET_BACKBONE(NATOMS)
+            END IF
+            NCONSTRAINT = AMBER_NCONST
+            CALL ALLOC_CONSTR()
+            CONI(1:NCONSTRAINT) = AMBER_CONI(1:AMBER_NCONST)
+            CONJ(1:NCONSTRAINT) = AMBER_CONJ(1:AMBER_NCONST)
+            CONDISTREF(1:NCONSTRAINT) = AMBER_CONDISTREF(1:AMBER_NCONST)
+            CONCUT(1:NCONSTRAINT) = AMBER_CONCUT(1:AMBER_NCONST)
+            CALL DEALLOC_AMBER_CONSTR
+         ELSE IF (QCIHIRET) THEN
+            CALL HIRE_QCI_CONSTRAINTS()
+            IF (QCIBBT) THEN
+               CALL GET_BACKBONE_HIRE(NATOMS)
+            END IF
+            NCONSTRAINT = HIRE_NCONST
+            CALL ALLOC_CONSTR()
+            CONI(1:NCONSTRAINT) = HIRE_CONI(1:HIRE_NCONST)
+            CONJ(1:NCONSTRAINT) = HIRE_CONJ(1:HIRE_NCONST)
+            CONDISTREF(1:NCONSTRAINT) = HIRE_CONDISTREF(1:HIRE_NCONST)
+            CONCUT(1:NCONSTRAINT) = HIRE_CONCUT(1:HIRE_NCONST)
+            CALL DEALLOC_HIRE_CONSTR
+         ELSE IF (QCISBMT) THEN
+            CALL SBMMODEL_QCI_CONSTRAINTS()
+            NCONSTRAINT = SBM_NCONST
+            CALL ALLOC_CONSTR()
+            CONI(1:NCONSTRAINT) = SBM_CONI(1:SBM_NCONST)
+            CONJ(1:NCONSTRAINT) = SBM_CONJ(1:SBM_NCONST)
+            CONDISTREF(1:NCONSTRAINT) = SBM_CONDISTREF(1:SBM_NCONST)
+            CONCUT(1:NCONSTRAINT) = SBM_CONCUT(1:SBM_NCONST)
+            CALL DEALLOC_HIRE_CONSTR
+         ELSE
+            ! geometries and endpoints
+            ! additional constraints?
+            ! this is handled within AMBER, HIRE and SBM directly
+         END IF
+         
          ! check percolation 
-
+         CALL CHECK_DUPLICATES()
+         CALL CHECK_PERCOLATION(NATOMS, PERCT)
+         IF (.NOT.PERCT) THEN
+            IF (QCIAMBERT.OR.QCIHIRET.OR.QCISBMT) THEN
+               WRITE(*,*) " create_con> Constraints are not including all atoms - STOP"
+               STOP
+            ELSE
+               
+            END IF
+         END IF
          ! deal with freezing
 
       END SUBROUTINE CREATE_CONSTRAINTS
 
-      ! from HiRE
-      SUBROUTINE HIRE_QCI_CONSTRAINTS()
+      SUBROUTINE ALLOC_CONSTR()
+         CALL DEALLOC_CONSTR()
+         ALLOCATE(CONI(NCONSTRAINT))
+         ALLOCATE(CONJ(NCONSTRAINT))
+         ALLOCATE(CONDISTREF(NCONSTRAINT))
+         ALLOCATE(CONCUT(NCONSTRAINT))         
+      END SUBROUTINE ALLOC_CONSTR
 
-      END SUBROUTINE HIRE_QCI_CONSTRAINTS
-
-
-
-
-
-      ! create constraints from endpoints
-      SUBROUTINE CREATE_FROM_ENDPOINTS()
-
-      END SUBROUTINE CREATE_FROM_ENDPOINTS
-
-      ! create constraints from input geometries
-      SUBROUTINE CREATE_FROM_GEOMETRIES()
-
-      END SUBROUTINE CREATE_FROM_GEOMETRIES
-      
-      ! add constraints list
-      SUBROUTINE ADD_CONSTRAINT_LIST()
-
-      END SUBROUTINE ADD_CONSTRAINT_LIST
+      SUBROUTINE DEALLOC_CONSTR()
+         IF (ALLOCATED(CONI(NCONSTRAINT))) DEALLOCATE(CONI)
+         IF (ALLOCATED(CONJ(NCONSTRAINT))) DEALLOCATE(CONJ)
+         IF (ALLOCATED(CONDISTREF(NCONSTRAINT))) DEALLOCATE(CONDISTREF)
+         IF (ALLOCATED(CONCUT(NCONSTRAINT))) DEALLOCATE(CONCUT)
+      END SUBROUTINE DEALLOC_CONSTR    
 
       SUBROUTINE CHECK_DUPLICATES()
          IMPLICIT NONE
