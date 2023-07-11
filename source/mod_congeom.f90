@@ -5,6 +5,10 @@ MODULE CONGEOM
    REAL(KIND = REAL64), ALLOCATABLE :: GEOMCONDISTREF(:), GEOMCONCUT(:)
    LOGICAL :: USEENDPOINTST
 
+   INTEGER :: NADDCONSTR
+   INTEGER, ALLOCATABLE :: FILE_CONI(:), FILE_CONJ(:)
+   REAL(KIND = REAL64), ALLOCATABLE :: FILE_CONDISTREF(:), FILE_CONCUT(:)
+
    CONTAINS
 
       ! allocate arrays
@@ -67,8 +71,54 @@ MODULE CONGEOM
       END SUBROUTINE READ_GEOMS
 
       ! create constraints from endpoints
-      SUBROUTINE CREATE_FROM_ENDPOINTS()
+      SUBROUTINE CREATE_FROM_ENDPOINTS(MODIFYTOL)
+         USE QCIKEYS, ONLY: QCICONSEP, QCICONSTRAINTTOL, NATOMS, NCONGEOM, XSTART, XFINAL
+         USE QCIPREC
+         USE HELPER_FNCTS, ONLY: DISTANCE_TWOATOMS
+         IMPLICIT NONE
+         REAL(KIND = REAL64), INTENT(IN) :: MODIFYTOL
+         INTEGER :: J1, J2, J3, MAXCOUNT
+         REAL(KIND = REAL64) :: DS, DF
+         LOGICAL :: ACCEPTCONST
+         INTEGER :: NDUMMY
+         INTEGER :: DCONI(2*QCICONSEP*NATOMS), DCONJ(2*QCICONSEP*NATOMS)
+         REAL(KIND = REAL64) :: DCONDISTREF(2*QCICONSEP*NATOMS), DCONCUT(2*QCICONSEP*NATOMS)
+         REAL(KIND = REAL64) :: LOCALTOL
 
+         LOCALTOL = MODIFYTOL * QCICONSTRAINTTOL
+         DO J1=1,NATOMS-1
+            MAXCOUNT = MIN(J1+QCICONSEP,NATOMS)
+            DO J2=J1+1,MAXCOUNT
+               ACCEPTCONST = .TRUE.
+               DO J3=1,NCONGEOM
+                  CALL DISTANCE_TWOATOMS(NATOMS, XSTART, J1, J2, DS)
+                  CALL DISTANCE_TWOATOMS(NATOMS, XFINAL, J1, J2, DF)
+                  ! if the distance is too big in any image, do not use this as constraint
+                  IF ((DS.GT.QCICONCUT).OR.(DF.GT.QCICONCUT)) THEN
+                     ACCEPTCONST = .FALSE.
+                     EXIT
+                  END IF 
+                  ! we do not want the variance between geometries to be too big
+                  IF (ABS(DF-DS).GT.LOCALTOL) THEN
+                     ACCEPTCONST = .FALSE.
+                     EXIT
+                  END IF
+               END DO
+               IF (ACCEPTCONST) THEN
+                  NDUMMY = NDUMMY + 1
+                  DCONI(NDUMMY)=J2
+                  DCONJ(NDUMMY)=J3
+                  DCONDISTREF(NDUMMY)=(DF+DS)/2.0D0 
+                  DCONCUT(NDUMMY)=ABS(DF-DS)/2.0D0
+               END IF
+            END DO
+         END DO
+         NGEOMCONST = NDUMMY
+         CALL ALLOC_CONGEOM()
+         GEOMCONI(1:NGEOMCONST) = DCONI(1:NGEOMCONST)
+         GEOMCONJ(1:NGEOMCONST) = DCONJ(1:NGEOMCONST)
+         GEOMCONDISTREF(1:NGEOMCONST) = DCONDISTREF(1:NGEOMCONST)
+         GEOMCONCUT(1:NGEOMCONST) = DCONCUT(1:NGEOMCONST)           
       END SUBROUTINE CREATE_FROM_ENDPOINTS
 
       ! create constraints from input geometries
@@ -128,6 +178,59 @@ MODULE CONGEOM
     
       ! add constraints list
       SUBROUTINE ADD_CONSTRAINT_LIST()
+         USE QCIKEYS, ONLY: NATOMS, CONSTRFILE
+         USE QCIFILEHANDLER, ONLY: FILE_LENGTH, GETUNIT
+         USE HELPER_FNCTS, ONLY: DISTANCE_TWOATOMS
+         USE QCIPREC
+         IMPLICIT NONE
+         REAL(KIND = REAL64) :: DS, DF
+         LOGICAL :: YESNO
+         INTEGER :: CONUNIT, NDUMMY, J1, IDX1, IDX2
 
+         INQUIRE(FILE=CONSTRFILE, EXIST=YESNO)
+         IF (YESNO) THEN
+            NADDCONSTR = FILE_LENGTH(CONSTRFILE)
+         ELSE
+            NADDCONSTR = 0
+            RETURN
+         END IF
+         CALL ALLOC_ADDCONST()
+         ! now add additional constraints from file provided
+         IF (YESNO) THEN
+            CONUNIT = GETUNIT()
+            OPEN(CONUNIT,FILE=CONSTRFILE,STATUS='OLD')
+            NDUMMY = 0
+            DO J1=1,NADDCONSTR
+               READ(CONUNIT,*) IDX1, IDX2
+               NDUMMY = NDUMMY + 1
+               CALL DISTANCE_TWOATOMS(NATOMS, XSTART, IDX1, IDX2, DS)
+               CALL DISTANCE_TWOATOMS(NATOMS, XFINAL, IDX1, IDX2, DF) 
+               IF (IDX1.LT.IDX2) THEN
+                  FILE_CONI(NDUMMY) = IDX1
+                  FILE_CONJ(NDUMMY) = IDX2
+               ELSE
+                  FILE_CONI(NDUMMY) = IDX2
+                  FILE_CONJ(NDUMMY) = IDX1
+               END IF
+               FILE_CONDISTREF(NDUMMY) = (DF+DS)/2.0D0
+               FILE_CONCUT(NDUMMY) = ABS(DF-DS)/2.0D0                             
+            END DO
+            CLOSE(CONUNIT)
+         END IF
       END SUBROUTINE ADD_CONSTRAINT_LIST
+
+      SUBROUTINE ALLOC_ADDCONST()
+         CALL DEALLOC_ADDCONST()
+         ALLOCATE(FILE_CONI(NADDCONSTR))
+         ALLOCATE(FILE_CONJ(NADDCONSTR))
+         ALLOCATE(FILE_CONDISTREF(NADDCONSTR))
+         ALLOCATE(FILE_CONCUT(NADDCONSTR))
+      END SUBROUTINE ALLOC_ADDCONST
+
+      SUBROUTINE DEALLOC_ADDCONST()
+         IF (ALLOCATED(FILE_CONI)) DEALLOCATE(FILE_CONI)
+         IF (ALLOCATED(FILE_CONJ)) DEALLOCATE(FILE_CONJ)
+         IF (ALLOCATED(FILE_CONDISTREF)) DEALLOCATE(FILE_CONDISTREF)
+         IF (ALLOCATED(FILE_CONCUT)) DEALLOCATE(FILE_CONCUT)  
+      END SUBROUTINE DEALLOC_ADDCONST
 END MODULE CONGEOM
