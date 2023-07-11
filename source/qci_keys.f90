@@ -16,7 +16,7 @@ MODULE QCIKEYS
    CHARACTER(LEN=30) :: GEOMFILE = "congeom.dat"
    INTEGER :: NCONGEOM = 0
    REAL(KIND=REAL64), ALLOCATABLE :: CONGEOM(:,:) 
-
+   CHARACTER(LEN=30) :: CONSTRFILE = "constraintfile"
 
    !permutational stuff
    INTEGER :: QCIPERMCHECKINT = 100

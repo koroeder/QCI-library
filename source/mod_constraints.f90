@@ -55,24 +55,18 @@ MODULE QCICONSTRAINTS
             CONCUT(1:NCONSTRAINT) = SBM_CONCUT(1:SBM_NCONST)
             CALL DEALLOC_HIRE_CONSTR
          ELSE
-            ! geometries and endpoints
-            ! additional constraints?
-            ! this is handled within AMBER, HIRE and SBM directly
+            ! geometries and endpoints and potential additional constraints
+            CALL GET_GEOMCONSTRAINTS()
          END IF
+         ! TODO: deal with freezing
          
          ! check percolation 
          CALL CHECK_DUPLICATES()
          CALL CHECK_PERCOLATION(NATOMS, PERCT)
          IF (.NOT.PERCT) THEN
-            IF (QCIAMBERT.OR.QCIHIRET.OR.QCISBMT) THEN
-               WRITE(*,*) " create_con> Constraints are not including all atoms - STOP"
-               STOP
-            ELSE
-               
-            END IF
+            WRITE(*,*) " create_con> Constraints are not including all atoms - STOP"
+            STOP
          END IF
-         ! deal with freezing
-
       END SUBROUTINE CREATE_CONSTRAINTS
 
       SUBROUTINE GET_GEOMCONSTRAINTS()
@@ -86,6 +80,7 @@ MODULE QCICONSTRAINTS
          CALL READ_GEOMS()
          PERCT = .FALSE.
          COUNTER = 0
+         READADDLIST = .FALSE.
          DO WHILE (.NOT.PERCT)
             COUNTER = COUNTER + 1
             IF (COUNTER.GT.MAXCYCLES) THEN
@@ -93,13 +88,30 @@ MODULE QCICONSTRAINTS
                STOP
             END IF
             IF (USEENDPOINTS) THEN
-               CALL CREATE_FROM_ENDPOINTS()
+               CALL CREATE_FROM_ENDPOINTS(TOLMOD**(COUNTER-1))
             ELSE
                CALL CREATE_FROM_GEOMETRIES(TOLMOD**(COUNTER-1))
             END IF
+            IF (.NOT.READADDLIST) THEN
+               CALL ADD_CONSTRAINT_LIST()
+               READADDLIST = .TRUE.
+            END IF
+            NCONSTRAINT = NGEOMCONST + NADDCONSTR
+            CALL ALLOC_CONSTR()
+            CONI(1:NGEOMCONST) = GEOMCONI(1:NGEOMCONST)
+            CONJ(1:NGEOMCONST) = GEOMCONJ(1:NGEOMCONST)
+            CONCUT(1:NGEOMCONST) = GEOMCONCUT(1:NGEOMCONST)
+            CONDISTREF(1:NGEOMCONST) = GEOMCONDISTREF(1:NGEOMCONST)
+            IF (NADDCONSTR.GT.0) THEN
+               CONI((NGEOMCONST+1):(NGEOMCONST+NADDCONSTR)) = FILE_CONI(1:NADDCONSTR)
+               CONJ((NGEOMCONST+1):(NGEOMCONST+NADDCONSTR)) = FILE_CONJ(1:NADDCONSTR)
+               CONDISTREF((NGEOMCONST+1):(NGEOMCONST+NADDCONSTR)) = FILE_CONDISTREF(1:NADDCONSTR)
+               CONCUT((NGEOMCONST+1):(NGEOMCONST+NADDCONSTR)) = FILE_CONCUT(1:NADDCONSTR)
+            END IF
             CALL CHECK_PERCOLATION(NATOMS, PERCT)
          END DO
-
+         CALL DEALLOC_CONGEOM()
+         CALL DEALLOC_ADDCONST()
       END SUBROUTINE GET_GEOMCONSTRAINTS
 
 
