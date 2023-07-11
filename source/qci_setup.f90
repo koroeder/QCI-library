@@ -1,5 +1,14 @@
 MODULE QCISETUP
 
-    
+   CONTAINS
+      SUBROUTINE QCI_INIT()
+         USE QCICONSTRAINTS, ONLY: CREATE_CONSTRAINTS
+         USE MOD_FREEZE, ONLY: GET_FROZEN_ATOMS
+
+         ! get frozen atoms setup
+         CALL GET_FROZEN_ATOMS()
+         ! get constraints
+         CALL CREATE_CONSTRAINTS()
+      END SUBROUTINE QCI_INIT
 
 END MODULE QCISETUP

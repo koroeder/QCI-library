@@ -58,8 +58,7 @@ MODULE QCICONSTRAINTS
             ! geometries and endpoints and potential additional constraints
             CALL GET_GEOMCONSTRAINTS()
          END IF
-         ! TODO: deal with freezing
-         
+        
          ! check percolation 
          CALL CHECK_DUPLICATES()
          CALL CHECK_PERCOLATION(NATOMS, PERCT)
@@ -195,6 +194,7 @@ MODULE QCICONSTRAINTS
       END SUBROUTINE CHECK_DUPLICATES
 
       SUBROUTINE CHECK_PERCOLATION(NATOMS, PERCT)
+         USE QCIKEYS, ONLY: NQCIFROZEN, QCIFROZEN
          IMPLICIT NONE
          INTEGER, INTENT(IN) :: NATOMS
          LOGICAL, INTENT(OUT) :: PERCT
