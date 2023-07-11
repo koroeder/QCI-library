@@ -40,7 +40,7 @@ MODULE AMBER_CONSTRAINTS
          ! check for additional constraints in file
          INQUIRE(FILE=AMBERCONSTRFILE, EXIST=YESNO)
          IF (YESNO) THEN
-            NADDCONSTR = FILE_LENGTH(AMBERCONTACTFILE)
+            NADDCONSTR = FILE_LENGTH(AMBERCONSTRFILE)
          ELSE
             NADDCONSTR = 0
          END IF
