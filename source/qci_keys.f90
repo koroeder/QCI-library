@@ -6,7 +6,13 @@ MODULE QCIKEYS
 
    INTEGER :: NATOMS
 
-
+   !frozen atoms -> linear interpolation
+   INTEGER :: NCQIFROZEN ! total number of frozen atoms
+   INTEGER :: NMINUNFROZEN = 0 ! minimum number unfrozen 
+   LOGICAL, ALLOCATABLE :: QCIFROZEN(:)  ! frozen atoms in interpolation
+   LOGICAL, ALLOCATABLE :: FREEZE(:) ! input of atoms to be frozen
+   CHARACTER(LEN=30) :: FREEZEFILE = 'qci_frozen.dat' ! input file with atoms to be frozen -> used to populate FREEZE
+   REAL(KIND=REAL64) :: QCIFREEZETOL = 1.0D-3 ! distance tolerance for atoms to be frozen
 
    !constraint
    REAL(KIND=REAL64) :: QCICONSEP = 15

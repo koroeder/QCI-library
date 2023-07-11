@@ -207,12 +207,13 @@ MODULE QCICONSTRAINTS
          NINGROUP(1:NATOMS) = 0
          GROUPS(1:NATOMS,1:NATOMS) = -1
 
-         IF (NCQIFROZEN.GT.0) THEN
-            DO J1=1,NCQIFROZEN
-               IDAT = QCIFROZEN(J1)
-               CURRENTGROUP(IDAT) = 1
-               NINGROUP(1) = NINGROUP(1) + 1
-               GROUPS(1,NINGROUP(1)) = IDAT
+         IF (NQCIFROZEN.GT.0) THEN
+            DO J1=1,NATOMS
+               IF (QCIFROZEN(J1)) THEN
+                  CURRENTGROUP(J1) = 1
+                  NINGROUP(1) = NINGROUP(1) + 1
+                  GROUPS(1,NINGROUP(1)) = J1
+               END IF
             END DO
          END IF
 
