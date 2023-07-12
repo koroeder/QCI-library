@@ -7,11 +7,16 @@ MODULE QCISETUP
          IMPLICIT NONE
          CHARACTER(30), INTENT(IN) :: PARAMETERFILE
 
+         ! parse settings
          CALL PARSE_SETTINGS(PARAMETERFILE)
+         
          ! get frozen atoms setup
          CALL GET_FROZEN_ATOMS()
          ! get constraints
          CALL CREATE_CONSTRAINTS()
+         ! setting up list of repulsion
+
+         
       END SUBROUTINE QCI_INIT
 
       SUBROUTINE PARSE_SETTINGS(PARAMETERFILE)
@@ -51,7 +56,9 @@ MODULE QCISETUP
          IMPLICIT NONE
          CHARACTER(25), INTENT(IN) :: ENTRY, VAL
 
-         IF (ENTRY.EQ."NMINUNFROZEN") THEN
+         IF (ENTRY.EQ."COMMENT") THEN
+            RETURN
+         ELSE IF (ENTRY.EQ."NMINUNFROZEN") THEN
             READ(VAL, *) NMINUNFROZEN
          ELSE IF (ENTRY.EQ."FREEZEFILE") THEN
             FREEZEFILE = VAL
