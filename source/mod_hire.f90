@@ -9,7 +9,7 @@ MODULE HIRE_CONSTRAINTS
    REAL(KIND = REAL64), ALLOCATABLE :: HIRE_CONDISTREF(:)
    REAL(KIND = REAL64), ALLOCATABLE :: HIRE_CONCUT(:)
    CHARACTER(LEN=30) :: HIRECONSTRFILE = "constraintfile"
-   CHARACTER(LEN=25) :: TOPFILENAME = "coords.prmtop"
+   CHARACTER(LEN=25) :: HIRETOPFILE = "parameters.top"
    INTEGER, ALLOCATABLE :: BONDS(:,:)
    INTEGER, ALLOCATABLE :: ANGLES(:,:) 
    INTEGER :: NBOND = 0
@@ -166,14 +166,14 @@ MODULE HIRE_CONSTRAINTS
          REAL(KIND = REAL64), ALLOCATABLE :: DUMMY1R(:), DUMMY2(:), DUMMY3(:), DUMMY4(:)
 
          !check topology exists
-         INQUIRE(FILE=TOPFILENAME, EXIST=YESNO)
+         INQUIRE(FILE=HIRETOPFILE, EXIST=YESNO)
          IF (.NOT.YESNO) THEN
-            WRITE(*,*) " qci_hire_constr> Cannot locate file ", TOPFILENAME
+            WRITE(*,*) " qci_hire_constr> Cannot locate file ", HIRETOPFILE
             STOP
          END IF
          !open topology
          TOPUNIT = GETUNIT()
-         OPEN(TOPUNIT,FILE=TOPFILENAME,STATUS='OLD')
+         OPEN(TOPUNIT,FILE=HIRETOPFILE,STATUS='OLD')
       
          !First line is topology name - ignore it
          READ(TOPUNIT, *)

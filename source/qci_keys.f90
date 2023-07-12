@@ -6,6 +6,10 @@ MODULE QCIKEYS
 
    INTEGER :: NATOMS
 
+   LOGICAL :: QCIAMBERT = .FALSE.
+   LOGICAL :: QCIHIRET = .FALSE.
+   LOGICAL :: QCISBT = .FALSE.
+   
    !frozen atoms -> linear interpolation
    INTEGER :: NCQIFROZEN ! total number of frozen atoms
    INTEGER :: NMINUNFROZEN = 0 ! minimum number unfrozen 
