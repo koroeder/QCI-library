@@ -159,7 +159,7 @@ MODULE AMBER_CONSTRAINTS
          IMPLICIT NONE
         
          INTEGER :: NDUMMY, J1, OPOS1, CPOS1, CPOS2, HPOS2
-         LOGICAL :: AAT, RNAT, DNAT, CPAT, AALIST(NRES), ISTER(NRES), ISCAP(NRES)
+         LOGICAL :: AAT, RNAT, DNAT, CAPT, AALIST(NRES), ISTER(NRES), ISCAP(NRES)
          INTEGER, ALLOCATABLE :: DUMMYC(:,:)
 
 
@@ -176,8 +176,8 @@ MODULE AMBER_CONSTRAINTS
          ! this is the first round to add constraints for planarity, the sugars in NAs etc.
          DO J1=1,NRES
             !find what kind of residue we have
-            CALL CHECK_RES(J1, AAT, DNAT, RNAT)
-            IF (CPAT) THEN
+            CALL CHECK_RES(J1, AAT, DNAT, RNAT, CAPT)
+            IF (CAPT) THEN
                ISCAP(J1) = .TRUE.
                AALIST(J1) = .TRUE.
             ! for amino acids check whether this is a temrinal residue and then find specific constraints
@@ -207,7 +207,7 @@ MODULE AMBER_CONSTRAINTS
                      CALL GET_ATOMID("O",J1,OPOS1)
                      CALL GET_ATOMID("CA",J1,CPOS1)
                      CALL GET_ATOMID("H",J1+1,HPOS2)
-                     CALL GET_ATOMID("CA",J1+1,HPOS2)
+                     CALL GET_ATOMID("CA",J1+1,CPOS2)
                      ! O(i) - H(i+1)
                      IF ((OPOS1.GT.0).AND.(HPOS2.GT.0)) THEN
                         NBIOCONSTR = NBIOCONSTR + 1
