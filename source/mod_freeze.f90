@@ -27,6 +27,10 @@ MODULE MOD_FREEZE
             IF ((DIST.LT.FREEZETOL2).OR.FREEZE(J1)) THEN
                NCQIFROZEN  = NCQIFROZEN + 1
                QCIFROZEN(J1) = .TRUE.
+               ! make sure we keep all forced ones later
+               IF (FREEZE(J1)) THEN
+                  DIST = -DIST
+               END IF
             END IF
 
             DO J2=1,J1
@@ -41,8 +45,7 @@ MODULE MOD_FREEZE
                END IF
             END DO
          END DO
-
-         !check the minimum number of atoms is unfrozen
+         !check the minimum number of atoms is unfrozen 
          IF ((NATOMS-NCQIFROZEN.LT.NMINUNFROZEN)) THEN
             DO J1=NATOMS, NATOMS-NQCIFROZEN+1,-1
                QCIFROZEN(IDSORTED(J1)) = .FALSE.
