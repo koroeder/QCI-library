@@ -21,8 +21,9 @@ MODULE QCISETUP
          CALL GET_FROZEN_ATOMS()
          ! get constraints
          CALL CREATE_CONSTRAINTS()
-         ! setting up list of repulsion
+         ! setting up list of repulsion - we use a window close in sequence, where we do not set up repulsions
 
+         ! get chiral information for AMBER
          
       END SUBROUTINE QCI_INIT
 
