@@ -22,19 +22,24 @@ MODULE QCICONSTRAINTS
 
          !call the routines that get us the constraints
          IF (QCIAMBERT) THEN
-            CALL AMBER_QCI_CONSTRAINTS()
+            ! get constraints
+            CALL AMBER_QCI_CONSTRAINTS(NATOMS)
+            ! get backbone information
             IF (QCIBBT) THEN
                CALL GET_BACKBONE(NATOMS)
             END IF
+            ! set the global number of constraints
             NCONSTRAINT = AMBER_NCONST
+            ! allocate the arrays and copy the data from AMBER module
             CALL ALLOC_CONSTR()
             CONI(1:NCONSTRAINT) = AMBER_CONI(1:AMBER_NCONST)
             CONJ(1:NCONSTRAINT) = AMBER_CONJ(1:AMBER_NCONST)
             CONDISTREF(1:NCONSTRAINT) = AMBER_CONDISTREF(1:AMBER_NCONST)
             CONCUT(1:NCONSTRAINT) = AMBER_CONCUT(1:AMBER_NCONST)
+            ! deallocate information in AMBER module about constraints
             CALL DEALLOC_AMBER_CONSTR()
          ELSE IF (QCIHIRET) THEN
-            CALL HIRE_QCI_CONSTRAINTS()
+            CALL HIRE_QCI_CONSTRAINTS(NATOMS)
             IF (QCIBBT) THEN
                CALL GET_BACKBONE_HIRE(NATOMS)
             END IF
@@ -46,7 +51,7 @@ MODULE QCICONSTRAINTS
             CONCUT(1:NCONSTRAINT) = HIRE_CONCUT(1:HIRE_NCONST)
             CALL DEALLOC_HIRE_CONSTR()
          ELSE IF (QCISBMT) THEN
-            CALL SBMMODEL_QCI_CONSTRAINTS()
+            CALL SBMMODEL_QCI_CONSTRAINTS(NATOMS)
             NCONSTRAINT = SBM_NCONST
             CALL ALLOC_CONSTR()
             CONI(1:NCONSTRAINT) = SBM_CONI(1:SBM_NCONST)

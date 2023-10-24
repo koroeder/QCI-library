@@ -13,6 +13,7 @@ MODULE AMBER_CONSTRAINTS
    INTEGER, ALLOCATABLE :: BONDS(:,:)
    INTEGER, ALLOCATABLE :: ANGLES(:,:)
    INTEGER, ALLOCATABLE :: BIOCONSTR(:,:)   
+   INTEGER, ALLOCATABLE :: ELEMENT(:)
    INTEGER :: NBOND = 0
    INTEGER :: NANGLE = 0
    INTEGER :: NBIOCONSTR = 0 ! biological constraints - cis-trans and planarity
@@ -21,7 +22,7 @@ MODULE AMBER_CONSTRAINTS
 
    CONTAINS
       ! from AMBER
-      SUBROUTINE AMBER_QCI_CONSTRAINTS()
+      SUBROUTINE AMBER_QCI_CONSTRAINTS(NATOMS)
          USE QCI_KEYS, ONLY: XSTART, XFINAL
          USE QCIFILEHANDLER, ONLY: GETUNIT, FILE_LENGTH
          USE HELPER_FNCTS, ONLY: DISTANCE_TWOATOMS
@@ -124,11 +125,24 @@ MODULE AMBER_CONSTRAINTS
             END DO
             CLOSE(CONUNIT)
          END IF
-         DEALLOCATE(BONDS,ANGLES)
          WRITE(*,*) " amber_constraints> Identified ", AMBER_NCONST, " constraints"
          WRITE(*,*) "                    Bonds: ", NBOND, ", angles: ", NANGLE, ", additional constraints: ", NADDCONSTR
 
       END SUBROUTINE AMBER_QCI_CONSTRAINTS
+
+
+      SUBROUTINE AMBER_QCI_DEALLOCATE()
+         IF (ALLOCATED(BACKBONE)) DEALLOCATE(BACKBONE)
+         IF (ALLOCATED(BIOCONSTR)) DEALLOCATE(BIOCONSTR)
+         IF (ALLOCATED(BONDS)) DEALLOCATE(BONDS)
+         IF (ALLOCATED(ANGLES)) DEALLOCATE(ANGLES)
+         IF (ALLOCATED(RESNAMES)) DEALLOCATE(RESNAMES)
+         IF (ALLOCATED(RES_START)) DEALLOCATE(RES_START)
+         IF (ALLOCATED(RES_END)) DEALLOCATE(RES_END)
+         IF (ALLOCATED(RESTYPE)) DEALLOCATE(RESTYPE)
+         IF (ALLOCATED(AMBER_NAMES)) DEALLOCATE(AMBER_NAMES)
+         IF (ALLOCATED(ELEMENT)) DEALLOCATE(ELEMENT)
+      END SUBROUTINE AMBER_QCI_DEALLOCATE
 
       SUBROUTINE GET_BACKBONE(NATOMS)
          IMPLICIT NONE
@@ -458,7 +472,7 @@ MODULE AMBER_CONSTRAINTS
                READ(ENTRIES(2),'(I8)') NRES
                ALLOCATE(RESNAMES(NRES),RES_START(NRES),RES_END(NRES),RESTYPE(NRES))
                RESTYPE(1:NRES) = 0
-               ALLOCATE(AMBER_NAMES(NATOMS))
+               ALLOCATE(AMBER_NAMES(NATOMS),ELEMENT(NATOMS))
             END IF
             
             IF (ENTRIES(2).EQ. 'ATOM_NAME') THEN
@@ -508,7 +522,7 @@ MODULE AMBER_CONSTRAINTS
                   READ(TOPUNIT,'(A)') ENTRY
                   LINECOUNTER = LINECOUNTER + 1
                   CALL READ_LINE(ENTRY,NWORDS,ENTRIES) 
-                  J2=1
+                  J2=1,10
                   DO WHILE(J2.LE.10)
                      READ(ENTRIES(J2),'(I8)') INTDUM
                      RES_START(NDUMMY) = INTDUM
@@ -516,6 +530,28 @@ MODULE AMBER_CONSTRAINTS
                      J2=J2+1
                      NDUMMY = NDUMMY+1               
                      IF(NDUMMY.GT.NRES) EXIT
+                  ENDDO
+                  RES_END(NDUMMY-1) = NATOMS
+               ENDDO
+            ENDIF
+
+            IF (ENTRIES(2).EQ. 'ATOMIC_NUMBER') THEN  
+               !ignore format identifier after flag
+               READ(TOPUNIT,*)                             
+               LINECOUNTER = LINECOUNTER + 1
+               NLINES=NATOMS/10   
+               IF(NATOMS.GT.NLINES*10) NLINES=NLINES+1 
+               NDUMMY=1
+               DO J1=1,LINES !go through all lines  
+                  READ(TOPUNIT,'(A)') ENTRY
+                  LINECOUNTER = LINECOUNTER + 1
+                  CALL READ_LINE(ENTRY,NWORDS,ENTRIES) 
+                  J2=1,10
+                  DO WHILE(J2.LE.10)
+                     READ(ENTRIES(J2),'(I8)') INTDUM
+                     ELEMENT(NDUMMY) = INTDUM
+                     NDUMMY = NDUMMY+1               
+                     IF(NDUMMY.GT.NATOMS) EXIT
                   ENDDO
                   RES_END(NDUMMY-1) = NATOMS
                ENDDO
