@@ -2,16 +2,22 @@ MODULE QCIKEYS
    USE QCIPREC
    IMPLICIT NONE
    LOGICAL :: STOCKT
-   INTEGER, ALLOCATABLE :: ATOMACTIVE
 
-   INTEGER :: NATOMS
+   INTEGER :: NATOMS = 0
 
    LOGICAL :: QCIAMBERT = .FALSE.
    LOGICAL :: QCIHIRET = .FALSE.
    LOGICAL :: QCISBT = .FALSE.
-   
-   !frozen atoms -> linear interpolation
-   INTEGER :: NCQIFROZEN ! total number of frozen atoms
+
+   LOGICAL :: QCIDOBACK = .FALSE.    ! do backbone first
+   LOGICAL, ALLOCATABLE :: ISBBATOM(:)
+   INTEGER :: NBACKBONE = 0
+
+   LOGICAL :: QCIREADGUESS = .FALSE. ! read guess for band
+   LOGICAL :: QCIRESTART = .FALSE.   ! restart QCI interpolation
+
+   !frozen atoms 
+   INTEGER :: NCQIFROZEN = 0 ! total number of frozen atoms
    INTEGER :: NMINUNFROZEN = 0 ! minimum number unfrozen 
    LOGICAL, ALLOCATABLE :: QCIFROZEN(:)  ! frozen atoms in interpolation
    LOGICAL, ALLOCATABLE :: FREEZE(:) ! input of atoms to be frozen
