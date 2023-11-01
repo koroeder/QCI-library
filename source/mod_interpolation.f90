@@ -55,6 +55,9 @@ MODULE QCIINTERPOLATION
             CALL ADD_CONSTR_AND_REP_FROZEN_ATOMS(NBEST)
          END IF
 
+         ! before we continue check repulsion neighbour list
+         CALL CHECKREP(XYZ,0,1)
+
          ! call congrad routine
 
          ! now enter main loop and add atom by atom going through congrad routines as we go along
