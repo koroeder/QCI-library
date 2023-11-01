@@ -79,6 +79,104 @@ MODULE MOD_FREEZE
          CLOSE(FREEZEUNIT)
       END SUBROUTINE READ_FROZEN_ATOMS
 
+      SUBROUTINE ADD_CONSTR_AND_REP_FROZEN_ATOMS(NBEST)
+         USE QCIPREC, ONLY: REAL64
+         USE QCIKEYS, ONLY: NATOMS, QCIREPCUT
+         USE INTERPOLATION_KEYS, ONLY: CONACTIVE, ATOMACTIVE
+         USE REPULSION, ONLY: SEPREPULSION, NREPCURR, NREPULSIVE, REPI, REPJ, REPCUT, &
+                              DOUBLE_ALLOC_REP
+         USE CONSTRAINTS, ONLY: NCONSTRAINT, CONI, CONJ
+         USE MOD_INTCOORDS, ONLY: XSTART, XFINAL
+         USE HELPER_FNCTS, ONLY: DISTANCE_TWOATOMS
+         IMPLICIT NONE
+         INTEGER, INTENT(IN) :: NBEST
+         INTEGER :: I, NI, NJ, CURRCI, CURRCJ
+         LOGICAL :: SKIPREP
+         REAL(KIND = REAL64) :: DSTART, DFINISH, DMIN
+
+         ! start with finding active constraints
+         NI = CONI(NBEST)
+         NJ = CONJ(NBEST)
+         DO I=1,NCONSTRAINT
+            ! we are only interested in active constraints
+            IF (.NOT.CONACTIVE(I)) CYCLE
+            IF (((CONI(I).EQ.NI).OR.(CONI(I).EQ.NJ)).AND.(ATOMACTIVE(CONJ(I))).OR. &
+                ((CONJ(I).EQ.NI).OR.(CONJ(I).EQ.NJ)).AND.(ATOMACTIVE(CONI(I)))) THEN
+               CONACTIVE(I) = .TRUE.
+               ! WRITE(*,*) "add_c+r_frozen> Turning on constraint ", I, " for atoms ", &
+               ! CONI(I), " and ", CONJ(I)
+            END IF
+         END DO
+
+         ! now find potential repulsion terms
+         ! we need to run two cycles - one for NI and one for NJ
+         DO I=1,NATOMS
+            ! we only want active atoms
+            IF (.NOT.ATOMACTIVE(I)) CYCLE
+            ! we have a minimum separation for atoms in sequence
+            IF (ABS(I-NI).LE.SEPREPULSION) CYCLE
+            ! ignore pairs of frozen atoms
+            IF (QCIFROZEN(I).AND.QCIFROZEN(NI)) CYCLE
+            ! make sure we are not adding a repulsion to an existing cosntraint
+            SKIPREP = .FALSE.
+            DO J=1,NCONSTRAINT
+               IF (.NOT.CONACTIVE(J)) CYCLE
+               CURRCI = CONI(J)
+               CURRCJ = CONJ(J)
+               IF (((CURRCI.EQ.I).AND.(CURRCJ.EQ.NI)).OR. & 
+                   ((CURRCJ.EQ.I).AND.(CURRCI.EQ.NI))) THEN
+                  SKIPREP = .TRUE.
+                  EXIT
+               END IF
+            END DO
+            IF (.NOT.SKIPREP) THEN
+               CALL DISTANCE_TWOATOMS(NATOMS,XSTART,NI,I,DSTART)
+               CALL DISTANCE_TWOATOMS(NATOMS,XFINAL,NI,I,DSTART)
+               DMIN = MIN(DSTART,DFINAL)
+               DMIN = MIN(DMIN-1.0D-3,QCIREPCUT)
+               NREPULSIVE = NREPULSIVE + 1
+               IF (NREPULSIVE.GT.NREPCURR) CALL DOUBLE_ALLOC_REP()
+               REPI(NREPULSIVE) = I
+               REPJ(NREPULSIVE) = NI
+               REPCUT(NREPULSIVE) = DMIN
+            END IF
+         END DO
+
+         ! repeat for NJ
+         DO I=1,NATOMS
+            ! we only want active atoms
+            IF (.NOT.ATOMACTIVE(I)) CYCLE
+            ! we have a minimum separation for atoms in sequence
+            IF (ABS(I-NJ).LE.SEPREPULSION) CYCLE
+            ! ignore pairs of frozen atoms
+            IF (QCIFROZEN(I).AND.QCIFROZEN(NJ)) CYCLE
+            ! make sure we are not adding a repulsion to an existing cosntraint
+            SKIPREP = .FALSE.
+            DO J=1,NCONSTRAINT
+               IF (.NOT.CONACTIVE(J)) CYCLE
+               CURRCI = CONI(J)
+               CURRCJ = CONJ(J)
+               IF (((CURRCI.EQ.I).AND.(CURRCJ.EQ.NJ)).OR. & 
+                     ((CURRCJ.EQ.I).AND.(CURRCI.EQ.NJ))) THEN
+                  SKIPREP = .TRUE.
+                  EXIT
+               END IF
+            END DO
+            IF (.NOT.SKIPREP) THEN
+               CALL DISTANCE_TWOATOMS(NATOMS,XSTART,NJ,I,DSTART)
+               CALL DISTANCE_TWOATOMS(NATOMS,XFINAL,NJ,I,DSTART)
+               DMIN = MIN(DSTART,DFINAL)
+               DMIN = MIN(DMIN-1.0D-3,QCIREPCUT)
+               NREPULSIVE = NREPULSIVE + 1
+               IF (NREPULSIVE.GT.NREPCURR) CALL DOUBLE_ALLOC_REP()
+               REPI(NREPULSIVE) = I
+               REPJ(NREPULSIVE) = NJ
+               REPCUT(NREPULSIVE) = DMIN
+            END IF
+         END DO
+         
+      END SUBROUTINE ADD_CONSTR_AND_REP_FROZEN_ATOMS
+
       SUBROUTINE ALLOC_FREEZE(NATOMS)
          USE QCIKEYS, ONLY: QCIFROZEN, FREEZE
          IMPLICIT NONE

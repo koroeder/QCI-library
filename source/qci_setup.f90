@@ -7,6 +7,7 @@ MODULE QCISETUP
          USE QCIPERMDIST, ONLY: ALLOC_QCIPERM, INIT_PERMALLOW(NATOMS)
          USE MOD_FREEZE, ONLY: GET_FROZEN_ATOMS
          USE CHIRALITY, ONLY: FIND_CHIRAL_CENTRES
+         USE REPULSION, ONLY: NREPCURR, ALLOC_REP_VARS
          IMPLICIT NONE
          CHARACTER(30), INTENT(IN) :: PARAMETERFILE
          LOGICAL, INTENT(IN) :: ALIGNT
@@ -19,11 +20,13 @@ MODULE QCISETUP
          ! align endpoints
          IF (ALIGNT) CALL ALIGN_ENDPOINTS()
          ! get frozen atoms setup
-         CALL GET_FROZEN_ATOMS()
+         IF (QCIFREEZET) CALL GET_FROZEN_ATOMS()
          ! get constraints
          CALL CREATE_CONSTRAINTS()
-         ! setting up list of repulsion - we use a window close in sequence, where we do not set up repulsions
-
+         ! setting up repulsions
+         ! we use NATOMS as initial size here for the number of repulsions
+         NREPCURR = NATOMS
+         CALL ALLOC_REP_VARS(NREPCURR)
          ! get chiral information for AMBER
          IF (QCIAMBERT) CALL FIND_CHIRAL_CENTRES()
       END SUBROUTINE QCI_INIT
@@ -79,12 +82,14 @@ MODULE QCISETUP
          ELSE IF (ENTRY.EQ."QCIREADGUESS") THEN
             QCIREADGUESS = .TRUE.            
          ELSE IF (ENTRY.EQ."FREEZEFILE") THEN
+            QCIFREEZET = .TRUE.            
             FREEZEFILE = VAL
          ELSE IF (ENTRY.EQ."NMINUNFROZEN") THEN
             READ(VAL, *) NMINUNFROZEN
          ELSE IF (ENTRY.EQ."FREEZEFILE") THEN
             FREEZEFILE = VAL
-         ELSE IF (ENTRY.EQ."QCIFREEZETOL") THEN
+         ELSE IF (ENTRY.EQ."QCIFREEZE") THEN
+            QCIFREEZET = .TRUE.
             READ(VAL, *) QCIFREEZETOL
          ELSE IF (ENTRY.EQ."QCICONSEP") THEN
             READ(VAL, *) QCICONSEP

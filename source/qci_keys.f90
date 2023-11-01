@@ -17,6 +17,7 @@ MODULE QCIKEYS
    LOGICAL :: QCIRESTART = .FALSE.   ! restart QCI interpolation
 
    !frozen atoms 
+   LOGICAL :: QCIFREEZET = .FALSE. ! Shall some atoms be frozen?
    INTEGER :: NCQIFROZEN = 0 ! total number of frozen atoms
    INTEGER :: NMINUNFROZEN = 0 ! minimum number unfrozen 
    LOGICAL, ALLOCATABLE :: QCIFROZEN(:)  ! frozen atoms in interpolation
@@ -28,6 +29,9 @@ MODULE QCIKEYS
    REAL(KIND=REAL64) :: QCICONSEP = 15
    REAL(KIND=REAL64) :: QCICONSTRAINTTOL = 0.1D0
    REAL(KIND=REAL64) :: QCICONCUT = 0.1D0   
+
+   !repulsions
+   REAL(KIND=REAL64) :: QCIREPCUT = 1.0D-3
 
    CHARACTER(LEN=30) :: GEOMFILE = "congeom.dat"
    INTEGER :: NCONGEOM = 0

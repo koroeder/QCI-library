@@ -33,6 +33,49 @@ MODULE HELPER_FNCTS
          DIST = SQRT(DIST)
       END SUBROUTINE DISTANCE_ATOM_DIFF_IMAGES
 
+      ! double size of REAL64 array preserving old data and initialising the new parts of the array
+      SUBROUTINE DOUBLE_REAL64_ARRAY(NSIZE,ARRAY,INITVAL)
+         IMPLICIT NONE
+         INTEGER :: NSIZE
+         REAL(KIND = REAL64), ALLOCATABLE :: ARRAY(:)
+         REAL(KIND = REAL64) :: INITVAL
+         REAL(KIND = REAL64) :: TEMP_DATA(NSIZE)
+
+         ! if the array is not allocated, we just allocate it here
+         IF (.NOT.ALLOCATED(ARRAY)) THEN
+            ALLOCATE(ARRAY(2*NSIZE))
+            ARRAY(1:2*NSIZE) = INITVAL
+         ! otherwise first save the data, and then reallocate
+         ELSE
+            TEMP_DATA(1:NSIZE) = ARRAY(1:NSIZE)
+            DEALLOCATE(ARRAY)
+            ALLOCATE(ARRAY(2*NSIZE))
+            ARRAY(1:NSIZE) = TEMP_DATA(1:NSIZE)
+            ARRAY(NSIZE+1:2*NSIZE) = INITVAL
+         END IF
+      END SUBROUTINE DOUBLE_REAL64_ARRAY
+
+      ! double size of INT array preserving old data and initialising the new parts of the array
+      SUBROUTINE DOUBLE_INT_ARRAY(NSIZE,ARRAY,INITVAL)
+         IMPLICIT NONE
+         INTEGER :: NSIZE
+         INTEGER, ALLOCATABLE :: ARRAY(:)
+         INTEGER :: INITVAL
+         INTEGER :: TEMP_DATA(NSIZE)
+
+         ! if the array is not allocated, we just allocate it here
+         IF (.NOT.ALLOCATED(ARRAY)) THEN
+            ALLOCATE(ARRAY(2*NSIZE))
+            ARRAY(1:2*NSIZE) = INITVAL
+         ! otherwise first save the data, and then reallocate
+         ELSE
+            TEMP_DATA(1:NSIZE) = ARRAY(1:NSIZE)
+            DEALLOCATE(ARRAY)
+            ALLOCATE(ARRAY(2*NSIZE))
+            ARRAY(1:NSIZE) = TEMP_DATA(1:NSIZE)
+            ARRAY(NSIZE+1:2*NSIZE) = INITVAL
+         END IF
+      END SUBROUTINE DOUBLE_INT_ARRAY      
 
       SUBROUTINE READ_LINE(LINE,NWORDS,WORDSOUT)
          CHARACTER(*), INTENT(IN) :: LINE
