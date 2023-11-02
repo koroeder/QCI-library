@@ -5,9 +5,10 @@
 MODULE CONSTR_E_GRAD
    USE QCIPREC
    IMPLICIT NONE
-   INTEGER :: MAXCONIMAGE, MAXREPIMAGE                   ! image with highest constraint / repulsion
+   INTEGER :: MAXCONIMAGE, MAXREPIMAGE, MAXSPRIMAGE      ! image with highest constraint / repulsion
    INTEGER :: MAXCONSTR, MAXREP                          ! index for worst constraint / repulsion
    REAL(KIND=REAL64) :: CONVERGECONTEST, CONVERGEREPTEST ! energy of that term
+   REAL(KIND=REAL64) :: EMAXSPR
    REAL(KIND=REAL64) :: FCONMAX, FREPMAX                 ! maximum gradient
    CONTAINS
 
@@ -20,26 +21,121 @@ MODULE CONSTR_E_GRAD
          REAL(KIND = REAL64), INTENT(OUT) :: ETOTAL                    ! overall energy
          REAL(KIND = REAL64), INTENT(OUT) :: RMS                       ! total force
         
-         REAL(KIND = REAL64) :: ECON, EREP      ! QUERY: should these be globals in keys?
+         REAL(KIND = REAL64) :: ECON, EREP, ESPR      ! QUERY: should these be globals in keys?
          REAL(KIND = REAL64) :: EEEC(NIMAGE+2), GGGC(3*NATOMS*(NIMAGE+2))
          REAL(KIND = REAL64) :: EEER(NIMAGE+2), GGGR(3*NATOMS*(NIMAGE+2))
+         REAL(KIND = REAL64) :: EEES(NIMAGE+2), GGGS(3*NATOMS*(NIMAGE+2))
 
          ! initiate some variables
          EEE(1:INTIMAGE+2)=0.0D0
          GGG(1:(3*NATOMS)*(INTIMAGE+2))=0.0D0
-         ECON = 0.0D0; EREP = 0.0D0
+         ECON = 0.0D0; EREP = 0.0D0; ESPR = 0.0D0
 
          ! QUERY: what is INTCONSTRAINTDEL? seems like a scaling for the potential
          IF (.NOT.(INTCONSTRAINTDEL.EQ.0.0D0)) THEN
             CALL GET_CONSTRAINT_E_NOINTERNAL(XYZ,GGGC,EEEC,ECON)
-
+         END IF
+         IF (.NOT.(INTCONSTRAINTREP.EQ.0.0D0)) THEN
+            CALL GET_REPULSION_E(XYZ,GGGR,EEER,EREP)
+         END IF
+         IF (.NOT.(KINT.EQ.0.0D0)) THEN
+            GET_SPRING_E(XYZ, GGGS, EEES, ESPR)
          END IF
 
+         ! add all contributions
+         EEE = EEEC + EEER + EEES
+         GGG = GGGC + GGGR + GGGS
+
+         ! freeze atoms that should be frozen
+         IF (INTFREEZET) THEN
+            DO J1=2,INIMAGE+1
+               DO J2=1,NATOMS
+                  IF (QCIFROZEN(J2)) THEN
+                     GGG((3*NATOMS)*(J1-1)+3*(J2-1)+1)=0.0D0
+                     GGG((3*NATOMS)*(J1-1)+3*(J2-1)+2)=0.0D0
+                     GGG((3*NATOMS)*(J1-1)+3*(J2-1)+3)=0.0D0
+                  END IF
+               END DO
+            END DO
+         END IF
+
+         ! Set gradients to zero for start and finish images.
+         GGG(1:(3*NATOMS))=0.0D0
+         GGG((INTIMAGE+1)*(3*NATOMS)+1:(INTIMAGE+2)*(3*NATOMS))=0.0D0
+
+         ! get the RMS force
+         RMS=0.0D0
+         DO J1=2,INTIMAGE+1
+            DO J2=1,3*NATOMS
+               RMS = RMS + GGG((3*NATOMS)*(J1-1)+J2)**2
+            END DO
+         END DO
+         RMS = SQRT(RMS/(3*NATOMS*NIMAGE))
+         ETOTAL = SUM(EEE(2:NIMAGE+1))
       END SUBROUTINE CONGRAD1
 
 
-      SUBROUTINE CONGRAD2()
+      SUBROUTINE CONGRAD2(ETOTAL, XYZ, GGG, EEE, RMS)
+         USE QCIKEYS, ONLY: NIMAGE, NATOMS
+         IMPLICIT NONE
+         REAL(KIND = REAL64), INTENT(IN) :: XYZ(3*NATOMS*(NIMAGE+2))   ! input coordinates
+         REAL(KIND = REAL64), INTENT(OUT) :: GGG(3*NATOMS*(NIMAGE+2))  ! gradient for each atom in each image
+         REAL(KIND = REAL64), INTENT(OUT) :: EEE(NIMAGE+2)             ! energy for each image
+         REAL(KIND = REAL64), INTENT(OUT) :: ETOTAL                    ! overall energy
+         REAL(KIND = REAL64), INTENT(OUT) :: RMS                       ! total force
+        
+         REAL(KIND = REAL64) :: ECON, EREP, ESPR      ! QUERY: should these be globals in keys?
+         REAL(KIND = REAL64) :: EEEC(NIMAGE+2), GGGC(3*NATOMS*(NIMAGE+2))
+         REAL(KIND = REAL64) :: EEER(NIMAGE+2), GGGR(3*NATOMS*(NIMAGE+2))
+         REAL(KIND = REAL64) :: EEES(NIMAGE+2), GGGS(3*NATOMS*(NIMAGE+2))
 
+         ! initiate some variables
+         EEE(1:INTIMAGE+2)=0.0D0
+         GGG(1:(3*NATOMS)*(INTIMAGE+2))=0.0D0
+         ECON = 0.0D0; EREP = 0.0D0; ESPR = 0.0D0
+
+         ! QUERY: what is INTCONSTRAINTDEL? seems like a scaling for the potential
+         IF (.NOT.(INTCONSTRAINTDEL.EQ.0.0D0)) THEN
+            !use the constraint energy including the internal extrema
+            CALL GET_CONSTRAINT_E(XYZ,GGGC,EEEC,ECON)
+         END IF
+         IF (.NOT.(INTCONSTRAINTREP.EQ.0.0D0)) THEN
+            CALL GET_REPULSION_E2(XYZ,GGGR,EEER,EREP)
+         END IF
+         IF (.NOT.(KINT.EQ.0.0D0)) THEN
+            GET_SPRING_E(XYZ, GGGS, EEES, ESPR)
+         END IF
+
+         ! add all contributions
+         EEE = EEEC + EEER + EEES
+         GGG = GGGC + GGGR + GGGS
+
+         ! freeze atoms that should be frozen
+         IF (INTFREEZET) THEN
+            DO J1=2,INIMAGE+1
+               DO J2=1,NATOMS
+                  IF (QCIFROZEN(J2)) THEN
+                     GGG((3*NATOMS)*(J1-1)+3*(J2-1)+1)=0.0D0
+                     GGG((3*NATOMS)*(J1-1)+3*(J2-1)+2)=0.0D0
+                     GGG((3*NATOMS)*(J1-1)+3*(J2-1)+3)=0.0D0
+                  END IF
+               END DO
+            END DO
+         END IF
+
+         ! Set gradients to zero for start and finish images.
+         GGG(1:(3*NATOMS))=0.0D0
+         GGG((INTIMAGE+1)*(3*NATOMS)+1:(INTIMAGE+2)*(3*NATOMS))=0.0D0
+
+         ! get the RMS force
+         RMS=0.0D0
+         DO J1=2,INTIMAGE+1
+            DO J2=1,3*NATOMS
+               RMS = RMS + GGG((3*NATOMS)*(J1-1)+J2)**2
+            END DO
+         END DO
+         RMS = SQRT(RMS/(3*NATOMS*NIMAGE))
+         ETOTAL = SUM(EEE(2:NIMAGE+1))
       END SUBROUTINE CONGRAD2    
 
       SUBROUTINE GET_CONSTRAINT_E_NOINTERNAL(XYZ,GGG,EEE,ECON)
@@ -122,6 +218,133 @@ MODULE CONSTR_E_GRAD
          ! ENDIF
       END SUBROUTINE GET_CONSTRAINT_E_NOINTERNAL
 
+      SUBROUTINE GET_CONSTRAINT_E(XYZ,GGG,EEE,ECON)
+         USE QCIKEYS, ONLY: NIMAGE, NATOMS
+         USE QCICONSTRAINTS, ONLY: NCONSTRAINT, CONI, CONJ
+         USE INTERPOLATION_KEYS, ONLY: CONACTIVE
+         USE HELPER_FNCTS, ONLY: DISTANCE_SIMPLE
+         IMPLICIT NONE
+         REAL(KIND = REAL64), INTENT(IN) :: XYZ(3*NATOMS*(NIMAGE+2))   ! input coordinates
+         REAL(KIND = REAL64), INTENT(OUT) :: GGG(3*NATOMS*(NIMAGE+2))  ! gradient for each atom in each image
+         REAL(KIND = REAL64), INTENT(OUT) :: EEE(NIMAGE+2), ECON       ! energy for constraints         
+         INTEGER :: J1, J2       
+         INTEGER :: NI1, NI2, NJ1, NJ2                                 ! indices for atom I and J in images 1 and 2
+         REAL(KIND = REAL64) :: G1(3), G2(3), DSQ1, DSQ2               ! dummy variables
+         REAL(KIND = REAL64) :: CONGRAD(3), DUMMY
+         LOGICAL :: NOINT                                            ! do we hae an internal minimum
+         REAL(KIND = REAL64) :: DINT, DSQI, G1INT(3), G2INT(3)       ! information for internal minimum contribution
+         REAL(KIND = REAL64) , PARAMETER :: DINTTEST = 1.0D-50       ! cutoff for DINTMIN to test for internal min
+         REAL(KIND = REAL64) :: D1, D2, D12                         ! distances in image 1 and 2         
+         REAL(KIND=REAL64) :: EMAX, FMIN, FMAX
+         INTEGER :: IMAX, JMAX
+
+         EEE(1:INTIMAGE+2)=0.0D0
+         GGG(1:(3*NATOMS)*(INTIMAGE+2))=0.0D0
+         ECON = 0.0D0
+         EMAX = -(HUGE(1.0D0))
+         FMAX = -(HUGE(1.0D0))
+         FMIN = HUGE(1.0D0)
+
+         !  Constraint energy and forces.
+         !
+         ! For J1 we consider the line segment between image J1-1 and J1.
+         ! There are INTIMAGE+1 line segments in total, with an energy contribution
+         ! and corresponding gradient terms for each. 
+         ! A and B refer to atoms, 1 and 2 to images J1-1 and J1 corresponding to J1-2 and J1-1 below.
+
+         DO J2=1,NCONSTRAINT
+            ! only active constraints contribute
+            IF (.NOT.CONACTIVE(J2)) CYCLE
+            ! get constraint cut off for this contraint
+            CALL GET_CCLOCAL(CCLOCAL)            
+            ! go through all images 
+            ! QUERY: here we differ from the no internal minimum routine - why are we going up to NIMAGE+2
+            DO J1=2,INTIMAGE+2
+               NI1=(3*NATOMS)*(J1-2)+3*(CONI(J2)-1)
+               NI2=(3*NATOMS)*(J1-1)+3*(CONI(J2)-1)
+               NJ1=(3*NATOMS)*(J1-2)+3*(CONJ(J2)-1)
+               NJ2=(3*NATOMS)*(J1-1)+3*(CONJ(J2)-1)
+         
+               G1(1:3)=XYZ(NI1+1:NI1+3)-XYZ(NJ1+1:NJ1+3) !vector from j to i in image 1
+               G2(1:3)=XYZ(NI2+1:NI2+3)-XYZ(NJ2+1:NJ2+3) !vector from j to i in image 2
+
+               ! squared distance between atoms in image 1 (theta = pi/2)
+               DSQ1=G1(1)**2 + G1(2)**2 + G1(3)**2
+               ! squared distance between atoms in image 2 (theta = 0)
+               DSQ2=G2(1)**2 + G2(2)**2 + G2(3)**2
+               DP_G12 = DOT_PRODUCT(G1,G2)
+               DINTMIN = DSQ1+DSQ2-2.0D0*DP_G12
+
+               ! Convert derivatives of distance^2 to derivative of distance.
+               ! We have cancelled a factor of two above and below
+               D1 = SQRT(DSQ1); D2 = SQRT(DSQ1)
+               G1(1:3) = G1(1:3)/D1; G2(1:3) = G2(1:3)/D2
+
+               IF ((.NOT.CHECKCONINT).OR.(DINTMIN.LT.DINTTEST)) THEN
+                  NOINT = .TRUE.
+               ELSE
+                  CALL INTMIN_CONSTRAINT(DSQ1,DSQ2,DP_G12,DINTMIN,NOINT,DSQI,DINT,G1INT,G2INT)
+               END IF
+
+               ! Need to include both D2 and D1 contributions if they are both outside tolerance.
+               ! Otherwise we get discontinuities if they are very close and swap over.
+
+               ! terms for image J1 - non-zero derivatives only for J1. D2 is the distance for image J1.
+               ! these are the constraint energies as in get_constraint_e_nointernal
+               DUMMY = D2-CONDISTREFLOCAL(J2)
+               IF ((ABS(DUMMY).GT.CCLOCAL).AND.(J1.LT.INTIMAGE+2)) THEN  
+                  CONGRAD(1:3)=2*INTCONSTRAINTDEL*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G2(1:3)
+                  DUMMY=INTCONSTRAINTDEL*(DUMMY**2-CCLOCAL**2)**2/(2.0D0*CCLOCAL**2)
+                  IF (DUMMY.GT.EMAX) THEN
+                     IMAX=J1
+                     JMAX=J2
+                     EMAX=DUMMY
+                  ENDIF
+                  EEE(J1)=EEE(J1)+DUMMY
+                  ECON=ECON+DUMMY
+                  GGG(NI2+1:NI2+3)=GGG(NI2+1:NI2+3)+CONGRAD(1:3)
+                  GGG(NJ2+1:NJ2+3)=GGG(NJ2+1:NJ2+3)-CONGRAD(1:3)
+               END IF
+               ! Don't add energy contributions to EEE(2) from D1, since the gradients are non-zero only for image 1.
+               ! terms for image J1-1 - non-zero derivatives only for J1-1. D1 is the distance for image J1-1.
+               ! here we have the internal extremum contribution
+               IF (CHECKCONINT.AND.(.NOT.NOINT).AND.(ABS(DINT-CONDISTREFLOCAL(J2)).GT.CCLOCAL)) THEN
+                  DUMMY=DINT-CONDISTREFLOCAL(J2)  
+                  CONGRAD(1:3)=2*INTMINFAC*INTCONSTRAINTDEL*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G1INT(1:3)
+                  GGG(NI1+1:NI1+3)=GGG(NI1+1:NI1+3)+CONGRAD(1:3)
+                  GGG(NJ1+1:NJ1+3)=GGG(NJ1+1:NJ1+3)-CONGRAD(1:3)
+                  CONGRAD(1:3)=2*INTMINFAC*INTCONSTRAINTDEL*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G2INT(1:3)
+                  DUMMY=INTMINFAC*INTCONSTRAINTDEL*(DUMMY**2-CCLOCAL**2)**2/(2.0D0*CCLOCAL**2)
+                  ECON=ECON+DUMMY
+                  IF (DUMMY.GT.EMAX) THEN
+                     IMAX=J1
+                     JMAX=J2
+                     EMAX=DUMMY
+                  ENDIF
+                  IF (J1.EQ.2) THEN
+                     EEE(J1)=EEE(J1)+DUMMY
+                  ELSE IF (J1.LT.INTIMAGE+2) THEN
+                     EEE(J1)=EEE(J1)+DUMMY/2.0D0
+                     EEE(J1-1)=EEE(J1-1)+DUMMY/2.0D0
+                  ELSE IF (J1.EQ.INTIMAGE+2) THEN
+                     EEE(J1-1)=EEE(J1-1)+DUMMY
+                  ENDIF
+                  GGG(NI2+1:NI2+3)=GGG(NI2+1:NI2+3)+CONGRAD(1:3)
+                  GGG(NJ2+1:NJ2+3)=GGG(NJ2+1:NJ2+3)-CONGRAD(1:3)
+               ENDIF
+            END DO
+         END DO
+         CONVERGECONTEST=EMAX/INTCONSTRAINTDEL
+         IF (-FMIN.GT.FMAX) FMAX=-FMIN
+         FCONTEST=FMAX
+         MAXCONIMAGE = JMAX
+         MAXCONSTR = IMAX
+
+         ! IF (JMAX.GT.0) THEN
+            ! WRITE(*,*) ' congrad> Highest constraint for image ',IMAX, ', con ',JMAX, ', atoms ',CONI(JMAX),CONJ(JMAX),' value=',EMAX
+         ! ENDIF
+      END SUBROUTINE GET_CONSTRAINT_E
+
       SUBROUTINE GET_REPULSION_E(XYZ,GGG,EEE,EREP)
          USE QCIKEYS, ONLY: NIMAGE, NATOMS
          USE REPULSION, ONLY: NNREPULSIVE, NREPI, NREPJ, NREPCUT
@@ -139,8 +362,20 @@ MODULE CONSTR_E_GRAD
          REAL(KIND = REAL64) :: G1(3), G2(3), DSQ1, DSQ2             ! dummy variables
          REAL(KIND = REAL64) :: DCUT, DINTMIN, DP_G12                ! values used to test for internal minimum
          REAL(KIND = REAL64) , PARAMETER :: DINTTEST = 1.0D-50       ! cutoff for DINTMIN to test for internal min
-         REAL(KIND = REAL64) :: D1, D2                               ! distances in image 1 and 2
-         LOGICAL :: NOINT                                            ! no internal minimum
+         REAL(KIND = REAL64) :: D1, D2, D12                         ! distances in image 1 and 2
+         REAL(KIND = REAL64) :: RPLOCAL, RPLOCAL2, RPLOCALINV 
+         REAL(KIND = REAL64) :: REPGRAD(3)
+         LOGICAL :: NOINT                                            ! do we hae an internal minimum
+         REAL(KIND = REAL64) :: DINT, DSQI, G1INT(3), G2INT(3)       ! information for internal minimum contribution
+         REAL(KIND=REAL64) :: EMAX, FMIN, FMAX
+         INTEGER :: IMAX, JMAX
+
+         EMAX = -(HUGE(1.0D0))
+         FMAX = -(HUGE(1.0D0))
+         FMIN = HUGE(1.0D0)
+         EEE(1:INTIMAGE+2)=0.0D0
+         GGG(1:(3*NATOMS)*(INTIMAGE+2))=0.0D0         
+         EREP = 0.0D0
 
          DO J1=2,NIMAGE+1
             ! get coordinates for images
@@ -174,22 +409,252 @@ MODULE CONSTR_E_GRAD
                   DINTMIN = DSQ1+DSQ2-2.0D0*DP_G12
                END IF
 
+               ! Convert derivatives of distance^2 to derivative of distance.
+               ! We have cancelled a factor of two above and below
+               D1 = SQRT(DSQ1); D2 = SQRT(DSQ1)
+               G1(1:3) = G1(1:3)/D1; G2(1:3) = G2(1:3)/D2
+
                ! if the denominator in the d^2 is approx zero, we do not need to check for an internal minimum
                IF (DINTMIN.LT.DINTTEST) THEN
                   NOINT = .TRUE.
-                  D1 = SQRT(DSQ1); D2 = SQRT(DSQ1)
-                  G1(1:3) = G1(1:3)/D1; G2(1:3) = G2(1:3)/D2
                ELSE
-                  !TODO: write MINMAX routine
-                  CALL MINMAXD2R()
+                  CALL INTMIN_REPULSION(DSQ1,DSQ2,DP_G12,DINTMIN,NOINT,DSQI,DINT,G1INT,G2INT)
                END IF
-               ! TODO: continue line 242
-            END DO 
+
+               RPLOCAL = NREPCUT(J2)
+               RPLOCAL2 = RPLOCAL**2
+               RPLOCALINV = 1.0D0/RPLOCAL
+
+               IF (D2.LT.RPLOCAL) THEN
+                  D12 = DSQ2
+                  DUMMY = RPLOCAL2/D12 + 2.0D0*D2*RPLOCALINV - 3.0D0
+                  EREP1 = EREP1 + DUMMY
+                  EREP = EREP + DUMMY
+                  IF (DUMMY.GT.EMAX) THEN
+                     IMAX = J1
+                     JMAX = J2
+                     EMAX = DUMMY
+                  END IF
+                  DUMMY=-2.0D0*(RPLOCAL2/(D2*D12)-RPLOCALINV)
+                  REPGRAD(1:3) = DUMMY*G2(1:3)
+                  GLOCAL2(NI2+1:NI2+3)=GLOCAL2(NI2+1:NI2+3)+REPGRAD(1:3)
+                  GLOCAL2(NJ2+1:NJ2+3)=GLOCAL2(NJ2+1:NJ2+3)-REPGRAD(1:3)
+               END IF  
+               ! For internal minima we are counting edges. 
+               ! Edge J1 is between images J1-1 and J1, starting from J1=2.
+               ! Energy contributions are shared evenly, except for
+               ! edge 1, which was assigned to image 2, and edge INTIMAGE+1, which
+               ! was assigned to image INTIMAGE+1. 
+               DUMMY = 0.0D0
+               IF ((.NOT.NOINT).AND.(DINT.LT.RPLOCAL).AND.(J1.NE.2)) THEN
+                  D12 = DSQI !from call to find internal minimum
+                  DUMMY=INTMINFAC*(RPLOCAL2/D12+2.0D0*DINT*RPLOCALINV-3.0D0)
+                  EREP2=EREP2+DUMMY
+                  EREP=EREP+DUMMY
+                  IF (DUMMY.GT.EMAX) THEN
+                     IMAX=J1
+                     JMAX=J2
+                     EMAX=DUMMY
+                  ENDIF
+                  DUMMY=-2.0D0*(RPLOCAL2/(DINT*D12)-RPLOCALINV)
+                  ! Gradient contributions for image J1-1
+                  REPGRAD(1:3)=INTMINFAC*DUMMY*G1INT(1:3)
+                  GLOCAL1(NI1+1:NI1+3)=GLOCAL1(NI1+1:NI1+3)+REPGRAD(1:3)
+                  GLOCAL1(NJ1+1:NJ1+3)=GLOCAL1(NJ1+1:NJ1+3)-REPGRAD(1:3)
+                  DUMMY2=MINVAL(REPGRAD)
+                  ! Gradient contributions for image J1
+                  REPGRAD(1:3)=INTMINFAC*DUMMY*G2INT(1:3)
+                  GLOCAL2(NI2+1:NI2+3)=GLOCAL2(NI2+1:NI2+3)+REPGRAD(1:3)
+                  GLOCAL2(NJ2+1:NJ2+3)=GLOCAL2(NJ2+1:NJ2+3)-REPGRAD(1:3)
+               END IF
+            END DO
+            GGG(OFFSET1+1:OFFSET1+3*NATOMS)=GGG(OFFSET1+1:OFFSET1+3*NATOMS)+GLOCAL1(1:3*NATOMS)
+            GGG(OFFSET2+1:OFFSET2+3*NATOMS)=GGG(OFFSET2+1:OFFSET2+3*NATOMS)+GLOCAL2(1:3*NATOMS)
+            EEE(J1)=EEE(J1)+EREP1
+            IF (J1.EQ.2) THEN
+               EEE(J1)=EEE(J1)+EREP2
+            ELSE
+               EEE(J1)=EEE(J1)+EREP2/2.0D0
+               EEE(J1-1)=EEE(J1-1)+EREP2/2.0D0
+            ENDIF
          END DO
-
-
+         FMIN=MINVAL(GGG(3*NATOMS+1:3*NATOMS*(NIMAGE+1)))
+         FMAX=MAXVAL(GGG(3*NATOMS+1:3*NATOMS*(NIMAGE+1)))
+         IF (-FMIN.GT.FMAX) FMAX=-FMIN
+         FREPTEST=FMAX
+         CONVERGEREPTEST=EMAX
+         MAXCONIMAGE = JMAX
+         MAXCONSTR = IMAX
       END SUBROUTINE GET_REPULSION_E
 
+      ! should be the same as GET_REPULSION_E, but the iteration inverts the order - outer loops is repulsions
+      SUBROUTINE GET_REPULSION_E2(XYZ,GGG,EEE,EREP)
+         USE QCIKEYS, ONLY: NIMAGE, NATOMS
+         USE REPULSION, ONLY: NNREPULSIVE, NREPI, NREPJ, NREPCUT
+         USE HELPER_FNCTS, ONLY: DISTANCE_SIMPLE
+         IMPLICIT NONE
+         REAL(KIND = REAL64), INTENT(IN) :: XYZ(3*NATOMS*(NIMAGE+2))   ! input coordinates
+         REAL(KIND = REAL64), INTENT(OUT) :: GGG(3*NATOMS*(NIMAGE+2))  ! gradient for each atom in each image
+         REAL(KIND = REAL64), INTENT(OUT) :: EEE(NIMAGE+2), EREP       ! energy for repulsions
+         
+         INTEGER :: J1, J2, OFFSET1, OFFSET2
+         REAL(KIND = REAL64) :: X1(3*NATOMS), X2(3*NATOMS)           ! coordinates for image 1 and 2
+         REAL(KIND = REAL64) :: GLOCAL1(3*NATOMS), GLOCAL2(3*NATOMS) ! gradients for each image
+         REAL(KIND = REAL64) :: EREP1, EREP2                         ! repulsion energy contributions
+         INTEGER :: NI1, NI2, NJ1, NJ2                               ! indices for atom I and J in images 1 and 2
+         REAL(KIND = REAL64) :: G1(3), G2(3), DSQ1, DSQ2             ! dummy variables
+         REAL(KIND = REAL64) :: DCUT, DINTMIN, DP_G12                ! values used to test for internal minimum
+         REAL(KIND = REAL64) , PARAMETER :: DINTTEST = 1.0D-50       ! cutoff for DINTMIN to test for internal min
+         REAL(KIND = REAL64) :: D1, D2, D12                         ! distances in image 1 and 2
+         REAL(KIND = REAL64) :: RPLOCAL, RPLOCAL2, RPLOCALINV, INTCONST, INTCONSTINV
+         REAL(KIND = REAL64) :: REPGRAD(3)
+         LOGICAL :: NOINT                                            ! do we hae an internal minimum
+         REAL(KIND = REAL64) :: DINT, DSQI, G1INT(3), G2INT(3)       ! information for internal minimum contribution
+         REAL(KIND=REAL64) :: EMAX, FMIN, FMAX
+         INTEGER :: IMAX, JMAX
+
+         EMAX = -(HUGE(1.0D0))
+         FMAX = -(HUGE(1.0D0))
+         FMIN = HUGE(1.0D0)
+         EEE(1:INTIMAGE+2)=0.0D0
+         GGG(1:(3*NATOMS)*(INTIMAGE+2))=0.0D0         
+         EREP = 0.0D0
+
+         DO J2=1,NNREPULSIVE
+            RPLOCAL = NREPCUT(J2)
+            RPLOCAL2 = RPLOCAL**2
+            RPLOCALINV = 1.0D0/RPLOCAL
+            INTCONST = RPLOCAL**3
+            INTCONSTINV = 1.0D0/INTCONST
+
+            DO J1=2,NIMAGE+2
+               NI1=(3*NATOMS)*(J1-2)+3*(NREPI(J2)-1)
+               NI2=(3*NATOMS)*(J1-1)+3*(NREPI(J2)-1)
+               NJ1=(3*NATOMS)*(J1-2)+3*(NREPJ(J2)-1)
+               NJ2=(3*NATOMS)*(J1-1)+3*(NREPJ(J2)-1)
+         
+               G1(1:3)=XYZ(NI1+1:NI1+3)-XYZ(NJ1+1:NJ1+3) !vector from j to i in image 1
+               G2(1:3)=XYZ(NI2+1:NI2+3)-XYZ(NJ2+1:NJ2+3) !vector from j to i in image 2
+
+               ! squared distance between atoms in image 1 (theta = pi/2)
+               DSQ1=G1(1)**2 + G1(2)**2 + G1(3)**2
+               ! squared distance between atoms in image 2 (theta = 0)
+               DSQ2=G2(1)**2 + G2(2)**2 + G2(3)**2
+               DCUT=NREPCUT(J2)**2
+               ! don't look for an internal minimum if both repulsions outside cutoff
+               IF ((DSQ1.GT.DCUT).AND.(DSQ2.GT.DCUT)) CYCLE 
+               !QUERY: in the other repulsion routine we use an additional cutoff with QCIINTREPMINSEP - why not here?
+               DP_G12 = DOT_PRODUCT(G1,G2)
+               DINTMIN = DSQ1+DSQ2-2.0D0*DP_G12
+
+               ! Convert derivatives of distance^2 to derivative of distance.
+               ! We have cancelled a factor of two above and below
+               D1 = SQRT(DSQ1); D2 = SQRT(DSQ1)
+               G1(1:3) = G1(1:3)/D1; G2(1:3) = G2(1:3)/D2
+
+               ! if the denominator in the d^2 is approx zero, we do not need to check for an internal minimum
+               IF (DINTMIN.LT.DINTTEST) THEN
+                  NOINT = .TRUE.
+               ELSE
+                  CALL INTMIN_REPULSION(DSQ1,DSQ2,DP_G12,DINTMIN,NOINT,DSQI,DINT,G1INT,G2INT)
+               END IF
+               ! terms for image J1 - non-zero derivatives only for J1
+               IF ((D2.LT.RPLOCAL).AND.(J1.LT.INTIMAGE+2)) THEN
+                  D12=DSQ2
+                  DUMMY=INTCONSTRAINTREP*(1.0D0/DSQ2+(2.0D0*D2-3.0D0*RPLOCAL)*INTCONSTINV)
+                  EEE(J1)=EEE(J1)+DUMMY
+                  EREP=EREP+DUMMY
+                  IF (DUMMY.GT.EMAX) THEN
+                     IMAX=J1
+                     JMAX=J2
+                     EMAX=DUMMY
+                  ENDIF
+                  DUMMY=-2.0D0*INTCONSTRAINTREP*(1.0D0/(D2*DSQ2)-INTCONSTINV)
+                  REPGRAD(1:3)=DUMMY*G2(1:3)
+                  GGG(NI2+1:NI2+3)=GGG(NI2+1:NI2+3)+REPGRAD(1:3)
+                  GGG(NJ2+1:NJ2+3)=GGG(NJ2+1:NJ2+3)-REPGRAD(1:3)
+               END IF
+               DUMMY=0.0D0
+               IF ((.NOT.NOINT).AND.(DINT.LT.NREPCUT(J2))) THEN
+                  DUMMY=INTMINFAC*INTCONSTRAINTREP*(1.0D0/DSQI+(2.0D0*DINT-3.0D0*NREPCUT(J2))*INTCONSTINV)
+                  EREP=EREP+DUMMY
+                  IF (DUMMY.GT.EMAX) THEN
+                     IMAX=J1
+                     JMAX=J2
+                     EMAX=DUMMY
+                  ENDIF
+                  IF (J1.EQ.2) THEN
+                     EEE(J1)=EEE(J1)+DUMMY         
+                  ELSE IF (J1.LT.INTIMAGE+2) THEN
+                     EEE(J1)=EEE(J1)+DUMMY/2.0D0
+                     EEE(J1-1)=EEE(J1-1)+DUMMY/2.0D0
+                  ELSE IF (J1.EQ.INTIMAGE+2) THEN
+                     EEE(J1-1)=EEE(J1-1)+DUMMY
+                  ENDIF
+                  DUMMY=-2.0D0*INTCONSTRAINTREP*(1.0D0/(DINT*DSQI)-INTCONSTINV)
+                  REPGRAD(1:3)=INTMINFAC*DUMMY*G1INT(1:3)
+                  GGG(NI1+1:NI1+3)=GGG(NI1+1:NI1+3)+REPGRAD(1:3)
+                  GGG(NJ1+1:NJ1+3)=GGG(NJ1+1:NJ1+3)-REPGRAD(1:3)
+                  REPGRAD(1:3)=INTMINFAC*DUMMY*G2INT(1:3)
+                  GGG(NI2+1:NI2+3)=GGG(NI2+1:NI2+3)+REPGRAD(1:3)
+                  GGG(NJ2+1:NJ2+3)=GGG(NJ2+1:NJ2+3)-REPGRAD(1:3)
+               ENDIF
+            END DO
+         END DO
+         FMIN=MINVAL(GGG(3*NATOMS+1:3*NATOMS*(NIMAGE+1)))
+         FMAX=MAXVAL(GGG(3*NATOMS+1:3*NATOMS*(NIMAGE+1)))
+         IF (-FMIN.GT.FMAX) FMAX=-FMIN
+         FREPTEST=FMAX
+         CONVERGEREPTEST=EMAX/INTCONSTRAINTREP
+         MAXCONIMAGE = JMAX
+         MAXCONSTR = IMAX
+      END SUBROUTINE GET_REPULSION_E2
+
+      SUBROUTINE GET_SPRING_E(XYZ, GGG, EEE, ESPR)
+         USE QCIKEYS, ONLY: NIMAGE, NATOMS
+         USE INTERPOLATION_KEYS, ONLY: ATOMACTIVE
+         IMPLICIT NONE
+         REAL(KIND = REAL64), INTENT(IN) :: XYZ(3*NATOMS*(NIMAGE+2))   ! input coordinates
+         REAL(KIND = REAL64), INTENT(OUT) :: GGG(3*NATOMS*(NIMAGE+2))  ! gradient for each atom in each image
+         REAL(KIND = REAL64), INTENT(OUT) :: EEE(NIMAGE+2), ESPR      ! energy for repulsions
+         
+         INTEGER :: J1, J2, NI1, NI2
+         REAL(KIND = REAL64) :: DPLUS, DUMMY, EMAX, SPGRAD(3)
+         INTEGER :: IMAX
+
+         ESPR = 0.0D0
+         EMAX = -(HUGE(1.0D0))
+         DO J1=1,NIMAGE+1
+            NI1 = (3*NATOMS)*(J1-1)
+            NI2 = (3*NATOMS)*J1
+            DPLUS = 0.0D0
+            ! get energy for springs
+            DO J2=1,NATOMS
+               IF ((.NOT.INTSPRINGACTIVET).OR.ATOMACTIVE(J2)) THEN 
+                  DPLUS=DPLUS+(XYZ(NI1+3*(J2-1)+1)-XYZ(NI2+3*(J2-1)+1))**2 &
+        &                    +(XYZ(NI1+3*(J2-1)+2)-XYZ(NI2+3*(J2-1)+2))**2 &
+        &                    +(XYZ(NI1+3*(J2-1)+3)-XYZ(NI2+3*(J2-1)+3))**2
+               ENDIF               
+            END DO
+            DUMMY = KINT*0.5D0*DPLUS/KINTSCALED
+            IF (DUMMY.GT.EMAX) THEN
+               IMAX=J1
+               EMAX=DUMMY
+            ENDIF
+            ESPR = ESPR + DUMMY
+            ! get gradient
+            DUMMY=KINT/KINTSCALED
+            DO J2=1,NATOMS
+               IF ((.NOT.INTSPRINGACTIVET).OR.ATOMACTIVE(J2)) THEN 
+                  SPGRAD(1:3)=DUMMY*(XYZ(NI1+3*(J2-1)+1:NI1+3*(J2-1)+3)-XYZ(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3))
+                  GGG(NI1+3*(J2-1)+1:NI1+3*(J2-1)+3)=GGG(NI1+3*(J2-1)+1:NI1+3*(J2-1)+3)+SPGRAD(1:3)
+                  GGG(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)=GGG(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)-SPGRAD(1:3)
+               ENDIF
+            ENDDO
+         END DO
+         MAXSPRIMAGE = IMAX
+         EMAXSPR = EMAX
+      END SUBROUTINE GET_SPRING_E
 
       SUBROUTINE GET_CCLOCAL(CCLOCAL)
          USE QCICONSTRAINTS, ONLY: CONCUTLOCAL, CONCUTABST, CONCUTABS, &
@@ -201,4 +666,74 @@ MODULE CONSTR_E_GRAD
          IF (CONCUTABST) CCLOCAL=CCLOCAL+CONCUTABS
          IF (CONCUTFRACT) CCLOCAL=CCLOCAL+CONCUTFRAC*CONDISTREFLOCAL(J2)
       END SUBROUTINE GET_CCLOCAL
+
+      SUBROUTINE INTMIN_REPULSION(DSQ1,DSQ2,DP_G12,DINTMIN,NOINT,DSQI,DINT,G1INT,G2INT)
+         IMPLICIT NONE
+         REAL(KIND = REAL64), INTENT(IN) :: DSQ1, DSQ2
+         REAL(KIND = REAL64), INTENT(IN) :: DP_G12, DINTMIN
+         LOGICAL, INTENT(OUT) :: NOINT
+         REAL(KIND = REAL64), INTENT(OUT) :: DSQI, DINT
+         REAL(KIND = REAL64), INTENT(OUT) :: G1INT(3), G2INT(3)
+         REAL(KIND = REAL64) :: DUMMY, DUMMY2, DP_G12_SQ
+         REAL(KIND = REAL64), PARAMETER :: LARGEDIST = 1.0D10
+
+         !initliase all output variables
+         NOINT = .TRUE.
+         DSQI = LARGEDIST; DINT = LARGEDIST
+         G1INT(1:3)=0.0D0; G2INT(1:3)=0.0D0
+
+         ! are we having an internal minimum?
+         DUMMY = (DSQ1-DP_G12)/DINTMIN
+         IF ((DUMMY.GT.0.0D0).AND.(DUMMY.LT.1.0D0)) THEN
+            NOINT=.FALSE.
+            DP_G12_SQ = DP_G12**2
+            DUMMY2 = DP_G12_SQ - DSQ1*DSQ2
+            DSQI = MAX(DUMMY2/DINTMIN,0.0D0)
+            DINT = SQRT(DSQI)
+            IF (DINT.LE.0.0D0) THEN
+               NOINT = .TRUE.
+            ELSE IF (DINT.LE.INTCONSTRAINREPCUT) THEN
+               DUMMY = DINT*DINTMIN**2
+               ! to convert derivatives of distance^2 to derivative of distance.
+               G1INT(1:3)= (DUMMY2*(G1(1:3) - G2(1:3)) + DINTMIN*(G1(1:3)*DSQ2 -G2(1:3)*DP_G12))/DUMMY
+               G2INT(1:3)= (DUMMY2*(G2(1:3) - G1(1:3)) + DINTMIN*(G2(1:3)*DSQ1 -G1(1:3)*DP_G12))/DUMMY
+            END IF              
+         END IF
+      END SUBROUTINE INTMIN_REPULSION
+
+      ! QUERY: these functions are identical apart from use of the ondition for repulsions - is that condition required?
+      SUBROUTINE INTMIN_CONSTRAINT(DSQ1,DSQ2,DP_G12,DINTMIN,NOINT,DSQI,DINT,G1INT,G2INT)
+         IMPLICIT NONE
+         REAL(KIND = REAL64), INTENT(IN) :: DSQ1, DSQ2
+         REAL(KIND = REAL64), INTENT(IN) :: DP_G12, DINTMIN
+         LOGICAL, INTENT(OUT) :: NOINT
+         REAL(KIND = REAL64), INTENT(OUT) :: DSQI, DINT
+         REAL(KIND = REAL64), INTENT(OUT) :: G1INT(3), G2INT(3)
+         REAL(KIND = REAL64) :: DUMMY, DUMMY2, DP_G12_SQ
+         REAL(KIND = REAL64), PARAMETER :: LARGEDIST = 1.0D10
+
+         !initliase all output variables
+         NOINT = .TRUE.
+         DSQI = LARGEDIST; DINT = LARGEDIST
+         G1INT(1:3)=0.0D0; G2INT(1:3)=0.0D0
+
+         ! are we having an internal minimum?
+         DUMMY = (DSQ1-DP_G12)/DINTMIN
+         IF ((DUMMY.GT.0.0D0).AND.(DUMMY.LT.1.0D0)) THEN
+            NOINT=.FALSE.
+            DP_G12_SQ = DP_G12**2
+            DUMMY2 = DP_G12_SQ - DSQ1*DSQ2
+            DSQI = MAX(DUMMY2/DINTMIN,0.0D0)
+            DINT = SQRT(DSQI)
+            IF (DINT.LE.0.0D0) THEN
+               NOINT = .TRUE.
+            ELSE
+               DUMMY = DINT*DINTMIN**2
+               ! to convert derivatives of distance^2 to derivative of distance.
+               G1INT(1:3)= (DUMMY2*(G1(1:3) - G2(1:3)) + DINTMIN*(G1(1:3)*DSQ2 -G2(1:3)*DP_G12))/DUMMY
+               G2INT(1:3)= (DUMMY2*(G2(1:3) - G1(1:3)) + DINTMIN*(G2(1:3)*DSQ1 -G1(1:3)*DP_G12))/DUMMY
+            END IF              
+         END IF
+      END SUBROUTINE INTMIN_CONSTRAINT
+
 END MODULE CONSTR_E_GRAD
