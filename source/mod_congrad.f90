@@ -426,8 +426,7 @@ MODULE CONSTR_E_GRAD
                RPLOCALINV = 1.0D0/RPLOCAL
 
                IF (D2.LT.RPLOCAL) THEN
-                  D12 = DSQ2
-                  DUMMY = RPLOCAL2/D12 + 2.0D0*D2*RPLOCALINV - 3.0D0
+                  DUMMY = RPLOCAL2/DSQ2 + 2.0D0*D2*RPLOCALINV - 3.0D0
                   EREP1 = EREP1 + DUMMY
                   EREP = EREP + DUMMY
                   IF (DUMMY.GT.EMAX) THEN
@@ -435,7 +434,7 @@ MODULE CONSTR_E_GRAD
                      JMAX = J2
                      EMAX = DUMMY
                   END IF
-                  DUMMY=-2.0D0*(RPLOCAL2/(D2*D12)-RPLOCALINV)
+                  DUMMY=-2.0D0*(RPLOCAL2/(D2*DSQ2)-RPLOCALINV)
                   REPGRAD(1:3) = DUMMY*G2(1:3)
                   GLOCAL2(NI2+1:NI2+3)=GLOCAL2(NI2+1:NI2+3)+REPGRAD(1:3)
                   GLOCAL2(NJ2+1:NJ2+3)=GLOCAL2(NJ2+1:NJ2+3)-REPGRAD(1:3)
@@ -506,7 +505,7 @@ MODULE CONSTR_E_GRAD
          REAL(KIND = REAL64) :: DCUT, DINTMIN, DP_G12                ! values used to test for internal minimum
          REAL(KIND = REAL64) , PARAMETER :: DINTTEST = 1.0D-50       ! cutoff for DINTMIN to test for internal min
          REAL(KIND = REAL64) :: D1, D2, D12                         ! distances in image 1 and 2
-         REAL(KIND = REAL64) :: RPLOCAL, RPLOCAL2, RPLOCALINV, INTCONST, INTCONSTINV
+         REAL(KIND = REAL64) :: RPLOCAL, INTCONST, INTCONSTINV
          REAL(KIND = REAL64) :: REPGRAD(3)
          LOGICAL :: NOINT                                            ! do we hae an internal minimum
          REAL(KIND = REAL64) :: DINT, DSQI, G1INT(3), G2INT(3)       ! information for internal minimum contribution
@@ -522,8 +521,6 @@ MODULE CONSTR_E_GRAD
 
          DO J2=1,NNREPULSIVE
             RPLOCAL = NREPCUT(J2)
-            RPLOCAL2 = RPLOCAL**2
-            RPLOCALINV = 1.0D0/RPLOCAL
             INTCONST = RPLOCAL**3
             INTCONSTINV = 1.0D0/INTCONST
 
@@ -560,7 +557,6 @@ MODULE CONSTR_E_GRAD
                END IF
                ! terms for image J1 - non-zero derivatives only for J1
                IF ((D2.LT.RPLOCAL).AND.(J1.LT.INTIMAGE+2)) THEN
-                  D12=DSQ2
                   DUMMY=INTCONSTRAINTREP*(1.0D0/DSQ2+(2.0D0*D2-3.0D0*RPLOCAL)*INTCONSTINV)
                   EEE(J1)=EEE(J1)+DUMMY
                   EREP=EREP+DUMMY
@@ -575,8 +571,8 @@ MODULE CONSTR_E_GRAD
                   GGG(NJ2+1:NJ2+3)=GGG(NJ2+1:NJ2+3)-REPGRAD(1:3)
                END IF
                DUMMY=0.0D0
-               IF ((.NOT.NOINT).AND.(DINT.LT.NREPCUT(J2))) THEN
-                  DUMMY=INTMINFAC*INTCONSTRAINTREP*(1.0D0/DSQI+(2.0D0*DINT-3.0D0*NREPCUT(J2))*INTCONSTINV)
+               IF ((.NOT.NOINT).AND.(DINT.LT.RPLOCAL)) THEN
+                  DUMMY=INTMINFAC*INTCONSTRAINTREP*(1.0D0/DSQI+(2.0D0*DINT-3.0D0*RPLOCAL)*INTCONSTINV)
                   EREP=EREP+DUMMY
                   IF (DUMMY.GT.EMAX) THEN
                      IMAX=J1
@@ -611,7 +607,7 @@ MODULE CONSTR_E_GRAD
       END SUBROUTINE GET_REPULSION_E2
 
       SUBROUTINE GET_SPRING_E(XYZ, GGG, EEE, ESPR)
-         USE QCIKEYS, ONLY: NIMAGE, NATOMS
+         USE QCIKEYS, ONLY: NIMAGE, NATOMS, KINT, KINTSCALED, QCIADJUSTKT
          USE INTERPOLATION_KEYS, ONLY: ATOMACTIVE
          IMPLICIT NONE
          REAL(KIND = REAL64), INTENT(IN) :: XYZ(3*NATOMS*(NIMAGE+2))   ! input coordinates
@@ -620,10 +616,12 @@ MODULE CONSTR_E_GRAD
          
          INTEGER :: J1, J2, NI1, NI2
          REAL(KIND = REAL64) :: DPLUS, DUMMY, EMAX, SPGRAD(3)
+         REAL(KIND = REAL64) :: DVEC(INTIMAGE+1)
          INTEGER :: IMAX
 
          ESPR = 0.0D0
          EMAX = -(HUGE(1.0D0))
+
          DO J1=1,NIMAGE+1
             NI1 = (3*NATOMS)*(J1-1)
             NI2 = (3*NATOMS)*J1
@@ -636,6 +634,7 @@ MODULE CONSTR_E_GRAD
         &                    +(XYZ(NI1+3*(J2-1)+3)-XYZ(NI2+3*(J2-1)+3))**2
                ENDIF               
             END DO
+            DVEC(J1) = SQRT(DPLUS)
             DUMMY = KINT*0.5D0*DPLUS/KINTSCALED
             IF (DUMMY.GT.EMAX) THEN
                IMAX=J1
@@ -654,7 +653,19 @@ MODULE CONSTR_E_GRAD
          END DO
          MAXSPRIMAGE = IMAX
          EMAXSPR = EMAX
+         IF (QCIADJUSTKT) CALL GET_AV_DEV(DVEC)
       END SUBROUTINE GET_SPRING_E
+
+      SUBROUTINE GET_AV_DEV(DVEC)
+         USE QCIKEYS, ONLY: NIMAGE, QCIAVDEV
+         IMPLICIT NONE
+         REAL(KIND = REAL64), INTENT(IN) :: DVEC(1:NIMAGE+1)
+         REAL(KIND = REAL64) :: SEPARATION, DEVIATION(1:NIMAGE+1)
+
+         SEPARATION = SUM(DVEC(1:NIMAGE+1))
+         DEVIATION(1:NIMAGE+1)=ABS(100*((NIMAGE+1)*DVEC(1:NIMAGE+1)/SEPARATION-1.0D0))
+         QCIAVDEV=SUM(DEVIATION)/(NTMAGE+1)
+      END SUBROUTINE GET_AV_DEV
 
       SUBROUTINE GET_CCLOCAL(CCLOCAL)
          USE QCICONSTRAINTS, ONLY: CONCUTLOCAL, CONCUTABST, CONCUTABS, &

@@ -30,13 +30,24 @@ MODULE QCIKEYS
    REAL(KIND=REAL64) :: QCICONSTRAINTTOL = 0.1D0
    REAL(KIND=REAL64) :: QCICONCUT = 0.1D0   
 
-   !repulsions
-   REAL(KIND=REAL64) :: QCIREPCUT = 1.0D-3
-
    CHARACTER(LEN=30) :: GEOMFILE = "congeom.dat"
    INTEGER :: NCONGEOM = 0
    REAL(KIND=REAL64), ALLOCATABLE :: CONGEOM(:,:) 
    CHARACTER(LEN=30) :: CONSTRFILE = "constraintfile"
+
+   !repulsions
+   REAL(KIND=REAL64) :: QCIREPCUT = 1.0D-3
+
+   !spring constants and adjustment
+   !TODO: add initialisation and setting in qci setup
+   LOGICAL :: QCIADJUSTKT = .FALSE. ! adjust spring constant
+   INTEGER :: QCIADJUSTKFRQ = 0
+   REAL(KIND=REAL64) :: QCIADJUSTKTOL = 0.0D0
+   REAL(KIND=REAL64) :: QCIAVDEV = 0.0D0
+   REAL(KIND=REAL64) :: KINT
+   REAL(KIND=REAL64) :: KINTSCALED
+   REAL(KIND=REAL64) :: QCIKINTMIN, QCIKINTMAX
+   REAL(KIND=REAL64) :: QCIADJUSTKFRAC
 
    !permutational stuff
    INTEGER :: QCIPERMCHECKINT = 100

@@ -5,11 +5,13 @@ MODULE QCIINTERPOLATION
    CONTAINS
       SUBROUTINE RUN_QCI_INTERPOLATION()
          USE MOD_INTCOORDS, ONLY: INITIATE_INTERPOLATION_BAND, GET_DISTANCES_CONSTRAINTS
-         USE QCI_KEYS, ONLY: QCIREADGUESS, QCIRESTART, QCIFREEZET
+         USE QCI_KEYS, ONLY: QCIREADGUESS, QCIRESTART, QCIFREEZET, MAXITER
          USE MOD_FREEZE, ONLY: ADD_CONSTR_AND_REP_FROZEN_ATOMS
-         USE CONSTRAINTS
+         USE CONSTR_E_GRAD, ONLY: CONGRAD1, CONGRAD2
+         USE QCICONSTRAINTS
          IMPLICIT NONE
-         INTEGER :: NBEST
+         INTEGER :: NBEST, NITERDONE
+         LOGICAL :: QCICONVT 
 
 
          !initiate vairables and band
@@ -59,9 +61,38 @@ MODULE QCIINTERPOLATION
          CALL CHECKREP(XYZ,0,1)
 
          ! call congrad routine
+         IF (CHECKCONINT) THEN
+            CALL CONGRAD2(ETOTAL, XYZ, GGG, EEE, RMS)
+         ELSE
+            CALL CONGRAD1(ETOTAL, XYZ, GGG, EEE, RMS)
+         END IF
 
+         NITERDONE = 0
+         QCICONVT = .FALSE.
          ! now enter main loop and add atom by atom going through congrad routines as we go along
+         DO WHILE (NITERDONE.LT.MAXITER)
+            NITERDONE = NITERDONE + 1
+            !TODO: add QCIRESET option
+            !TODO: add QCINMD option
+            !TODO: add permutational alignment routines
 
+            ! spring constant dynamic adjustment
+            IF (QCIADJUSTKT.AND.MOD(NITERDONE,QCIADJUSTKFRQ).EQ.0) THEN
+               IF (QCIAVDEV.GT.QCIADJUSTKTOL) THEN
+                  KINT=MIN(KINT*QCIKADJUSTFRAC,QCIKINTMAX)
+               ELSE IF (QCIAVDEV.LT.QCIADJUSTKTOL) THEN
+                  KINT=MAX(KINT/QCIKADJUSTFRAC,QCIKINTMIN)
+               END IF
+            END IF
+
+            ! TODO: CONOFFLIST needs to be needed
+
+            !need to add atom now
+            CALL DOATOM()
+            ! HERE TO CONTINUE:
+            ! need to implement the doatom routine next and then continue with the main loop
+
+         END DO
       END SUBROUTINE RUN_QCI_INTERPOLATION
 
    
