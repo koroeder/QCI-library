@@ -14,23 +14,24 @@ MODULE QCIINTERPOLATION
          LOGICAL :: QCICONVT 
 
 
-         !initiate vairables and band
+         !initiate variables for the interpolation, including image density set nimage
          CALL ALLOC_INTERPOLATION_VARS()
          CALL INITIALISE_INTERPOLATION_VARS()
+         ! allocate the coordinate, energy and gradient variables for the band and
+         ! initiate the interpolation band
          CALL INITIATE_INTERPOLATION_BAND()
 
-         ! are we restarting a simulation?
-         IF (QCIRESTART) THEN
-            !TODO: add option to restart interpolation
-            CONTINUE
-         ! alternatively, are we reading in a guess?
-         ELSE IF (QCIREADGUESS) THEN
-            !TODO: add option to restart interpolation
+         ! are we reading in a guess?
+         IF (QCIREADGUESS) THEN
+            !TODO: add option to read in guess for interpolation band
             CONTINUE
          END IF
 
          ! get constraint with smallest distance between endpoints (respecting QCIDOBACK)
          CALL GET_DISTANCES_CONSTRAINTS(NBEST)
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+         !!!!TODO: continue from line 576 to add permutational stuff here
 
          ! Turning first constraint on
          CONACTIVE(NBEST)=.TRUE.
@@ -99,10 +100,16 @@ MODULE QCIINTERPOLATION
 
 
       SUBROUTINE INITIALISE_INTERPOLATION_VARS()
+         USE QCI_KEYS, ONLY: USEIMAGEDENSITY, NIMAGES, E2E_DIST, IMAGEDENSITY, MAXINTIMAGE
+
          CONACTIVE(:) = .FALSE.
          ATOMACTIVE(1:NATOMS) = .FALSE.
          NTRIES(1:NATOMS) = 0
          TURNONRODER(1:NATOMS) = 0
+
+         IF (USEIMAGEDENSITY) THEN
+            NIMAGES=MIN(IMAGEDENSITY*E2E_DIST,1.0D0*MAXINTIMAGE)
+         END IF
       END SUBROUTINE INITIALISE_INTERPOLATION_VARS
 
 END MODULE QCIINTERPOLATION

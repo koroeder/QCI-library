@@ -5,7 +5,7 @@ MODULE QCIPERMDIST
    INTEGER :: NPERMGROUP = 0
    ! back up for NPERMGROUP
    INTEGER :: NPERMGROUPBACK = 0
-   ! maximum number of subsets (in OPTIM this is set to five as default but can be changed by keyword input)
+   ! maximum number of subsets (in OPTIM this is set to five as default but we actually fix it later to the actual size)
    INTEGER :: MAXNSETS = 5
    ! arrays to store permutational information
    INTEGER, ALLOCATABLE :: NPERMSIZE(:)
@@ -124,6 +124,7 @@ MODULE QCIPERMDIST
                NDUMMY=NDUMMY+NPERMSIZE(J1)
             ENDDO
             CLOSE(PERMUNIT)
+            MAXNSETS=SIZE(SETS,2)
          END IF
       END SUBROUTINE INIT_PERMALLOW
 

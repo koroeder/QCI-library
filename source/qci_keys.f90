@@ -14,7 +14,11 @@ MODULE QCIKEYS
    INTEGER :: NBACKBONE = 0
 
    LOGICAL :: QCIREADGUESS = .FALSE. ! read guess for band
-   LOGICAL :: QCIRESTART = .FALSE.   ! restart QCI interpolation
+   
+   LOGICAL :: USEIMAGEDENSITY = .FALSE. ! base number of images on interpolation density
+   REAL(KIND=REAL64) :: E2E_DIST = 0.D0 ! endpoint to endpoint distance after alignment
+   REAL(KIND=REAL64) :: IMAGEDENSITY = 0.5 ! Image density per unit distance
+   INTEGER :: MAXINTIMAGE = 250 ! maximum number of images 
 
    !frozen atoms 
    LOGICAL :: QCIFREEZET = .FALSE. ! Shall some atoms be frozen?
