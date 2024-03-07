@@ -1,6 +1,6 @@
 MODULE MOD_INTCOORDS
    USE QCIPREC
-   USE QCIKEYS, ONLY: NATOMS, NIMAGES
+   USE QCIKEYS, ONLY: NATOMS, NIMAGES, DEBUG
    IMPLICIT NONE 
    REAL(KIND = REAL64), ALLOCATABLE :: XSTART(:), XFINAL(:)
    REAL(KIND = REAL64), ALLOCATABLE :: XYZ(:), GGG(:), EEE(:)
@@ -34,12 +34,11 @@ MODULE MOD_INTCOORDS
          ALLOCATE(XSTART(3*NATOMS),XFINAL(3*NATOMS))
       END SUBROUTINE SETUP_ENDPOINTS
 
-      SUBROUTINE INITIATE_INTERPOLATION_BAND(DEBUG)
+      SUBROUTINE INITIATE_INTERPOLATION_BAND()
          USE QCIFILEHANDLER, ONLY: GETUNIT
          USE QCIKEYS, ONLY: QCIFROZEN, NCQIFROZEN
          IMPLICIT NONE
-         LOGICAL, INTENT(IN) :: DEBUG
-         INTEGER :: J1, J2, J3, LUNIT
+         INTEGER :: J1
 
          CALL ALLOC_INTCOORDS()
          XYZ(1:(3*NATOMS))=QSTART(1:(3*NATOMS))
@@ -60,18 +59,8 @@ MODULE MOD_INTCOORDS
             END DO
          END IF
 
-         IF (DEBUG) THEN
-            LUNIT=GETUNIT()
-            OPEN(UNIT=LUNIT,FILE='linear.xyz',STATUS='replace')
-            DO J2=1,NIMAGES+2
-               WRITE(LUNIT,'(I6)') NATOMS
-               DO J3=1,NATOMS
-                     WRITE(LUNIT,'(A5,1X,3F20.10)') 'LA   ', XYZ((J2-1)*3*NATOMS+3*(J3-1)+1),  &
-                                  XYZ((J2-1)*3*NATOMS+3*(J3-1)+2), XYZ((J2-1)*3*NATOMS+3*(J3-1)+3)
-               ENDDO
-            ENDDO
-            CLOSE(LUNIT)
-         END IF
+         IF (DEBUG) CALL WRITE_BAND("linear.xyz")
+
       END SUBROUTINE INITIATE_INTERPOLATION_BAND
 
       SUBROUTINE GET_DISTANCES_CONSTRAINTS(NBEST)
@@ -114,4 +103,49 @@ MODULE MOD_INTCOORDS
          END IF
          NBEST = NCONSMALLEST
       END SUBROUTINE GET_DISTANCES_CONSTRAINTS
+
+      SUBROUTINE READGUESS()
+         USE QCI_KEYS, ONLY: GUESSFILE
+         USE QCIFILEHANDLER, ONLY: GETUNIT
+         IMPLICIT NONE
+         INTEGER :: XUNIT
+         LOGICAL :: YESNO
+         CHARACTER(LEN=2) :: SDUMMY
+         INTEGER :: J1, J2, NDUMMY
+
+         INQUIRE(FILE=GUESSFILE, EXIST=YESNO)
+         IF (YESNO) THEN
+            XUNIT = GETUNIT()
+            OPEN(XUNIT, FILE=GUESSFILE, STATUS='OLD')
+         ELSE
+            WRITE(*,*) " File ", GUESSFILE , "does not exist - cannot read in guess for interpolation band - STOP"
+            STOP
+         END IF
+         DO J2=1,NIMAGES+2
+            READ(XUNIT,*) NDUMMY
+            READ(XUNIT,*) 
+            DO J1=1,NATOMS
+               READ(XUNIT,*) SDUMMY,XYZ(3*NATOMS*(J2-1)+3*(J1-1)+1),XYZ(3*NATOMS*(J2-1)+3*(J1-1)+2),XYZ(3*NATOMS*(J2-1)+3*(J1-1)+3)
+            END DO
+         END DO
+         IF (DEBUG) CALL WRITE_BAND("int_after_readguess.xyz")
+      END SUBROUTINE READGUESS
+
+      SUBROUTINE WRITE_BAND(FNAME)
+         USE QCIFILEHANDLER, ONLY: GETUNIT
+         IMPLICIT NONE
+         INTEGER :: LUNIT
+         INTEGER :: J2, J3
+
+         LUNIT=GETUNIT()
+         OPEN(UNIT=LUNIT,FILE=FNAME,STATUS='replace')
+         DO J2=1,NIMAGES+2
+            WRITE(LUNIT,'(I6)') NATOMS
+            DO J3=1,NATOMS
+                  WRITE(LUNIT,'(A5,1X,3F20.10)') 'LA   ', XYZ((J2-1)*3*NATOMS+3*(J3-1)+1),  &
+                               XYZ((J2-1)*3*NATOMS+3*(J3-1)+2), XYZ((J2-1)*3*NATOMS+3*(J3-1)+3)
+            ENDDO
+         ENDDO
+         CLOSE(LUNIT)
+      END SUBROUTINE WRITE_BAND
 END MODULE MOD_INTCOORDS

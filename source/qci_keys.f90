@@ -1,6 +1,9 @@
 MODULE QCIKEYS
    USE QCIPREC
    IMPLICIT NONE
+
+   LOGICAL :: DEBUG = .FALSE.
+
    LOGICAL :: STOCKT
 
    INTEGER :: NATOMS = 0
@@ -14,6 +17,7 @@ MODULE QCIKEYS
    INTEGER :: NBACKBONE = 0
 
    LOGICAL :: QCIREADGUESS = .FALSE. ! read guess for band
+   CHARACTER(20) :: GUESSFILE = "int_guess.xyz"
    
    LOGICAL :: USEIMAGEDENSITY = .FALSE. ! base number of images on interpolation density
    REAL(KIND=REAL64) :: E2E_DIST = 0.D0 ! endpoint to endpoint distance after alignment
