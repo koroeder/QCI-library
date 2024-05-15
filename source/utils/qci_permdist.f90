@@ -27,6 +27,11 @@ MODULE QCIPERMDIST
 
    INTEGER, ALLOCATABLE :: ORDERNUM(:)
 
+   ! common constraints
+   INTEGER :: NCOMMONMAX = -1
+   INTEGER, ALLOCATABLE :: NCONCOMMON(:)
+   INTEGER, ALLOCATABLE :: CONCOMMON(:,:)
+
    !variables in keys
    INTEGER :: LOCALPERMNEIGH = 11
    INTEGER :: LOCALPERMMAXSEP = 3
@@ -71,6 +76,8 @@ MODULE QCIPERMDIST
          ! and we can exchange H's attached to the same O. The dimension required
          ! becomes 3*NATOMS
          ALLOCATE(BESTPERM(NATOMS))
+         !common constraints
+         ALLOCATE(NCONCOMMON(NPERMGROUP))
       END SUBROUTINE ALLOC_QCIPERM
 
       SUBROUTINE DEALLOC_QCIPERM()
@@ -84,6 +91,7 @@ MODULE QCIPERMDIST
          IF (ALLOCATED(NSETSBACK)) DEALLOCATE(NSETSBACK)
          IF (ALLOCATED(SETSBACK)) DEALLOCATE(SETSBACK)
          IF (ALLOCATED(BESTPERM)) DEALLOCATE(BESTPERM)
+         IF (ALLOCATED(NCONCOMMON)) DEALLOCATE(NCONCOMMON)
       END SUBROUTINE DEALLOC_QCIPERM
 
       SUBROUTINE INIT_PERMALLOW(NATOMS)
@@ -127,6 +135,95 @@ MODULE QCIPERMDIST
             MAXNSETS=SIZE(SETS,2)
          END IF
       END SUBROUTINE INIT_PERMALLOW
+
+      SUBROUTINE CHECK_COMMON_CONSTR()
+         USE QCICONSTRAINTS, ONLY: NCONPERATOM, CONLIST
+
+         INTEGER :: J1, J2, J3, J4, PATOM1, PATOMTEST
+         INTEGER :: NENTRY
+
+         NCOMMONCON(1:NPERMGROUP) = 0
+         NENTRY = 1 ! counter for position of entries in permutational groups
+         DO J1=1,NPERMGROUP
+            PATOM1 = PERMGROUP(NENTRY)
+            ! For each entry in constraint list of first permutable atom, 
+            ! check if it exists for the second, 
+            ! if so, check the third, etc.
+            DO J2=1,NCONPERATOM(PATOM1)
+               ! cycle over all atoms in the constraint list that are constraint with PATOM1
+               PATOMTEST = CONLIST(PATOM1,J2)
+               COMMONCONST = .TRUE.
+               DO J3=2,NPERMSIZE(J1)
+                  ! cycle over all atoms in permutational group
+                  PATOM2=PERMGROUP(NENTRY+J3-1)
+                  THISATOMFOUND = .FALSE.
+                  DO J4=1,NCONPERATOM(PATOM2)
+                     IF (CONLIST(PATOM2,J4).EQ.PATOMTEST) THEN
+                        !we found a match to PATOM2
+                        THISATOMFOUND = .TRUE.
+                        EXIT
+                     END IF
+                  END DO
+                  !upate commonconst based on whether we found patom2
+                  COMMONCONST = COMMONCONST.AND.THISATOMFOUND
+                  ! if the latest atom was not a common one, we can leave the loop
+                  IF (.NOT.COMMONCONST) THEN
+                     EXIT
+                  END IF
+               END DO
+               ! if we found a common constraint, add it to our list
+               IF (COMMONCONST) THEN
+                  NCOMMONCON(J1) = NCOMMONCON(J1) + 1
+               END IF
+            END DO
+            NENTRY=NENTRY+NPERMSIZE(J1)
+            IF (NCONCOMMON(J1).GT.NCOMMONMAX) NCOMMONMAX=NCONCOMMON(J1)
+         END DO
+
+         ! allocate common constraint array
+         IF (ALLOCATED(COMMONCON)) DEALLOCATE(COMMONCON)
+         ALLOCATE(COMMONCON(NPERMGROUP,NCOMMONMAX))
+
+         ! reiterating over all groups, this time to save common constraints
+         NENTRY = 1 ! counter for position of entries in permutational groups
+         DO J1=1,NPERMGROUP 
+            NCONCOMMON(J1)=0
+            PATOM1 = PERMGROUP(NENTRY)
+            ! For each entry in constraint list of first permutable atom, 
+            ! check if it exists for the second, 
+            ! if so, check the third, etc.
+            DO J2=1,NCONPERATOM(PATOM1)
+               ! cycle over all atoms in the constraint list that are constraint with PATOM1
+               PATOMTEST = CONLIST(PATOM1,J2)
+               COMMONCONST = .TRUE.
+               DO J3=2,NPERMSIZE(J1)
+                  ! cycle over all atoms in permutational group
+                  PATOM2=PERMGROUP(NENTRY+J3-1)
+                  THISATOMFOUND = .FALSE.
+                  DO J4=1,NCONPERATOM(PATOM2)
+                     IF (CONLIST(PATOM2,J4).EQ.PATOMTEST) THEN
+                        !we found a match to PATOM2
+                        THISATOMFOUND = .TRUE.
+                        EXIT
+                     END IF
+                  END DO
+                  !upate commonconst based on whether we found patom2
+                  COMMONCONST = COMMONCONST.AND.THISATOMFOUND
+                  ! if the latest atom was not a common one, we can leave the loop
+                  IF (.NOT.COMMONCONST) THEN
+                     EXIT
+                  END IF
+               END DO
+               ! if we found a common constraint, add it to our list
+               IF (COMMONCONST) THEN
+                  NCONCOMMON(J1)=NCONCOMMON(J1)+1
+                  COMMONCON(J1,NCONCOMMON(J1))=PATOMTEST
+               END IF
+            END DO
+            NENTRY=NENTRY+NPERMSIZE(J1)
+         END DO
+
+      END SUBROUTINE CHECK_COMMON_CONSTR
 
       !
       SUBROUTINE LOPERMDIST(COORDSB,COORDSA,NATOMS,DEBUG,BOXLX,BOXLY,BOXLZ,BULKT,TWOD,DISTANCE,DIST2,RIGID,RMATBEST,DOGROUP,NMOVE,NEWPERM)

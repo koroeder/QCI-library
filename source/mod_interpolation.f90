@@ -8,6 +8,7 @@ MODULE QCIINTERPOLATION
          USE QCI_KEYS, ONLY: QCIREADGUESS, QCIRESTART, QCIFREEZET, MAXITER
          USE MOD_FREEZE, ONLY: ADD_CONSTR_AND_REP_FROZEN_ATOMS
          USE CONSTR_E_GRAD, ONLY: CONGRAD1, CONGRAD2
+         USE QCIPERMDIST, ONLY: CHECK_COMMON_CONSTR
          USE QCICONSTRAINTS
          IMPLICIT NONE
          INTEGER :: NBEST, NITERDONE
@@ -29,8 +30,8 @@ MODULE QCIINTERPOLATION
          ! get constraint with smallest distance between endpoints (respecting QCIDOBACK)
          CALL GET_DISTANCES_CONSTRAINTS(NBEST)
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-         !!!!TODO: continue from line 576 to add permutational stuff here
+         ! get common constraints for atoms in permutational groups
+         CALL CHECK_COMMON_CONSTR()
 
          ! Turning first constraint on
          CONACTIVE(NBEST)=.TRUE.
