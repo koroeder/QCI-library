@@ -1,11 +1,12 @@
 MODULE QCIINTERPOLATION
    USE INTERPOLATION_KEYS
+   USE MOD_INTCOORDS
+   USE PREC
    IMPLICIT NONE
 
    CONTAINS
       SUBROUTINE RUN_QCI_INTERPOLATION()
-         USE MOD_INTCOORDS, ONLY: INITIATE_INTERPOLATION_BAND, GET_DISTANCES_CONSTRAINTS, READGUESS
-         USE QCI_KEYS, ONLY: QCIREADGUESS, QCIRESTART, QCIFREEZET, MAXITER
+         USE QCIKEYS, ONLY: QCIREADGUESS, QCIRESTART, QCIFREEZET, MAXITER, MAXGRADCOMP
          USE MOD_FREEZE, ONLY: ADD_CONSTR_AND_REP_FROZEN_ATOMS
          USE CONSTR_E_GRAD, ONLY: CONGRAD1, CONGRAD2
          USE QCIPERMDIST, ONLY: CHECK_COMMON_CONSTR
@@ -13,6 +14,11 @@ MODULE QCIINTERPOLATION
          IMPLICIT NONE
          INTEGER :: NBEST, NITERDONE
          LOGICAL :: QCICONVT 
+         REAL(KIND = REAL64) :: GLAST(NDIMS), XLAST(NDIMS), ELAST
+         CHARACTER(25) :: XYZFILE = "int.xyz"
+         CHARACTER(25) :: EEEFILE = "int.EofS"
+         CHARACTER(25) :: RESETXYZFILE = "QCIreset.int.xyz"
+         CHARACTER(25) :: RESETEEEFILE = "QCIreset.int.EofS"        
 
 
          !initiate variables for the interpolation, including image density set nimage
@@ -58,7 +64,7 @@ MODULE QCIINTERPOLATION
             CALL ADD_CONSTR_AND_REP_FROZEN_ATOMS(NBEST)
          END IF
 
-         ! before we continue check repulsion neighbour list
+         ! before we continue check repulsion neighbour list -> line 983 in old routine
          CALL CHECKREP(XYZ,0,1)
 
          ! call congrad routine
@@ -68,13 +74,58 @@ MODULE QCIINTERPOLATION
             CALL CONGRAD1(ETOTAL, XYZ, GGG, EEE, RMS)
          END IF
 
+         !scale gradient if necessary
+         IF (MAXGRADCOMP.GT.0.0D0) CALL SCALEGRAD(DIMS,G,RMS,MAXGRADCOMP)
+         !save gradient and coordinates (we use the pointer to the images here)
+         GLAST(1:DIMS) = G(1:DIMS)
+         XLAST(1:DIMS) = X(1:DIMS)
+         ELAST = ETOTAL 
+
+         !call check for cold fusion
+         CALL CHECK_FOR_COLDFUSION(ETOTAL)
+
          NITERDONE = 0
+         NLASTGOODE = 0
          QCICONVT = .FALSE.
+         ! -> starts line 1070 in old routine
          ! now enter main loop and add atom by atom going through congrad routines as we go along
          DO WHILE (NITERDONE.LT.MAXITER)
             NITERDONE = NITERDONE + 1
-            !TODO: add QCIRESET option
-            !TODO: add QCINMD option
+
+            IF (QCIRESET) THEN
+               !check when we had the last good energy
+               IF ((NITERDONE-NLASTGOODE.GT.QCIRESETINT1)) THEN 
+                  ! save interpolation if we debug
+                  IF (DEBUG) THEN
+                     CALL WRITE_BAND(RESETXYZFILE)
+                     CALL WRITE_PROFILE(RESETEEEFILE, EEE)
+                  END IF
+               
+
+                  !!!!! CONTINUE HERE:
+                  !!! line 1107 in old routine
+                  !!! need to set and check all these variables  -are they set and defined?
+                  IF (MAX(CONVERGECONTEST,CONVERGEREPTEST).GT.MAXCONE) MAXCONE=MAXCONE*1.1D0
+                  IF (MAX(FCONTEST,FREPTEST).GT.INTRMSTOL) INTRMSTOL=INTRMSTOL*1.1D0
+                  CONCUTABS=CONCUTABS+0.1D0
+                  WRITE(*,'(A,2G20.10,A,G20.10)') ' intlbfgs> Interpolation seems to be stuck. Converge thresholds are now ',MAXCONE,INTRMSTOL, &
+                 &                          ' concutabs is ',CONCUTABS
+                  CONCUTABSINC=.TRUE.
+                  NCONCUTABSINC=NITERDONE
+               
+                  NLASTGOODE=NITERDONE
+
+               ELSEIF (CONCUTABSINC) THEN
+                  IF (NITERDONE-NCONCUTABSINC.GT.QCIRESETINT1) THEN ! reset CONCUTABS
+                     CONCUTABS=CONCUTABSSAVE
+                     IF (CCABSPHASE2) CONCUTABS=CONCUTABSSAVE2
+                     CONCUTABSINC=.FALSE.
+                     WRITE(*,'(A,2G20.10,A,G20.10)') ' intlbfgs> Interpolation is NOT stuck. Converge thresholds are ',MAXCONE,INTRMSTOL, &
+                 &                          ' concutabs reset to ',CONCUTABS
+                  ENDIF
+               ENDIF
+            ENDIF
+            !TODO: finish QCIRESET option
             !TODO: add permutational alignment routines
 
             ! spring constant dynamic adjustment
@@ -100,7 +151,8 @@ MODULE QCIINTERPOLATION
 
 
       SUBROUTINE INITIALISE_INTERPOLATION_VARS()
-         USE QCI_KEYS, ONLY: USEIMAGEDENSITY, NIMAGES, E2E_DIST, IMAGEDENSITY, MAXINTIMAGE
+         USE QCIKEYS, ONLY: USEIMAGEDENSITY, NIMAGES, E2E_DIST, IMAGEDENSITY, MAXINTIMAGE
+         IMPLICIT NONE
 
          CONACTIVE(:) = .FALSE.
          ATOMACTIVE(1:NATOMS) = .FALSE.
@@ -112,4 +164,45 @@ MODULE QCIINTERPOLATION
          END IF
       END SUBROUTINE INITIALISE_INTERPOLATION_VARS
 
+      ! Subroutine to sclae excessive gradient components
+      SUBROUTINE SCALEGRAD(DIMS,G,RMS,MAXGRADCOMP)
+         IMPLICIT NONE
+         INTEGER, INTENT(IN) :: DIMS
+         REAL(KIND=REAL64), INTENT(IN) :: MAXGRADCOMP
+         REAL(KIND=REAL64), INTENT(INOUT) :: G(DIMS), RMS
+         REAL(KIND=REAL64):: RMSSAVE
+         INTEGER :: J1
+
+         RMSSAVE=RMS
+         RMS=0.0D0
+         DO J1=1,DIMS
+            IF (ABS(G(J1)).GT.MAXGRADCOMP) G(J1)=SIGN(MAXGRADCOMP,G(J1)) ! should be MAXGRADCOMP with the sign of G(J1)
+            RMS=RMS+G(J1)**2
+         ENDDO
+         RMS=SQRT(RMS/REAL(DIMS))
+         WRITE(*,'(A,3G20.10)') 'scalegrad> RMS, RMSSAVE, MAXGRADCOMP=',RMS,RMSSAVE,MAXGRADCOMP
+      END SUBROUTINE SCALEGRAD
+
+      SUBROUTINE CHECK_FOR_COLDFUSION(ECURRENT)
+         USE MOD_TERMINATE, ONLY: INT_ERR_TERMINATE
+         USE QCIKEYS, ONLY: NIMAGES, DEBUG, COLDFUSIONLIMIT
+         USE MOD_INTCOORDS, ONLY: WRITE_BAND
+         IMPLICIT NONE
+         CHARACTER(25) :: FNAME="intcoords.aborted.xyz"
+         REAL(KIND=REAL64) :: EPERIMAGE
+
+         EPERIMAGE  = ECURRENT/REAL(NIMAGES)
+         IF (EPERIMAGE.LT.COLDFUSIONLIMIT) THEN
+            WRITE(*,*) " check_int> Cold fusion diagnosed - aborting interpolation"
+            WRITE(*,*) "            E per image: ", EPERIMAGE, " Limit: ", COLDFUSIONLIMIT
+            WRITE(*,*) "            Current interpolation band written to ", FNAME
+            CALL WRITE_BAND(FNAME)
+            CALL INT_ERR_TERMINATE()
+         ELSE
+            IF (DEBUG) THEN
+               WRITE(*,*) " check_int> No cold fusion diagnosed, per image energy: ", EPERIMAGE
+            END IF
+         END IF
+
+      END SUBROUTINE CHECK_FOR_COLDFUSION
 END MODULE QCIINTERPOLATION
