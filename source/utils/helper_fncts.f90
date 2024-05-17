@@ -3,6 +3,38 @@ MODULE HELPER_FNCTS
    IMPLICIT NONE
 
    CONTAINS
+
+      FUNCTION CROSS_PROD(V1,V2) RESULT(A)
+         REAL(KIND = REAL64) :: V1(3), V2(3)
+         REAL(KIND = REAL64) :: A(3)
+
+         A(1) = V1(2) * V2(3) - V1(3) * V2(2)
+         A(2) = V1(3) * V2(1) - V1(1) * V2(3)
+         A(3) = V1(1) * V2(2) - V1(2) * V2(1)
+
+      END FUNCTION CROSS_PROD
+
+      REAL(KIND = REAL64) FUNCTION DIHEDRAL(COORDS) RESULT(DIH)
+         REAL(KIND = REAL64) :: COORDS(12)
+         REAL(KIND = REAL64) :: VECS(9)
+         REAL(KIND = REAL64) :: B1xB2(3), B2xB3(3), X(3), B2NORM(3)
+         INTEGER :: I
+
+         DO I=1,3
+            VECS(I)   = COORDS(I+3) - COORDS(I)
+            VECS(I+3) = COORDS(I+6) - COORDS(I+3)
+            VECS(I+6) = COORDS(I+9) - COORDS(I+6)
+         END DO
+         B1xB2 = CROSS_PROD(VECS(1:3), VECS(4:6))
+         B2xB3 = CROSS_PROD(VECS(4:6), VECS(7:9))
+         X = CROSS_PROD(B1xB2, B2xB3)
+         B2NORM = VECTORS(4:6)/DNRM2(3, VECS(4:6), 1)
+
+         ! calculate angle according to formula (Blondel and Karplus, 1996):
+         ! phi = atan2( ([b1 x b2] x [b2 x b3]) . (b2/|b2|), [b1 x b2] . [b2 x b3] )
+         DIH = ATAN2(DDOT(3, X, 1, B2NORM, 1), DDOT(3, B1xB2, 1, B2xB3, 1))
+      END FUNCTION DIHEDRAL
+    
       SUBROUTINE DISTANCE_SIMPLE(X1, X2, DIST)
          IMPLICIT NONE
          REAL(KIND = REAL64), INTENT(IN) :: X1(3), X2(3)

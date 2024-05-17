@@ -11,8 +11,9 @@ MODULE QCIINTERPOLATION
          USE MOD_FREEZE, ONLY: ADD_CONSTR_AND_REP_FROZEN_ATOMS
          USE CONSTR_E_GRAD, ONLY: CONGRAD1, CONGRAD2, CONVERGECONTEST, CONVERGEREPTEST, &
                                   FCONMAX, FREPMAX
-         USE QCIPERMDIST, ONLY: CHECK_COMMON_CONSTR
+         USE QCIPERMDIST, ONLY: CHECK_COMMON_CONSTR, UPDATE_ACTIVE_PERMGROUPS
          USE QCICONSTRAINTS
+         USE CHIRALITY, ONLY: ASSIGNMENT_SR
          IMPLICIT NONE
          INTEGER :: NBEST, NITERDONE
          LOGICAL :: QCICONVT 
@@ -132,10 +133,14 @@ MODULE QCIINTERPOLATION
             ! counter to step through permutable atom list.
             IF (QCIPERMT.AND.(MOD(NITERDONE-1,QCIPERMCHECKINT).EQ.0)) THEN
                IF (CHECKCHIRAL) THEN
-                  CALL CHIRALITY_CHECK()
+                  CALL CHIRALITY_CHECK() !line 1152
+                  !TODO: need to complete this subroutine - discussion how we replace/fix issues with chirality
                END IF
+               !update active permutational groups
+               CALL UPDATE_ACTIVE_PERMGROUPS()
 
-
+               ! TODO: new subroutine to check permutational alignment of images
+               ! simply provide function with direction (forwards or backwards)
 
             END IF
             !end of permutational checks of band
