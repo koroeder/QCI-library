@@ -74,6 +74,8 @@ MODULE QCIKEYS
    LOGICAL :: QCIRESET = .TRUE.
    INTEGER :: QCIRESETINT1 = 10
 
+   !checking chirality
+   LOGICAL :: CHECKCHIRAL = .FALSE.
 
    !permutational stuff
    INTEGER :: QCIPERMCHECKINT = 100

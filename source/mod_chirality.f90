@@ -3,7 +3,7 @@ MODULE CHIRALITY
    USE QCI_KEYS, ONLY: NATOMS
    USE AMBER_CONSTRAINTS, ONLY: NRES, NBOND, BONDS, RESNAMES, RES_START, RES_END, RESTYPE, AMBER_NAMES, ELEMENT
    IMPLICIT NONE
-   INTEGER, SAVE :: NCHIRAL
+   INTEGER, SAVE :: NCHIRAL = -1
    INTEGER :: NCSP2                                          !number of sp2 hybridised carbons
    INTEGER :: NDOUBLE                                        !number of double bonds
    INTEGER, ALLOCATABLE :: CSP2(:)                           !list of sp2 hybridised carbon
@@ -27,6 +27,131 @@ MODULE CHIRALITY
          IF (ALLOCATED(POSSIBLE_IDS)) DEALLOCATE(POSSIBLE_IDS)  
          IF (ALLOCATED(CSP2)) DEALLOCATE(CSP2)
       END SUBROUTINE DEALLOC_CHIR_INTERNALS
+
+      SUBROUTINE CHIRALITY_CHECK(XYZ,)
+         USE INTERPOLATION_KEYS, ONLY: ATOMACTIVE
+         USE QCIKEYS, ONLY: NATOMS, DEBUG, NIMAGES
+         USE MOD_TERMINATE, ONLY: INT_ERR_TERMINATE
+         IMPLICIT NONE
+         REAL(KIND = REAL64), INTENT(IN) :: XYZ((3*NATOMS)*(NIMAGES+2))
+
+         INTEGER :: CHIRALCENTRE
+         INTEGER :: J1
+         LOGICAL :: CENTREACTIVE
+
+         IF (DEBUG) WRITE(*,*) " chirality-check> Running check for chirality conservation across all images"
+
+         IF (NCHIRAL.EQ.-1) THEN
+            WRITE(*,*) " chirality-check> The number of chiral centres is -1. It looks like FIND_CHIRAL was not run. Is QCIAMBER set?"
+            CALL INT_ERR_TERMINATE()
+         ELSE IF (NCHIRAL.EQ.0) THEN
+            WRITE(*,*) " chirality-check>  There are no chiral centres - check this is correct as CHECKCHIRAL is set to true."
+            RETURN
+         END IF
+
+         DO J1=1,NCHIRAL
+            CENTREACTIVE = .TRUE.
+            CHIRALCENTRE = CHIR_INFO(J1,1)
+            !check whether the chiral centre and connected atoms are active
+            IF (.NOT.ATOMACTIVE(CHIRALCENTRE)) CENTREACTIVE = .FALSE.
+            DO J2=2,5
+               IF (.NOT.ATOMACTIVE(CHIR_INFO(J1,J2))) CENTREACTIVE = .FALSE.
+            END DO
+            IF (.NOT.CENTREACTIVE) CYCLE
+            !now apply the actual check
+
+
+         END DO
+
+         (NEIGHBOUR_COORDS,CENTRE_COORDS,XYZ,NUM_CHIRAL_CENTRES)
+            USE CHIRALITY
+            USE KEY, ONLY : ATOMACTIVE, INTIMAGE, ATOMSTORES, TWOD, RIGIDBODY, BULKT
+            USE COMMONS, ONLY: NATOMS, DEBUG
+            IMPLICIT NONE                
+            INTEGER J5,J3,J4,NCHANGE,J2, CHANGEAT(NATOMS), ACID
+            DOUBLE PRECISION NEIGHBOUR_COORDS(12), CENTRE_COORDS(3),XYZ((3*NATOMS)*(INTIMAGE+2)),COORDSA(3*NATOMS), COORDSB(3*NATOMS)
+            DOUBLE PRECISION DIST, DWORST, RMAT(3,3)
+            LOGICAL CHIRALSR, CHIRALSRP
+            INTEGER NUM_CHIRAL_CENTRES,ATOM_NUMBER
+            CHARACTER(LEN=5) ZUSE
+
+                  DO J3=1,INTIMAGE+2
+            
+                     CENTRE_COORDS(1)=XYZ(3*NATOMS*(J3-1)+3*(atom_number-1)+1)
+                     CENTRE_COORDS(2)=XYZ(3*NATOMS*(J3-1)+3*(atom_number-1)+2)
+                     CENTRE_COORDS(3)=XYZ(3*NATOMS*(J3-1)+3*(atom_number-1)+3)
+            
+                     DO J4=1,4
+                        J2=sr_atoms(J5, J4 + 1)
+                        NEIGHBOUR_COORDS(3*(J4-1)+1)=XYZ(3*NATOMS*(J3-1)+3*(J2-1)+1)
+                        NEIGHBOUR_COORDS(3*(J4-1)+2)=XYZ(3*NATOMS*(J3-1)+3*(J2-1)+2)
+                        NEIGHBOUR_COORDS(3*(J4-1)+3)=XYZ(3*NATOMS*(J3-1)+3*(J2-1)+3)
+                     ENDDO
+            
+                     CHIRALSR=CHIRALITY_SR(NEIGHBOUR_COORDS,CENTRE_COORDS)
+            !        WRITE(*,'(A,I6,I6,2L5)') 'image, atom, chirality, initial=',J3,atom_number,CHIRALSR,sr_states_initial(J5)
+                     IF (J3.EQ.1) CHIRALSRP=sr_states_initial(J5)
+                     IF (CHIRALSR.NEQV.CHIRALSRP) THEN
+                        WRITE(*,'(A,I6,A,I6,A,I6)') ' intlbfgs> Atom ',atom_number,' image ',J3,&
+                 &          ' chirality CHANGED; use previous image coordinates'  
+            !            NLASTCHANGE=NITERDONE
+            !
+            ! The idea is to change all the coordinates for active atoms in the same amino acid to the values
+            ! in the frame before. We should align the replacements on the (sub)set they are replacing.
+            !
+                        ACID=ATOMSTORES(atom_number)
+            
+                        NCHANGE=0
+                        CHANGEAT(1:NATOMS)=-1
+                        DO J4=1,NATOMS
+                           IF (ATOMSTORES(J4).NE.ACID) CYCLE
+                           IF (.NOT.ATOMACTIVE(J4)) CYCLE
+                           WRITE(*,'(A,I6,A,I6,A,I6)') ' intlbfgs> Changing active atom ',J4,' image ',J3
+                           NCHANGE=NCHANGE+1
+                           CHANGEAT(NCHANGE)=J4
+                           COORDSA(3*(NCHANGE-1)+1:3*(NCHANGE-1)+3)=XYZ(3*NATOMS*(J3-1)+3*(J4-1)+1:3*NATOMS*(J3-1)+3*(J4-1)+3)
+                           COORDSB(3*(NCHANGE-1)+1:3*(NCHANGE-1)+3)=XYZ(3*NATOMS*(J3-2)+3*(J4-1)+1:3*NATOMS*(J3-2)+3*(J4-1)+3)
+            
+                           XYZ(3*NATOMS*(J3-1)+3*(J4-1)+1)=XYZ(3*NATOMS*(J3-2)+3*(J4-1)+1)
+                           XYZ(3*NATOMS*(J3-1)+3*(J4-1)+2)=XYZ(3*NATOMS*(J3-2)+3*(J4-1)+2)
+                           XYZ(3*NATOMS*(J3-1)+3*(J4-1)+3)=XYZ(3*NATOMS*(J3-2)+3*(J4-1)+3)
+            
+                        ENDDO
+            !
+            ! Align the replacement atoms with the original atoms as far as possible
+            !
+            !           WRITE(*,'(A,I6,A,I6,A,I6)') ' intlbfgs> Aligning ',NCHANGE,' atoms'
+            !           WRITE(*,'(I8)') NCHANGE
+            !           WRITE(*,'(A)') 'coords to be replaced'
+            !           WRITE(*,'(A,3G20.10)') ('LA ',COORDSA(3*(J4-1)+1:3*(J4-1)+3),J4=1,NCHANGE)
+            !           WRITE(*,'(I8)') NCHANGE
+            !           WRITE(*,'(A)') 'initial replacement coords'
+            !           WRITE(*,'(A,3G20.10)') ('LA ',COORDSB(3*(J4-1)+1:3*(J4-1)+3),J4=1,NCHANGE)
+            
+                        ZUSE='LA   '
+                        CALL NEWMINDIST(COORDSA,COORDSB,NCHANGE,DIST,BULKT,TWOD,ZUSE,.FALSE.,RIGIDBODY,DEBUG,RMAT,DWORST)
+            
+            !           WRITE(*,'(I8)') NCHANGE
+            !           WRITE(*,'(A)') 'aligned replacement coords'
+            !           WRITE(*,'(A,3G20.10)') ('LA ',COORDSB(3*(J4-1)+1:3*(J4-1)+3),J4=1,NCHANGE)
+            
+                        DO J4=1,NCHANGE
+                           XYZ(3*NATOMS*(J3-1)+3*(CHANGEAT(J4)-1)+1:3*NATOMS*(J3-1)+3*(CHANGEAT(J4)-1)+3)=COORDSB(3*(J4-1)+1:3*(J4-1)+3)  
+                        ENDDO
+            
+                     ENDIF
+            !        IF (J3.EQ.1) CHIRALSRP=CHIRALSR  ! just use result for fixed end point image 1
+                  ENDDO
+               ENDDO chicheck
+            
+            !        IF (DEBUG) WRITE(*,'(A)') ' intlbfgs> dump state after CHIRALCHECK index -3'
+            !        IF (DEBUG) CALL INTRWG2(NACTIVE,-3,INTIMAGE,XYZ,TURNONORDER,NCONOFF)
+            
+      
+
+
+
+
 
       SUBROUTINE FIND_CHIRAL_CENTRES()
          USE COMPARELIST

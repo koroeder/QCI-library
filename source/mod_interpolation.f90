@@ -7,7 +7,7 @@ MODULE QCIINTERPOLATION
    CONTAINS
       SUBROUTINE RUN_QCI_INTERPOLATION()
          USE QCIKEYS, ONLY: QCIREADGUESS, QCIRESTART, QCIFREEZET, MAXITER, MAXGRADCOMP, MAXCONE, &
-                            CONCUTABS, CONCUTABSINC
+                            CONCUTABS, CONCUTABSINC, CHECKCHIRAL
          USE MOD_FREEZE, ONLY: ADD_CONSTR_AND_REP_FROZEN_ATOMS
          USE CONSTR_E_GRAD, ONLY: CONGRAD1, CONGRAD2, CONVERGECONTEST, CONVERGEREPTEST, &
                                   FCONMAX, FREPMAX
@@ -40,7 +40,7 @@ MODULE QCIINTERPOLATION
          CALL GET_DISTANCES_CONSTRAINTS(NBEST)
 
          ! get common constraints for atoms in permutational groups
-         CALL CHECK_COMMON_CONSTR()
+         IF (QCIPERMT) CALL CHECK_COMMON_CONSTR()
 
          ! Turning first constraint on
          CONACTIVE(NBEST)=.TRUE.
@@ -130,7 +130,15 @@ MODULE QCIINTERPOLATION
             ! Checking the permutational alignment. Maintain a list of the permutable groups where all
             ! members are active. See if we have any new complete groups. MUST update NDUMMY
             ! counter to step through permutable atom list.
+            IF (QCIPERMT.AND.(MOD(NITERDONE-1,QCIPERMCHECKINT).EQ.0)) THEN
+               IF (CHECKCHIRAL) THEN
+                  CALL CHIRALITY_CHECK()
+               END IF
 
+
+
+            END IF
+            !end of permutational checks of band
 
 
             ! spring constant dynamic adjustment

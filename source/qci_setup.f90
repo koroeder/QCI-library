@@ -130,6 +130,7 @@ MODULE QCISETUP
          ELSE IF (ENTRY.EQ."QCIMODE") THEN
             IF (VAL.EQ."AMBER") THEN
                QCIAMBERT = .TRUE.
+               CHECKCHIRAL = .TRUE.
             ELSE IF (VAL.EQ."HIRE") THEN
                QCIHIRET = .TRUE.
             ELSE IF (VAL.EQ."SBM") THEN
