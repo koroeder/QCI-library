@@ -60,6 +60,21 @@ MODULE QCIKEYS
    !maximum gradient component
    REAL(KIND=REAL64) :: MAXGRADCOMP = -1.0
 
+   !maximum constraint E - used for convergence
+   REAL(KIND=REAL64) :: MAXCONE = 0.01D0
+   !convergence for RMS
+   REAL(KIND=REAL64) :: QCIRMSTOL=0.01D0
+
+   !cut off for constraints
+   LOGICAL :: CONCUTABSINC = .FALSE.
+   REAL(KIND=REAL64) :: CONCUTABS = 0.7D0
+   REAL(KIND=REAL64) :: CONCUTABS2 = 0.05D0
+
+   !QCI resetting
+   LOGICAL :: QCIRESET = .TRUE.
+   INTEGER :: QCIRESETINT1 = 10
+
+
    !permutational stuff
    INTEGER :: QCIPERMCHECKINT = 100
    LOGICAL :: QCIPERMCHECK = .FALSE.

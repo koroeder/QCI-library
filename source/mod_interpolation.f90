@@ -6,9 +6,11 @@ MODULE QCIINTERPOLATION
 
    CONTAINS
       SUBROUTINE RUN_QCI_INTERPOLATION()
-         USE QCIKEYS, ONLY: QCIREADGUESS, QCIRESTART, QCIFREEZET, MAXITER, MAXGRADCOMP
+         USE QCIKEYS, ONLY: QCIREADGUESS, QCIRESTART, QCIFREEZET, MAXITER, MAXGRADCOMP, MAXCONE, &
+                            CONCUTABS, CONCUTABSINC
          USE MOD_FREEZE, ONLY: ADD_CONSTR_AND_REP_FROZEN_ATOMS
-         USE CONSTR_E_GRAD, ONLY: CONGRAD1, CONGRAD2
+         USE CONSTR_E_GRAD, ONLY: CONGRAD1, CONGRAD2, CONVERGECONTEST, CONVERGEREPTEST, &
+                                  FCONMAX, FREPMAX
          USE QCIPERMDIST, ONLY: CHECK_COMMON_CONSTR
          USE QCICONSTRAINTS
          IMPLICIT NONE
@@ -18,7 +20,8 @@ MODULE QCIINTERPOLATION
          CHARACTER(25) :: XYZFILE = "int.xyz"
          CHARACTER(25) :: EEEFILE = "int.EofS"
          CHARACTER(25) :: RESETXYZFILE = "QCIreset.int.xyz"
-         CHARACTER(25) :: RESETEEEFILE = "QCIreset.int.EofS"        
+         CHARACTER(25) :: RESETEEEFILE = "QCIreset.int.EofS"     
+         REAL(KIND=REAL64), PARAMETER :: INCREASETOL = 1.1D0   
 
 
          !initiate variables for the interpolation, including image density set nimage
@@ -84,6 +87,9 @@ MODULE QCIINTERPOLATION
          !call check for cold fusion
          CALL CHECK_FOR_COLDFUSION(ETOTAL)
 
+         !save concut settings
+         CALL SET_CONCUTABS()
+
          NITERDONE = 0
          NLASTGOODE = 0
          QCICONVT = .FALSE.
@@ -100,33 +106,32 @@ MODULE QCIINTERPOLATION
                      CALL WRITE_BAND(RESETXYZFILE)
                      CALL WRITE_PROFILE(RESETEEEFILE, EEE)
                   END IF
-               
 
-                  !!!!! CONTINUE HERE:
-                  !!! line 1107 in old routine
-                  !!! need to set and check all these variables  -are they set and defined?
-                  IF (MAX(CONVERGECONTEST,CONVERGEREPTEST).GT.MAXCONE) MAXCONE=MAXCONE*1.1D0
-                  IF (MAX(FCONTEST,FREPTEST).GT.INTRMSTOL) INTRMSTOL=INTRMSTOL*1.1D0
+                  IF (MAX(CONVERGECONTEST,CONVERGEREPTEST).GT.MAXCONE) MAXCONE=MAXCONE*INCREASETOL
+                  IF (MAX(FCONMAX,FREPMAX).GT.QCIRMSTOL) QCIRMSTOL=QCIRMSTOL*INCREASETOL
                   CONCUTABS=CONCUTABS+0.1D0
-                  WRITE(*,'(A,2G20.10,A,G20.10)') ' intlbfgs> Interpolation seems to be stuck. Converge thresholds are now ',MAXCONE,INTRMSTOL, &
-                 &                          ' concutabs is ',CONCUTABS
+                  WRITE(*,*) " QCI-interp> Interpolation seems to be stuck. Increasing convergence thresholds."
+                  WRITE(*,*) " MAXECON = ",MAXCONE, ", QCIRMSTOL = ", QCIRMSTOL, ", CONCUTABS = ", CONCUTABS
                   CONCUTABSINC=.TRUE.
                   NCONCUTABSINC=NITERDONE
-               
                   NLASTGOODE=NITERDONE
-
                ELSEIF (CONCUTABSINC) THEN
                   IF (NITERDONE-NCONCUTABSINC.GT.QCIRESETINT1) THEN ! reset CONCUTABS
                      CONCUTABS=CONCUTABSSAVE
-                     IF (CCABSPHASE2) CONCUTABS=CONCUTABSSAVE2
+                     !TODO: what is this line below doing?
+                     !->?? IF (CCABSPHASE2) CONCUTABS=CONCUTABSSAVE2
                      CONCUTABSINC=.FALSE.
-                     WRITE(*,'(A,2G20.10,A,G20.10)') ' intlbfgs> Interpolation is NOT stuck. Converge thresholds are ',MAXCONE,INTRMSTOL, &
-                 &                          ' concutabs reset to ',CONCUTABS
+                     WRITE(*,*) " QCI-interp> Interpolation seems to be stuck. Resetting concutabs"
+                     WRITE(*,*) " MAXECON = ",MAXCONE, ", QCIRMSTOL = ", QCIRMSTOL, ", CONCUTABS = ", CONCUTABS
                   ENDIF
                ENDIF
             ENDIF
-            !TODO: finish QCIRESET option
-            !TODO: add permutational alignment routines
+
+            ! Checking the permutational alignment. Maintain a list of the permutable groups where all
+            ! members are active. See if we have any new complete groups. MUST update NDUMMY
+            ! counter to step through permutable atom list.
+
+
 
             ! spring constant dynamic adjustment
             IF (QCIADJUSTKT.AND.MOD(NITERDONE,QCIADJUSTKFRQ).EQ.0) THEN
