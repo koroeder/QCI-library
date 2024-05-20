@@ -15,7 +15,8 @@ MODULE QCIINTERPOLATION
          USE QCICONSTRAINTS
          USE CHIRALITY, ONLY: ASSIGNMENT_SR
          IMPLICIT NONE
-         INTEGER :: NBEST, NITERDONE
+         INTEGER :: NBEST, NITERDONE, FIRSTATOM
+         INTEGER :: J1
          LOGICAL :: QCICONVT 
          REAL(KIND = REAL64) :: GLAST(NDIMS), XLAST(NDIMS), ELAST
          CHARACTER(25) :: XYZFILE = "int.xyz"
@@ -139,12 +140,19 @@ MODULE QCIINTERPOLATION
                !update active permutational groups
                CALL UPDATE_ACTIVE_PERMGROUPS()
 
-               ! TODO: new subroutine to check permutational alignment of images
-               ! simply provide function with direction (forwards or backwards)
-
+               ! Checking all active groups across the band - do we have the best alignement?
+               FIRSTATOM = 1
+               DO J1=1,NPERMGROUP
+                  IF (GROUPACTIVE(J1)) THEN
+                     !check permutational consistency forward
+                     CALL CHECK_PERM_BAND(J1, FIRSTATOM, .FALSE.)
+                     !check permutational consistency in reverse
+                     CALL CHECK_PERM_BAND(J1, FIRSTATOM, .TRUE.)
+                  END IF
+                  FIRSTATOM = FIRSTATOM + NPERMSIZE(J1)
+               END DO
             END IF
             !end of permutational checks of band
-
 
             ! spring constant dynamic adjustment
             IF (QCIADJUSTKT.AND.MOD(NITERDONE,QCIADJUSTKFRQ).EQ.0) THEN
@@ -155,10 +163,12 @@ MODULE QCIINTERPOLATION
                END IF
             END IF
 
-            ! TODO: CONOFFLIST needs to be needed
-
-            !need to add atom now
-            CALL DOATOM()
+            !if not all atoms are active, we add an atom now to the active set and hence the images
+            IF (ADDATOM.AND.(NACTIVE.LT.NATOMS)) THEN
+               CALL ADDATOM()
+               !scale gradient if necessary
+               IF (MAXGRADCOMP.GT.0.0D0) CALL SCALEGRAD(DIMS,G,RMS,MAXGRADCOMP)
+            END IF
             ! HERE TO CONTINUE:
             ! need to implement the doatom routine next and then continue with the main loop
 

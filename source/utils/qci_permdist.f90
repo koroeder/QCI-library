@@ -172,6 +172,80 @@ MODULE QCIPERMDIST
          END DO
       END SUBROUTINE UPDATE_ACTIVE_PERMGROUPS
 
+      SUBROUTINE CHECK_PERM_BAND(PERMGROUP, FIRSTATOM, REVERSET)
+         USE QCIKEYS, ONLY: DEBUG, NATOMS, NIMAGES
+         USE MOD_INTCOORDS, ONLY: XYZ
+         IMPLICIT NONE
+         INTEGER, INTENT(IN) :: PERMGROUP !number of permutational group
+         INTEGER, INTENT(IN) :: FIRSTATOM !first atom id in permutational group
+         LOGICAL, INTENT(IN) :: REVERSET  !stepping direction through images
+
+         INTEGER :: J1, J2, J3, FIRSTIMAGE, SECONDIMAGE
+         INTEGER :: STARTIDX, ENDIDX, STEP
+         REAL(KIND = REAL64) :: COORDSA(3*NATOMS), COORDSB(3*NATOMS)
+         INTEGER :: PERMP(NATOMS), NMOVEP
+         REAL(KIND = REAL64) :: BOXLX,BOXLY,BOXLZ,RMATBEST(3,3),DISTANCEP
+         LOGICAL :: BULKT = .FALSE., TWOD = .FALSE.
+
+         ! going forward through the images
+         IF (.NOT.REVERSET) THEN
+            STARTIDX = 1
+            ENDIDX = NIMAGES
+            STEP = 1
+         ! going backward through the images
+         ELSE
+            STARTIDX = NIMAGES
+            ENDIDX  = 1
+            STEP = -1
+         END IF
+
+         DO J1=STARTIDX,ENDIDX,STEP 
+            ! Test alignment with neighbouring image
+            ! Including endpoints (J): (start) 1 - 2 - 3 - ... -  J-1 -   J  - J+1 - J+2  - ... - NIMAGES+1 - NIMAGES (finish)
+            ! Excluding endpoints (J1):            1 - 2 - ... - J1-2 - J1-1 -  J1 - J1+1 - ... - NIMAGES
+            ! We want to go forward and start from the starting image up to the last interpolation image,
+            ! and reverse from the the finish coordinates up to the first interpolation image
+            ! So for the forward direction we want to start with comparing J=1 to J=2 (start to the first interpolation image)
+            ! up to comparing J=NIMAGES to J=NIMAGES+1 (second-to-last to last interpoaltion image).
+            ! For the reverse direction we want to start with comparing J=NIMAGES+2 to J=NIMASGES+1 (finish to last interpolation image)
+            ! down to comparing J=3 to J=2 (second to first interpolation image).
+            ! We are running J1 from 1 to NIMAGES/NIMAGES to 1 and need to get the right coordinates for the above images.
+            ! For the forward direction J=J1 and J=J1+1 for the two images, for the reverse it is J=J1+2 and J=J1+1.
+            IF (STEP.EQ.1) THEN
+               FIRSTIMAGE = J1
+            ELSE
+               FIRSTIMAGE = J1 + 2
+            END IF 
+            SECONDIMAGE = J1+1
+            !coordinates for image 1
+            COORDSB(1:3*NATOMS) = XYZ((3*NATOMS*(FIRSTIMAGE-1)+1):3*NATOMS*FIRSTIMAGE)
+            !coordinates for image 2
+            COORDSA(1:3*NATOMS) = XYZ((3*NATOMS*(SECONDIMAGE-1)+1):3*NATOMS*SECONDIMAGE)            
+
+            CALL LOPERMDIST(COORDSB,COORDSA,NATOMS,DEBUG,BOXLX,BOXLY,BOXLZ,BULKT,TWOD,DISTANCE,DIST2,.FALSE.,RMATBEST,PERMGROUP,NMOVEP,PERMP)
+   
+            IF (NMOVEP.GT.0)  THEN
+               WRITE(*,*) ' check_perm_band> group ',PERMGROUP,' alignment of images ',SECONDIMAGE,FIRSTIMAGE,' moves=',&
+                          NMOVEP, ' permutations, distance with/without permutations=',PDISTANCE,NOPDISTANCE    
+            END IF
+
+            !swap atoms if we found a better permutational alignment
+            IF ((NMOVEP.GT.0).AND.PBETTER) THEN 
+               COORDSA(1:3*NATOMS) = XYZ((3*NATOMS*(SECONDIMAGE-1)+1):3*NATOMS*SECONDIMAGE) 
+               DO J2=1,NPERMSIZE(PERMGROUP)
+                  J3=PERMGROUP(FIRSTATOM+J2-1)
+                  IF (PERMP(J3).NE.J3) THEN
+                     WRITE(*,*) ' check_perm_band> image ',SECONDIMAGE,' move atom ',PERMP(J3),' to position ',J3
+                     COORDSA(3*(J3-1)+1)=XYZ(3*NATOMS*(SECONDIMAGE-1)+3*(PERMP(J3)-1)+1)
+                     COORDSA(3*(J3-1)+2)=XYZ(3*NATOMS*(SECONDIMAGE-1)+3*(PERMP(J3)-1)+2)
+                     COORDSA(3*(J3-1)+3)=XYZ(3*NATOMS*(SECONDIMAGE-1)+3*(PERMP(J3)-1)+3)
+                  ENDIF
+               ENDDO
+               XYZ((3*NATOMS*(SECONDIMAGE-1)+1):3*NATOMS*SECONDIMAGE) = COORDSA(1:3*NATOMS)
+            ENDIF
+         END DO
+      END SUBROUTINE CHECK_PERM_BAND
+
       SUBROUTINE CHECK_COMMON_CONSTR()
          USE QCICONSTRAINTS, ONLY: NCONPERATOM, CONLIST
 
@@ -272,7 +346,7 @@ MODULE QCIPERMDIST
          LOGICAL, INTENT(IN) :: DEBUG ! debugging switch
          REAL(KIND = REAL64), INTENT(IN) :: BOXLX, BOXLY, BOXLZ ! box coordinates
          LOGICAL, INTENT(IN) :: BULKT ! switch for bulk systems
-         LOGICAL, INTENT(IN) :: TWOD ! switch for two dimenaional systems
+         LOGICAL, INTENT(IN) :: TWOD ! switch for two dimensional systems
          REAL(KIND = REAL64), INTENT(OUT) :: DISTANCE ! distance between A and B
          REAL(KIND = REAL64), INTENT(OUT) :: DIST2 ! distance squared between A and B
          LOGICAL, INTENT(IN) :: RIGID ! rigid body switch
