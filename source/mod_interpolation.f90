@@ -44,6 +44,9 @@ MODULE QCIINTERPOLATION
          ! get common constraints for atoms in permutational groups
          IF (QCIPERMT) CALL CHECK_COMMON_CONSTR()
 
+         ! TODO: set up linear interpolation from list+distance -> continue here
+         ! lines 780 to 820 - needs to fix things that are already coded
+
          ! Turning first constraint on
          CONACTIVE(NBEST)=.TRUE.
          ATOMACTIVE(CONI(NBEST))=.TRUE.

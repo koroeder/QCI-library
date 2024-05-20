@@ -65,7 +65,7 @@ MODULE MOD_FREEZE
          INQUIRE(FILE=FREEZEFILE, EXIST=YESNO)
          IF (.NOT.YESNO) RETURN !if we dont have this file, no need to read anything
          FREEZEUNIT = GETUNIT()
-         OPEN(FREEZEUNIT,FILE=FREEZEFILE,STATUS='OLD'))
+         OPEN(FREEZEUNIT,FILE=FREEZEFILE,STATUS='OLD')
          EOFT = .FALSE.
          DO WHILE (.NOT.EOFT)
             READ(FREEZEUNIT,*,IOSTAT=IOS) IDX

@@ -7,31 +7,53 @@ MODULE QCI_LINEAR
    REAL(KIND=REAL64) :: LINEARCUT = 0.5D0
    ! list of linear atoms
    INTEGER, ALLOCATABLE :: LINEARATOMS(:)
-
+   ! file name linear atoms
+   CHARACTER(25) :: LINEARFILE = "QCIlinear"
 
    CONTAINS
 
       SUBROUTINE GET_LINEAR_ATOMS()
          USE QCIKEYS, ONLY: NATOMS
+         USE QCIFILEHANDLER, ONLY: FILE_LENGTH, GETUNIT        
          USE MOD_INTCOORDS, ONLY: XSTART, XFINAL
-         USE  HELPER_FNCTS, ONLY: DISTANCE_ATOM_DIFF_IMAGES
-         INTEGER :: NDUMMY, DUMMYLIST(NATOMS)
+         USE HELPER_FNCTS, ONLY: DISTANCE_ATOM_DIFF_IMAGES
+         INTEGER :: NDUMMY, DUMMY
+         INTEGER :: LINEART(NATOMS)
          REAL(KIND=REAL64) :: DIST
          INTEGER :: J1
+         INTEGER :: LINUNIT
+         LOGICAL :: YESNO
 
-         NDUMMY = 0
-         DUMMYLIST(1:NATOMS) = -1
+         LINEART(1:NATOMS) = 0
+         INQUIRE(FILE=LINEARFILE, EXIST=YESNO)
+         IF (YESNO) THEN
+            WRITE(*,*) " get_linear_atoms> Reading in linear atoms from file"
+            LINUNIT = GETUNIT()
+            OPEN(LINUNIT,FILE=LINEARFILE,STATUS='OLD')
+            READ(LINUNIT, '(I6)') NDUMMY
+            DO J1=1,NDUMMY
+               READ(LINUNIT, '(I6)') DUMMY
+               LINEARLIST(DUMMY) = 1
+            END DO
+            CLOSE(LINUNIT)
+         END IF
+
          DO J1=1,NATOMS
             CALL DISTANCE_ATOM_DIFF_IMAGES(NATOMS, XSTART, XFINAL, J1, DIST)
             IF (DIST.LT.LINEARCUT) THEN
-               NDUMMY = NDUMMY + 1
-               DUMMYLIST(NDUMMY) = J1
+               LINEARLIST(J1) = 1
             END IF
          END DO
 
-         NQCILINEAR = NDUMMY
+         NQCILINEAR = SUM(LINEARLIST)
          CALL ALLOC_QCI_LINEAR()
-         LINEARATOMS(1:NQCILINEAR) = DUMMYLIST(1:NQCILINEAR)
+         DUMMY=0
+         DO J1=1,NATOMS
+            IF (LINEART(J1).EQ.1) THEN
+               DUMMY = DUMMY + 1
+               LINEARATOMS(DUMMY) = J1
+            END IF
+         END DO
       END SUBROUTINE GET_LINEAR_ATOMS
    
       SUBROUTINE ALLOC_QCI_LINEAR()
