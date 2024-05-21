@@ -24,6 +24,14 @@ MODULE QCIKEYS
    REAL(KIND=REAL64) :: IMAGEDENSITY = 0.5 ! Image density per unit distance
    INTEGER :: MAXINTIMAGE = 250 ! maximum number of images 
 
+   ! using linearlist
+   LOGICAL :: QCILINEART = .FALSE.
+   ! logical list if atom is linear
+   LOGICAL, ALLOCATABLE :: INLINLIST(:)
+
+   ! Atom to residue mapping
+   INTEGER, ALLOCATABLE :: ATOMS2RES(:)
+
    !frozen atoms 
    LOGICAL :: QCIFREEZET = .FALSE. ! Shall some atoms be frozen?
    INTEGER :: NCQIFROZEN = 0 ! total number of frozen atoms
@@ -34,9 +42,10 @@ MODULE QCIKEYS
    REAL(KIND=REAL64) :: QCIFREEZETOL = 1.0D-3 ! distance tolerance for atoms to be frozen
 
    !constraint
-   REAL(KIND=REAL64) :: QCICONSEP = 15
+   INTEGER :: MAXCONUSE = 100
+   INTEGER :: QCICONSEP = 15
    REAL(KIND=REAL64) :: QCICONSTRAINTTOL = 0.1D0
-   REAL(KIND=REAL64) :: QCICONCUT = 0.1D0   
+   REAL(KIND=REAL64) :: QCICONCUT = 6.0D0   
 
    CHARACTER(LEN=30) :: GEOMFILE = "congeom.dat"
    INTEGER :: NCONGEOM = 0

@@ -37,6 +37,9 @@ MODULE AMBER_CONSTRAINTS
 
          ! parse topology
          CALL PARSE_TOPOLOGY()
+         ! create atomstores list
+         CALL CREATE_ATOMS2RES()
+
          ! check for additional constraints in file
          INQUIRE(FILE=AMBERCONSTRFILE, EXIST=YESNO)
          IF (YESNO) THEN
@@ -128,6 +131,22 @@ MODULE AMBER_CONSTRAINTS
          WRITE(*,*) "                    Bonds: ", NBOND, ", angles: ", NANGLE, ", additional constraints: ", NADDCONSTR
 
       END SUBROUTINE AMBER_QCI_CONSTRAINTS
+
+      SUBROUTINE CREATE_ATOMS2RES()
+         USE QCIKEYS, ONLY: ATOMS2RES
+         IMPLICIT NONE
+         INTEGER :: I, START, END
+         
+         IF (.NOT.ALLOCATED(ATOMS2RES)) DEALLOCATE(ATOMS2RES)
+         ALLOCATE(ATOMS2RES(NATOMS))
+
+         DO I=1,NRES
+            START = RES_START(I)
+            END = RES_END(I)
+            ATOMS2RES(START:END) = I
+         END DO
+
+      END SUBROUTINE CREATE_ATOMS2RES
 
 
       SUBROUTINE AMBER_QCI_DEALLOCATE()

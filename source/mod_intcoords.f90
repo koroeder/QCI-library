@@ -67,7 +67,7 @@ MODULE MOD_INTCOORDS
       END SUBROUTINE INITIATE_INTERPOLATION_BAND
 
       SUBROUTINE GET_DISTANCES_CONSTRAINTS(NBEST)
-         USE QCIKEYS, ONLY: QCIDOBACK, ISBBATOM
+         USE QCIKEYS, ONLY: QCIDOBACK, ISBBATOM, QCIFROZEN, QCILINEART, INLINLIST
          USE QCICONSTRAINTS, ONLY: NCONSTRAINT
          USE HELPER_FNCTS, ONLY: DISTANCE_ATOM_DIFF_IMAGES
          IMPLICIT NONE
@@ -80,8 +80,13 @@ MODULE MOD_INTCOORDS
          CURRSMALLEST = 1.0D100
          CURRBBDIST = 1.0D100
 
+         !adjust inlinlist to account for frozen atoms, these are active by default, so we don't need them in the linear interpolation
+         DO J1=1,NATOMS
+            IF (QCIFROZEN(J1)) INLINLIST(J1) = .FALSE.
+         END DO
+
          DO J1=1,NCONSTRAINT
-            IF (QCIDOBACK.AND.(.NOT.ISBBATOM(CONI(J1)).OR.(.NOT.ISBBATOM(CONJ(J1))))) CYCLE
+            IF (QCILINEART.AND.(.NOT.INLINLIST(CONI(J1)).OR.(.NOT.INLINLIST(CONJ(J1))))) CYCLE            
             ! we want to collect the change in atom positions between the endpoints
             CALL DISTANCE_ATOM_DIFF_IMAGES(NATOMS, QSTART, QFINAL, CONI(J1), D1)
             CALL DISTANCE_ATOM_DIFF_IMAGES(NATOMS, QSTART, QFINAL, CONJ(J1), D2)
@@ -105,6 +110,13 @@ MODULE MOD_INTCOORDS
             NCONSMALLEST=BACKBEST  ! ensures NBEST is set if there are frozen atoms and DOBACK is set 
          END IF
          NBEST = NCONSMALLEST
+         IF (DEBUG) THEN
+            WRITE(*,*) ' get_dists_constr> Smallest overall motion for constraint ',NBEST, ' atoms ', &
+                       CONI(NBEST),CONJ(NBEST),' distance=', CURRSMALLEST
+            WRITE(*,*) ' get_dists_constr> Largest overall motion for constraint  ',NCONLARGEST,' atoms ', &
+                       CONI(NCONLARGEST),CONJ(NCONLARGEST),' distance=',CURRLARGEST
+         END IF
+
       END SUBROUTINE GET_DISTANCES_CONSTRAINTS
 
       SUBROUTINE READGUESS()

@@ -11,6 +11,7 @@ MODULE MOD_TERMINATE
          USE MOD_INTCOORDS, ONLY: DEALLOC_INTCOORDS
          USE QCI_LINEAR, ONLY: DEALLOC_QCI_LINEAR
          USE REPULSION, ONLY: DEALLOC_REP_VARS
+         USE ADDATOM, ONLY: DEALLOC_ADDATOM
 
          IMPLICIT NONE
          CALL DEALLOC_INTERPOLATIONS_VARS()
@@ -21,6 +22,7 @@ MODULE MOD_TERMINATE
          CALL DEALLOC_INTCOORDS()
          CALL DEALLOC_QCI_LINEAR()
          CALL DEALLOC_REP_VARS()
+         CALL DEALLOC_ADDATOM()
 
       END SUBROUTINE FINISH_QCI
 
@@ -28,7 +30,7 @@ MODULE MOD_TERMINATE
       SUBROUTINE INT_ERR_TERMINATE()
          IMPLICIT NONE
 
-         WRITE(*,*) " terminateQCI> An error was encoutnered - QCI is terminated"
+         WRITE(*,*) " terminateQCI> An error was encountered - QCI is terminated"
          WRITE(*,*) " terminateQCI> Deallocating variables"
          CALL FINISH_QCI()
          STOP
