@@ -4,6 +4,24 @@ MODULE HELPER_FNCTS
 
    CONTAINS
 
+      !> Euclidean norm of a vector
+      PURE FUNCTION EUC_NORM(V)
+         REAL(KIND = REAL64) :: EUC_NORM
+         REAL(KIND = REAL64), INTENT(IN) :: V(3)
+         
+         EUC_NORM = DSQRT(DOT_PRODUCT(V,V))
+      END FUNCTION EUC_NORM
+
+      !> subroutine to get norm and normed vector
+      SUBROUTINE NORM_VEC(V,VN,NORM)
+         REAL(KIND = REAL64), INTENT(IN) :: V(3)
+         REAL(KIND = REAL64), INTENT(OUT) :: VN(3)
+         REAL(KIND = REAL64), INTENT(OUT) :: NORM
+
+         NORM = EUC_NORM(V)
+         VN(1:3) = V(1:3)/NORM
+      END SUBROUTINE NORM_VEC
+
       FUNCTION CROSS_PROD(V1,V2) RESULT(A)
          REAL(KIND = REAL64) :: V1(3), V2(3)
          REAL(KIND = REAL64) :: A(3)

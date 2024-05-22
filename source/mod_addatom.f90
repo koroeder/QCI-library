@@ -39,6 +39,7 @@ MODULE ADDATOM
          INTEGER :: BESTIDX, NDISTNEWATOM                   !associated ids and total number found
          REAL(KIND=REAL64) :: BESTCONDIST(NATOMS)           !list of sorted average constraint distances to newatom
          INTEGER :: BESTCONIDX, NCONNEWATOM                 !associated ids and total number found
+         LOGICAL :: ADDEDTHISCYCLE                          !have we added an atom this cycle?
       
          ! setup book keeping
          NTOADD = 1
@@ -75,7 +76,7 @@ MODULE ADDATOM
             ! We look for a sorted list, according to how well the end point distace is preserved.
             ! We sort by shortest average distance to avoid distant atoms having accidentally well preserved distance.
             CALL GET_ATOMS_BY_DISTANCE(NEWATOM,NDISTNEWATOM,BESTDIST,BESTIDX)
-            ! Now update the constraints including the new atom 
+            ! Now update the constraints including the new atom, and get list of constraints ordered by distance
             CALL UPDATE_CONSTRAINTS(NEWATOM,NCONNEWATOM,BESTCONDIST,BESTCONIDX)
             !update the repulsions - TOO continue here (line 64 in sub_doatom and line 2845)
             CALL UPDATE_REPULSIONS(NEWATOM)
@@ -87,11 +88,198 @@ MODULE ADDATOM
             !check consistency
             CALL CHECK_NACTIVE()
 
+            !now we need to actually add the atom
+            ADDEDTHISCYCLE = .FALSE.
+            !if we have more than three constraints, we use them and construct a local axis system
+            IF (NCONNEWATOM.GE.3) THEN
+               ADDEDTHISCYCLE = .TRUE.
+               CALL PLACE_ATOM(NEWATOM,BESTCONIDX)
+               IF (QCITRILATERATION) THEN
+                  CALL TRILATERATE_ATOMS(NEWATOM,BESTCONIDX,BESTCONDIST)
+               END IF
+               !TODO: add the routines and vairables below into use namespaces
+               ! before we continue check repulsion neighbour list
+               CALL CHECKREP(XYZ,NNREPSAVE,NREPSAVE+1)
+               ! call congrad routine
+               IF (CHECKCONINT) THEN
+                  CALL CONGRAD2(ETOTAL, XYZ, GGG, EEE, RMS)
+               ELSE
+                  CALL CONGRAD1(ETOTAL, XYZ, GGG, EEE, RMS)
+               END IF
+            END IF
+            !if we don't have enough constraints use the closest active atoms instead
+            IF ((.NOT.ADDEDTHISCYCLE).AND.(NDISTNEWATOM.GE.3)) THEN
+               ADDEDTHISCYCLE = .TRUE.
+               CALL PLACE_ATOM(NEWATOM,BESTIDX)
+               IF (QCITRILATERATION) THEN
+                  CALL TRILATERATE_ATOMS(NEWATOM,BESTIDX,BESTDIST)
+               END IF
+               !TODO: add the routines and vairables below into use namespaces
+               ! before we continue check repulsion neighbour list
+               CALL CHECKREP(XYZ,NNREPSAVE,NREPSAVE+1)
+               ! call congrad routine
+               IF (CHECKCONINT) THEN
+                  CALL CONGRAD2(ETOTAL, XYZ, GGG, EEE, RMS)
+               ELSE
+                  CALL CONGRAD1(ETOTAL, XYZ, GGG, EEE, RMS)
+               END IF
+            END IF
+
+
+            !CONTINUE HERE: line 303 in sub_doaddatom
+
+
 
          END DO
 
 
       END SUBROUTINE ADDATOM
+
+      SUBROUTINE TRILATERATE_ATOMS(NEWATOM,CONIDXLIST,CONDISTLIST)
+         USE QCIKEYS, ONLY: NATOMS, DEBUG, NIMAGES
+         USE MOD_INTCOORDS, ONLY: XYZ         
+         IMPLICIT NONE
+         INTEGER, INTENT(IN) :: NEWATOM
+         INTEGER, INTENT(IN) :: CONIDXLIST(NATOMS)        
+         REAL(KIND=REAL64), INTENT(IN) :: CONDISTLIST(NATOMS)
+         REAL(KIND=REAL64) :: P1(3), P2(3), P3(3), R1, R2, R3
+         REAL(KIND=REAL64) :: SOL1(3), SOL2(3), PREV(3), D1SQ, D2SQ
+         INTEGER :: IMAGEOFFSET
+         INTEGER :: N1, N2, N3, IDX1, IDX2, IDX3
+         LOGICAL :: FTEST
+
+         !set initial guess to the best three constrained atoms
+         N1=1; N2=2; N3=3
+         IDX1 = CONIDXLIST(N1); IDX2 = CONIDXLIST(N2), IDX3 = CONIDXLIST(N3)
+
+         DO J1=2,NIMAGES+1
+            IMAGEOFFSET = (J1-1)*3*NIMAGES
+            P1(1:3)=XYZ((IMAGEOFFSET+3*(IDX1-1)+1):(IMAGEOFFSET+3*(IDX1-1)+3))
+            P2(1:3)=XYZ((IMAGEOFFSET+3*(IDX2-1)+1):(IMAGEOFFSET+3*(IDX2-1)+3))
+            P3(1:3)=XYZ((IMAGEOFFSET+3*(IDX3-1)+1):(IMAGEOFFSET+3*(IDX3-1)+3))           
+            R1=CONDISTLIST(N1)
+            R2=CONDISTLIST(N2)
+            R3=CONDISTLIST(N3) 
+            CALL TRILATERATION(P1,P2,P3,R1,R2,R3,SOL1,SOL2,FTEST)
+            IF (.NOT.FTEST) THEN
+               PREV(1:3) = XYZ((IMAGEOFFSET+3*(NEWATOM-1)+1):(IMAGEOFFSET+3*(NEWATOM-1)+3))
+               D1SQ = (SOL1(1)-PREV(1))**2 + (SOL1(2)-PREV(2))**2 + (SOL1(3)-PREV(3))**2
+               D2SQ = (SOL2(1)-PREV(1))**2 + (SOL2(2)-PREV(2))**2 + (SOL2(3)-PREV(3))**2
+               IF (D1SQ.LT.D2SQ) THEN
+                  XYZ((IMAGEOFFSET+3*(NEWATOM-1)+1):(IMAGEOFFSET+3*(NEWATOM-1)+3)) = SOL1(1:3)
+               ELSE
+                  XYZ((IMAGEOFFSET+3*(NEWATOM-1)+1):(IMAGEOFFSET+3*(NEWATOM-1)+3)) = SOL2(1:3)
+               END IF
+            END IF
+         END DO
+      END SUBROUTINE TRILATERATE_ATOMS
+
+      !Intersection of three spheres with centres P1...P3 with radii R1...R3
+      SUBROUTINE TRILATERATION(P1,P2,P3,R1,R2,R3,SOL1,SOL2,FTEST)
+         IMPLICIT NONE
+         REAL(KIND=REAL64), INTENT(IN) :: P1(3), P2(3), P3(3), R1, R2, R3
+         REAL(KIND=REAL64), INTENT(OUT) :: SOL1(3), SOL2(3)
+         LOGICAL, INTENT(OUT) :: FTEST
+         REAL(KIND=REAL64) :: V1(3), V2(3), V3(3), EX(3), EY(3), EZ(3)
+         REAL(KIND=REAL64) :: NORM, NORM2, DOTX2, DOTY2, X, Y, Z, TEMP
+
+         FTEST=.FALSE.
+         !get vectors between centres
+         V1(1:3) = P2(1:3) - P1(1:3)  
+         V2(1:3) = P3(1:3) - P1(1:3)  
+         !get normalised version of V1 
+         CALL NORM_VEC(V1,EX,NORM)     
+
+         DOTX2 = EX(1)*V2(1) + EX(2)*V2(2) + EX(3)*V2(3) 
+         V3(1:3) = V2(1:3) - DOTX2*V1(1:3)
+         CALL NORM_VEC(V3,EY,NORM2)
+         EZ = CROSS_PROD(EX,EY)
+
+         DOTY2 = EY(1)*V2(1) + EY(2)*V2(2) + EY(3)*V2(3) 
+
+         X=(R1*R1 - R2*R2 + NORM*NORM) / (2.0D0*NORM)
+         Y=(R1*R1 - R3*R3 -2.0D0*DOTX2*X + DOTX2*DOTX2 + DOTY2*DOTY2) / (2.0D0*DOTY2)
+         TEMP = R1*R1 - X*X - Y*Y
+   
+         
+         IF (TEMP.LT.0.0D0) THEN
+            FTEST=.TRUE.
+         ELSE
+            FTEST=.FALSE.
+            Z=SQRT(TEMP)
+            SOL1(1:3)=P1(1:3) + X*EX(1:3) + Y*EY(1:3) + Z*EZ(1:3)
+            SOL2(1:3)=P1(1:3) + X*EX(1:3) + Y*EY(1:3) - Z*EZ(1:3)
+         END IF
+      END SUBROUTINE TRILATERATION
+
+      SUBROUTINE PLACE_ATOM(NEWATOM,CONIDXLIST)
+         USE QCIKEYS, ONLY: NATOMS, DEBUG, NIMAGES
+         USE MOD_INTCOORDS, ONLY: XYZ
+         IMPLICIT NONE
+         INTEGER, INTENT(IN) :: NEWATOM
+         INTEGER, INTENT(IN) :: CONIDXLIST(NATOMS)
+
+         REAL(KIND=REAL64) :: VEC(3), B1(3), B2(3), B3(3), POS1(3)
+         REAL(KIND=REAL64) :: C1, C2, C3
+         INTEGER :: IMAGEOFFSET
+         INTEGER :: N1, N2, N3, IDX1, IDX2, IDX3
+         INTEGER :: J1
+
+         !set initial guess to the best three constrained atoms
+         N1=1; N2=2; N3=3
+         IDX1 = CONIDXLIST(N1); IDX2 = CONIDXLIST(N2), IDX3 = CONIDXLIST(N3)
+         IF (DEBUG) THEN
+            WRITE(*,*) " place_atom> Use the closest three constrained active atoms as initial guess"
+            WRITE(*,*) "             New atom: ", NEWATOM, "Closest active atoms: ", CONLIST(N1:N3)
+         END IF
+
+         !Setting up local axis system
+         !VEC is pointing from IDX1 to NEWATOM
+         VEC(1:3) = XYZ((3*(NEWATOM-1)+1):((3*(NEWATOM-1)+3))) - XYZ((3*(IDX1-1)+1):((3*(IDX1-1)+3)))
+         CALL GET_LOCAL_AXIS(IDX1,IDX2,IDX3,1,B1,B2,B3)
+         !get relative coordinates of NEWATOM in B1,B2,B3 axis system
+         C1 = DOT_PRODUCT(VEC,B1)
+         C2 = DOT_PRODUCT(VEC,B2)
+         C3 = DOT_PRODUCT(VEC,B3)
+
+         !iterate over images and place NEWATOM
+         DO J1=2,NIMAGES+1
+            !get B1,B2,B3 for current image
+            CALL GET_LOCAL_AXIS(IDX1,IDX2,IDX3,J1,B1,B2,B3)
+            IMAGEOFFSET = (J1-1)*3*NIMAGES
+            !position of reference atom 1
+            POS1(1:3) = XYZ((IMAGEOFFSET+3*(IDX1-1)+1):(IMAGEOFFSET+3*(IDX1-1)+3))
+            !place new atom usig fractional coordinates from start image
+            XYZ((IMAGEOFFSET+3*(NEWATOM-1)+1):(IMAGEOFFSET+3*(NEWATOM-1)+3)) =  POS(1:3) + C1*B1(1:3) + C2*B2(1:3) + C3*B3(1:3) 
+         END DO
+      END SUBROUTINE PLACE_ATOM
+
+      SUBROUTINE GET_LOCAL_AXIS(IDX1,IDX2,IDX3,IMAGE,B1,B2,B3)
+         USE QCIKEYs, ONLY: NATOMS
+         USE HELPER_FNCTS, ONLY: NORM_VEC, CROSS_PROD
+         USE MOD_INTCOORDS, ONLY: XYZ
+         IMPLICIT NONE
+         INTEGER, INTENT(IN) :: IDX1, IDX2, IDX3
+         INTEGER, INTENT(IN) :: IMAGE
+         REAL(KIND=REAL64), INTENT(OUT) :: B1(3), B2(3), B3(3)
+         REAL(KIND=REAL64) :: VEC1(3), VEC2(3), VEC3(3), NORM, DOT12
+         INTEGER :: IMAGEOFFSET
+
+         IMAGEOFFSET = (IMAGE-1)*3*NIMAGES
+         ! VEC1 is pointing from IDX1 to IDX2
+         VEC1(1:3) = XYZ((IMAGEOFFSET+3*(IDX2-1)+1):((IMAGEOFFSET+3*(IDX2-1)+3))) - XYZ((IMAGEOFFSET+3*(IDX1-1)+1):((IMAGEOFFSET+3*(IDX1-1)+3))) 
+         !VEC2 is pointing from IDX1 to IDX3
+         VEC2(1:3) = XYZ((IMAGEOFFSET+3*(IDX3-1)+1):((IMAGEOFFSET+3*(IDX3-1)+3))) - XYZ((IMAGEOFFSET+3*(IDX1-1)+1):((IMAGEOFFSET+3*(IDX1-1)+3))) 
+
+         !B1 (first base vector) is the normed VEC1
+         CALL NORM_VEC(VEC1,B1,NORM)
+         !to get the second base vector (B2) we use the orthogonal component of VEC2 to B1
+         DOT12 = B1(1)*VEC2(1) + B1(2)*VEC2(2) + B1(3)*VEC2(3)
+         VEC2(1:3) = VEC2(1:3) - DOT12*VEC1(1:3)
+         CALL NORM_VEC(VEC2,B2,NORM)
+         !The final base vector is the cross product of B1 and B2
+         B3 = CROSS_PROD(B1,B2)
+      END SUBROUTINE GET_LOCAL_AXIS
 
       SUBROUTINE CHECK_NACTIVE()
          USE INTERPOLATION_KEYS, ONLY: NACTIVE, ATOMACTIVE
