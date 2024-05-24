@@ -40,6 +40,11 @@ MODULE ADDATOM
          REAL(KIND=REAL64) :: BESTCONDIST(NATOMS)           !list of sorted average constraint distances to newatom
          INTEGER :: BESTCONIDX, NCONNEWATOM                 !associated ids and total number found
          LOGICAL :: ADDEDTHISCYCLE                          !have we added an atom this cycle?
+         REAL(KIND = REAL64), PARAMETER :: FRAC = 1.0D0     !fraction for linear interpolation
+         INTEGER :: THISIMAGE, NEWATOMOFFSET, CONONEOFFSET, ENDPOINT !offsets used to simplify linear interpolation
+         REAL(KIND = REAL64) :: STARTWEIGHT, ENDWEIGHT      !weights of endpoints in linear interpolation
+         REAL(KIND = REAL64) :: ELIN, ECON, EDIST, ETOTAL   !linear, constraint and distance measure-based energies
+         REAL(KIND = REAL64) :: XLIN(3,NIMAGES), XCON(3,NIMAGES), XDIST(3,NIMAGES) !saved coordinates for interpolations
       
          ! setup book keeping
          NTOADD = 1
@@ -90,7 +95,10 @@ MODULE ADDATOM
 
             !now we need to actually add the atom
             ADDEDTHISCYCLE = .FALSE.
-            !if we have more than three constraints, we use them and construct a local axis system
+            EDIST = 1.0D100
+            ELIN = 1.0D100
+            ECON = 1.0D100
+            !if we have three or more constraints, we use them and construct a local axis system
             IF (NCONNEWATOM.GE.3) THEN
                ADDEDTHISCYCLE = .TRUE.
                CALL PLACE_ATOM(NEWATOM,BESTCONIDX)
@@ -106,8 +114,13 @@ MODULE ADDATOM
                ELSE
                   CALL CONGRAD1(ETOTAL, XYZ, GGG, EEE, RMS)
                END IF
+               ECON = ETOTAL
+               DO J1=1,NIMAGES
+                  NEWATOMOFFSET = J1*3*NATOMS + 3*(NEWATOM-1)
+                  XCON(1:3,J1) = XYZ(NEWATOMOFFSET+1:NEWATOMOFFSET+3) 
+               END DO
             END IF
-            !if we don't have enough constraints use the closest active atoms instead
+            !if we don't have enough constraints, use the closest active atoms instead to construct the axis system
             IF ((.NOT.ADDEDTHISCYCLE).AND.(NDISTNEWATOM.GE.3)) THEN
                ADDEDTHISCYCLE = .TRUE.
                CALL PLACE_ATOM(NEWATOM,BESTIDX)
@@ -116,6 +129,7 @@ MODULE ADDATOM
                END IF
                !TODO: add the routines and vairables below into use namespaces
                ! before we continue check repulsion neighbour list
+               !TODO: check checkrep here and in the original version match up
                CALL CHECKREP(XYZ,NNREPSAVE,NREPSAVE+1)
                ! call congrad routine
                IF (CHECKCONINT) THEN
@@ -123,16 +137,115 @@ MODULE ADDATOM
                ELSE
                   CALL CONGRAD1(ETOTAL, XYZ, GGG, EEE, RMS)
                END IF
+               EDIST = ETOTAL
+               DO J1=1,NIMAGES
+                  NEWATOMOFFSET = J1*3*NATOMS + 3*(NEWATOM-1)
+                  XDIST(1:3,J1) = XYZ(NEWATOMOFFSET+1:NEWATOMOFFSET+3) 
+               END DO
+            END IF
+            !if we haven't suceeded in adding the atom or it is QCIlinear, go for a linear interpolation for new atom based on the tightest constraint
+            IF ((.NOT.ADDEDTHISCYCLE).OR.QCILINEART) THEN
+               DO J1=1,NIMAGES
+                  ! the images are technically running from 2 to NIMAGES+1, but the offset is (J1-1)*3*NATOMs, 
+                  ! so we can just use a shifted range from 1 to NIMAGES
+                  THISIMAGE = J1*3*NATOMS
+                  ENDPOINT = 3*NATOMS*(NIMAGES+1)
+                  NEWATOMOFFSET = 3*(NEWATOM-1)
+                  !there is always at least one constraint!
+                  CONONEOFFSET = 3*(BESTCONIDX(1)-1)
+                  STARTWEIGHT = FRAC*(NIMAGES+1-J1)/(NIMAGES+1) 
+                  ENDWEIGHT = J1/(NIMAGES+1) 
+                  !X coordinate
+                  XYZ(THISIMAGE+NEWATOMOFFSET+1) = XYZ(THISIMAGE+CONONEOFFSET+1) + STARTWEIGHT*(XYZ(NEWATOMOFFSET+1)-XYZ(CONONEOFFSET+1)) + &
+                                                   ENDWEIGHT*(XYZ(ENDPOINT+NEWATOMOFFSET+1)-XYZ(ENDPOINT+CONONEOFFSET+1))
+                  !Y coordinate
+                  XYZ(THISIMAGE+NEWATOMOFFSET+2) = XYZ(THISIMAGE+CONONEOFFSET+2) + STARTWEIGHT*(XYZ(NEWATOMOFFSET+2)-XYZ(CONONEOFFSET+2)) + &
+                                                   ENDWEIGHT*(XYZ(ENDPOINT+NEWATOMOFFSET+2)-XYZ(ENDPOINT+CONONEOFFSET+2))
+                  !Z coordinate
+                  XYZ(THISIMAGE+NEWATOMOFFSET+3) = XYZ(THISIMAGE+CONONEOFFSET+3) + STARTWEIGHT*(XYZ(NEWATOMOFFSET+3)-XYZ(CONONEOFFSET+3)) + &
+                                                   ENDWEIGHT*(XYZ(ENDPOINT+NEWATOMOFFSET+3)-XYZ(ENDPOINT+CONONEOFFSET+3))    
+               END DO                                                                                
+
+               CALL CHECKREP(XYZ,NNREPSAVE,NREPSAVE+1)
+               ! call congrad routine
+               IF (CHECKCONINT) THEN
+                  CALL CONGRAD2(ETOTAL, XYZ, GGG, EEE, RMS)
+               ELSE
+                  CALL CONGRAD1(ETOTAL, XYZ, GGG, EEE, RMS)
+               END IF
+               ELIN = ETOTAL
+               DO J1=1,NIMAGES
+                  NEWATOMOFFSET = J1*3*NATOMS + 3*(NEWATOM-1)
+                  XLIN(1:3,J1) = XYZ(NEWATOMOFFSET+1:NEWATOMOFFSET+3) 
+               END DO
+            END IF
+            
+            !select which interpolation is used based on energy if multiple are used (we shouldn't have this case except for QCIlinear)
+            IF (QCILINEART) THEN
+               WRITE(*,*) " addatom> Using linear interpolation for new atom ", NEWATOM, " from linear list"
+            ELSE 
+               IF ((ELIN.LT.ECON).AND.(ELIN.LT.EDIST)) THEN
+                  WRITE(*,*) " addatom> Using linear interpolation for new atom ", NEWATOM
+               ELSE IF ((ECON.LT.ELIN).AND.(ECON.LT.EDIST)) THEN
+                  WRITE(*,*) " addatom> Using interpolation from preserved distances for new atom ", NEWATOM
+                  ETOTAL = ECON
+                  DO J1=1,NIMAGES
+                     NEWATOMOFFSET = J1*3*NATOMS + 3*(NEWATOM-1)
+                     XYZ(NEWATOMOFFSET+1:NEWATOMOFFSET+3) = XCON(1:3,J1)
+                  END DO
+               ELSE IF ((EDIST.LT.ELIN).AND.(EDIST.LT.ECON)) THEN
+                  WRITE(*,*) " addatom> Using interpolation from closest atoms for new atom ", NEWATOM
+                  ETOTAL = EDIST
+                  DO J1=1,NIMAGES
+                     NEWATOMOFFSET = J1*3*NATOMS + 3*(NEWATOM-1)
+                     XYZ(NEWATOMOFFSET+1:NEWATOMOFFSET+3) = XDIST(1:3,J1)
+                  END DO
+               END IF
             END IF
 
+            NADDED = NADDED + 1
+            IF (NADDED.LT.NTOADD) CYCLE !if we already know we need to add more, skip ahead and add the next atom
 
-            !CONTINUE HERE: line 303 in sub_doaddatom
+            !we should not have more atoms to add unless we hit certain criteria
+            MORETOADD = .FALSE.
+            ! if we add one residue at a time, check whether we added all of them
+            IF (QCIADDACIDT.AND.(.NOT.QCIDOBACK)) THEN
+               IF (NCONNEWATOM.LT.3) THEN
+                  WRITE(*,*) " addatom> Addad atom constraints ", NCONNEWATOM, " is less than 3 - not attempting to add another atom."
+               ELSE
+                  ! iterate over all atoms and check whether they are in the residue and not active
+                  DO J1=1,NATOMS
+                     IF ((ATOMS2RES(J1).EQ.ACID).AND.(.NOT.(ATOMACTIVE(J1)))) THEN
+                        !we found another atom to add, so we set moretoadd to true and leave this loop
+                        MORETOADD = .TRUE.
+                        EXIT
+                     END IF
+                  END DO
+               END IF
+            END IF
 
-
-
+            IF (QCIDOBACKALL.AND.ISBBATOM(NEWATOM)) THEN
+               DO J1=1,NATOMS
+                  IF ((ATOMS2RES(J1).EQ.ACID).AND.(ISBBATOM(J1)).AND.(.NOT.(ATOMACTIVE(J1)))) THEN
+                     MORETOADD = .TRUE.
+                     EXIT
+                  END IF
+               END DO           
+            END IF
+            !this is the end of the add atom loop - the loop will continue if MORETOADD is set to TRUE, otherwise we leave the loop
          END DO
 
+         !TODO: potentially add QCIRADSHIFT here
 
+         CALL CHECKREP(XYZ,NNREPSAVE,NREPSAVE+1)
+         ! call congrad routine
+         IF (CHECKCONINT) THEN
+            CALL CONGRAD2(ETOTAL, XYZ, GGG, EEE, RMS)
+         ELSE
+            CALL CONGRAD1(ETOTAL, XYZ, GGG, EEE, RMS)
+         END IF
+         !we are done with QCIlinear, so set it to false
+         QCILINEART = .FALSE.
       END SUBROUTINE ADDATOM
 
       SUBROUTINE TRILATERATE_ATOMS(NEWATOM,CONIDXLIST,CONDISTLIST)
