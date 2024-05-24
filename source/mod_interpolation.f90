@@ -25,8 +25,10 @@ MODULE QCIINTERPOLATION
          CHARACTER(25) :: RESETXYZFILE = "QCIreset.int.xyz"
          CHARACTER(25) :: RESETEEEFILE = "QCIreset.int.EofS"     
          REAL(KIND = REAL64), PARAMETER :: INCREASETOL = 1.1D0   
-         INTEGER :: NITERUSE, POINT, NPT
-         REAL(KIND = REAL64) :: STPMIN
+         INTEGER :: NITERUSE, POINT, NPT ! variables needed for lbfgs steps
+         REAL(KIND = REAL64) :: STPMIN ! minimum step-size
+         REAL(KIND = REAL64) :: CURRMAXSEP, CURRMINSEP ! current minimum and maximum image separation
+         INTEGER :: IDXMIN, IDXMAX ! id for minimum and maximum distance images
 
          !initiate variables for the interpolation, including image density set nimage
          CALL ALLOC_INTERPOLATION_VARS()
@@ -209,9 +211,57 @@ MODULE QCIINTERPOLATION
 
             !continue at line 1575 with the removing and adding image blocks
             !check for image addition or removal
+            IF (REMOVEIMAGE.OR.(MOD(NITERDONE,QCIIMAGECHECK).EQ.0)) THEN
+               MOREIMAGES=.TRUE.
+               DO WHILE(MOREIMAGES)
+                  CALL GET_IMAGE_SEPARATION(CURRMINSEP,CURRMAXSEP,IDXMIN,IDXMAX)
+                  IF ((.NOT.REMOVEIMAGE).AND.((CURRMAXSEP.GT.IMSEPMAX).AND.(NIMAGES.LT.MAXNIMAGES))) THEN
+                     !TODO CONTINUE LINE 1632
+                     CALL ADD_IMAGE()
+                  END IF
+                  IF (REMOVEIMAGE.OR.((CURRMINSEP.LT.IMSEPMIN).AND.(INTIMAGE.GT.1))) THEN
+                     CALL REMOVE_IMAGE()
+                  END IF
+               END DO
+            END IF
 
          END DO
       END SUBROUTINE RUN_QCI_INTERPOLATION
+
+      SUBROUTINE GET_IMAGE_SEPARATION(DMIN,DMAX,JMIN,JMAX)
+         USE QCIKEYS, ONLY: NATOMS, NIMAGES
+         USE HELPER_FNCTS, ONLY: DISTANCE_ATOM_DIFF_IMAGES
+         USE INTERPOLATION_KEYS, ONLY: ATOMACTIVE
+         IMPLICIT NONE
+         REAL(KIND = REAL64), INTENT(OUT) :: DMIN, DMAX
+         INTEGER, INTENT(OUT) :: JMIN, JMAX
+         REAL(KIND = REAL64) :: DISTATOM, DISTTOTAL, X1(3*NATOMS), X2(3*NATOMS)
+         INTEGER :: J1, J2
+
+         DMIN = HUGE(1.0D0)
+         DMAX = -1.0D0
+
+         DO J1=1,NIMAGES+1
+            DISTTOTAL = 0.0D0
+            X1(1:3*NATOMS) = XYZ((J1-1)*3*NATOMS+1:J1*3*NATOMS)
+            X2(1:3*NATOMS) = XYZ(J1*3*NATOMS+1:(J1+1)*3*NATOMS)
+            DO J1=1,NATOMS
+               IF (ATOMACTIVE(J2)) THEN
+                  CALL DISTANCE_ATOM_DIFF_IMAGES(NATOMS, X1, X2, IDX, DISTATOM)
+                  DISTTOTAL = DISTTOTAL + DISTATOM
+               END IF
+            END DO
+            IF (DISTTOTAL.GT.DMAX) THEN
+               DMAX = DISTTOTAL
+               JMAX = J1
+            END IF
+            IF (DISTTOTAL.LT.DMIN) THEN
+               DMIN = DISTTOTAL
+               JMIN = J1
+            END IF
+         END DO
+      END SUBROUTINE GET_IMAGE_SEPARATION
+
 
       SUBROUTINE ALLOC_STEPTAKING()
          USE QCIKEYS, ONLY: NIMAGES, NATOMS,MUPDATE
