@@ -69,6 +69,12 @@ MODULE QCIKEYS
    !maximum gradient component
    REAL(KIND=REAL64) :: MAXGRADCOMP = -1.0
 
+   !settings for step taking
+   REAL(KIND = REAL64) :: DGUESS = 1.0D-3
+   INTEGER :: MUPDATE = 4
+   REAL(KIND = REAL64) :: MAXQCIBFGS = 0.2D0
+
+
    !maximum constraint E - used for convergence
    REAL(KIND=REAL64) :: MAXCONE = 0.01D0
    !convergence for RMS

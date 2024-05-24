@@ -3,7 +3,8 @@ MODULE QCIINTERPOLATION
    USE MOD_INTCOORDS
    USE PREC
    IMPLICIT NONE
-
+   REAL(KIND = REAL64), ALLOCATABLE :: GTMP(:), DIAG(:), STP(:), SEARCHSTEP(:,:), GDIF(:,:), STEPIMAGE(:)
+   
    CONTAINS
       SUBROUTINE RUN_QCI_INTERPOLATION()
          USE QCIKEYS, ONLY: QCIREADGUESS, QCIRESTART, QCIFREEZET, MAXITER, MAXGRADCOMP, MAXCONE, &
@@ -23,8 +24,9 @@ MODULE QCIINTERPOLATION
          CHARACTER(25) :: EEEFILE = "int.EofS"
          CHARACTER(25) :: RESETXYZFILE = "QCIreset.int.xyz"
          CHARACTER(25) :: RESETEEEFILE = "QCIreset.int.EofS"     
-         REAL(KIND=REAL64), PARAMETER :: INCREASETOL = 1.1D0   
-
+         REAL(KIND = REAL64), PARAMETER :: INCREASETOL = 1.1D0   
+         INTEGER :: NITERUSE, POINT, NPT
+         REAL(KIND = REAL64) :: STPMIN
 
          !initiate variables for the interpolation, including image density set nimage
          CALL ALLOC_INTERPOLATION_VARS()
@@ -32,6 +34,8 @@ MODULE QCIINTERPOLATION
          ! allocate the coordinate, energy and gradient variables for the band and
          ! initiate the interpolation band
          CALL INITIATE_INTERPOLATION_BAND()
+
+         !initialise step taking variables
 
          ! are we reading in a guess?
          IF (QCIREADGUESS) THEN
@@ -93,9 +97,10 @@ MODULE QCIINTERPOLATION
          CALL SET_CONCUTABS()
 
          NITERDONE = 0
+         NITERUSE = 1
          NLASTGOODE = 0
          QCICONVT = .FALSE.
-         ! -> starts line 1070 in old routine
+
          ! now enter main loop and add atom by atom going through congrad routines as we go along
          DO WHILE (NITERDONE.LT.MAXITER)
             NITERDONE = NITERDONE + 1
@@ -177,14 +182,57 @@ MODULE QCIINTERPOLATION
                CALL ADDATOM()
                !scale gradient if necessary
                IF (MAXGRADCOMP.GT.0.0D0) CALL SCALEGRAD(DIMS,G,RMS,MAXGRADCOMP)
+               NLASTGOODE=NITERDONE
             END IF
-            ! HERE TO CONTINUE:
-            ! need to implement the doatom routine next and then continue with the main loop
+
+            GTMP(1:D)=0.0D0
+            ! the variables needed for step taking are either module variables in this module or saved in mod_intcoords
+            CALL MAKESTEP(NITERUSE,NPT,POINT)
+
+            IF ((DOT_PRODUCT(G,GTMP)/MAX(1.0-100,SQRT(DOT_PRODUCT(G,G))*SQRT(DOT_PRODUCT(GTMP,GTMP)))).GT.0.0D0) THEN
+               IF (DEBUG) WRITE(*,*) 'Search direction has positive projection onto gradient - reversing step'
+               GTMP(1:DIMS)=-GTMP(1:DIMS)
+               SEARCHSTEP(POINT,1:DIMS)=GTMP(1:DIMS)
+            END IF
+            GTMP(1:D)=G(1:D)
+            ! Take the minimum scale factor for all images for LBFGS step to avoid discontinuities
+            STPMIN = 1.0D0
+            DO J1=1,NIMAGES
+               STEPIMAGE(J2) = SQRT(DOT_PRODUCT(SEARCHSTEP(POINT,(3*NATOMS)*(J1-1)+1:(3*NATOMS)*J1), &
+                                                SEARCHSTEP(POINT,(3*NATOMS)*(J1-1)+1:(3*NATOMS)*J1)))
+               IF (STEPIMAGE(J1).GT.MAXQCIBFGS) THEN
+                  STP((3*NATOMS)*(J1-1)+1:(3*NATOMS)*J1) = MAXQCIBFGS/STEPIMAGE(J1)
+                  STPMIN=MIN(STPMIN,STP((3*NATOMS)*(J1-1)+1))
+               END IF
+            END DO
+            STP(1:D) = STPMIN
+
+            !continue at line 1575 with the removing and adding image blocks
+            !check for image addition or removal
 
          END DO
       END SUBROUTINE RUN_QCI_INTERPOLATION
 
-   
+      SUBROUTINE ALLOC_STEPTAKING()
+         USE QCIKEYS, ONLY: NIMAGES, NATOMS,MUPDATE
+         IMPLICIT NONE
+         CALL DEALLOC_STEPTAKING()
+         ALLOCATE(DIAG(3*NATOMS*NIMAGES))
+         ALLOCATE(GTMP(3*NATOMS*NIMAGES))
+         ALLOCATE(GDIF(0:MUPDATE,(3*NATOMS)*NIMAGES))
+         ALLOCATE(STP(3*NATOMS*NIMAGES))
+         ALLOCATE(SEARCHSTEP(0:MUPDATE,(3*NATOMS)*NIMAGES))
+         ALLCOATE(STEPIMAGE(NIMAGES))
+      END SUBROUTINE ALLOC_STEPTAKING
+
+      SUBROUTINE DEALLOC_STEPTAKING()
+         IF (ALLOCATED(DIAG)) DEALLOCATE(DIAG)
+         IF (ALLOCATED(GTMP)) DEALLOCATE(GTMP)
+         IF (ALLOCATED(GDIF)) DEALLOCATE(GDIF)
+         IF (ALLOCATED(STP)) DEALLOCATE(STP)
+         IF (ALLOCATED(SEARCHSTEP)) DEALLOCATE(SEARCHSTEP)
+         IF (ALLOCATED(STEPIMAGE)) DEALLOCATE(STEPIMAGE)
+      END SUBROUTINE DEALLOC_STEPTAKING
 
 
       SUBROUTINE INITIALISE_INTERPOLATION_VARS()
@@ -228,6 +276,7 @@ MODULE QCIINTERPOLATION
          USE QCIKEYS, ONLY: NIMAGES, DEBUG, COLDFUSIONLIMIT
          USE MOD_INTCOORDS, ONLY: WRITE_BAND
          IMPLICIT NONE
+         REAL(KIND=REAL64), INTENT(IN) :: ECURRENT
          CHARACTER(25) :: FNAME="intcoords.aborted.xyz"
          REAL(KIND=REAL64) :: EPERIMAGE
 
@@ -243,6 +292,76 @@ MODULE QCIINTERPOLATION
                WRITE(*,*) " check_int> No cold fusion diagnosed, per image energy: ", EPERIMAGE
             END IF
          END IF
-
       END SUBROUTINE CHECK_FOR_COLDFUSION
+
+      SUBROUTINE MAKESTEP(NITERDONE,NPT,POINT)
+         USE QCIKEYS, ONLY: MUPDATE, DGUESS, NATOMS, NIMAGES
+         USE MOD_INTCOORDS, ONLY: G, DIMS
+         IMPLICIT NONE         
+         INTEGER, INTENT(IN) :: NITERDONE
+         INTEGER, INTENT(IN) :: NPT
+         INTEGER, INTENT(OUT) :: POINT
+         REAL(KIND = REAL64) :: GNORM
+         REAL(KIND = REAL64) :: YS, YY, YR, SQ, BETA
+         REAL(KIND = REAL64) :: RHO1(MUPDATE), ALPHA(MUPDATE)
+         INTEGER :: BOUND, CP, I
+
+         !if it is the first step, we use a cautious guess
+         IF (NITERDONE.EQ.1) THEN
+            POINT = 0
+            DIAG(1:NDIMS) = DGUESS
+            SEARCHSTEP(0,1:NDIMS) = -DGUESS*G(1:NDIMS)
+            GTMP(1:DIMS) = SEARCHSTEP(0,1:NDIMS)
+            GNORM =  MAX(SQRT(DOT_PRODUCT(G(1:DIMS),G(1:DIMS))),1.0D-100)
+            STP(1:DIMS) = MIN(1.0D0/GNORM, GNORM)
+            RETURN
+         END IF
+
+         IF (NITERDONE.GT.MUPDATE) THEN
+            BOUND = MUPDATE
+         ELSE
+            BOUND = NITERDONE - 1
+         END IF
+         YS=DOT_PRODUCT(GDIF(NPT/DIMS,:),SEARCHSTEP(NPT/DIMS,:))
+         IF (YS==0.0D0) YS=1.0D0
+
+         ! Update estimate of diagonal inverse Hessian elements.
+         YY=DOT_PRODUCT(GDIF(NPT/DIMS,:),GDIF(NPT/DIMS,:))
+         IF (YY==0.0D0) YY=1.0D0
+         DIAG(1) = YS/YY
+
+         ! Compute -H*G using the formula given in: Nocedal, J. 1980, Mathematics of Computation, Vol.35, No.151, pp. 773-782
+         IF (POINT.EQ.0) THEN
+            CP = MUPDATE
+         ELSE
+            CP = POINT
+         END IF
+
+         RHO1(CP) = 1.0D0/YS
+         GTMP(1:DIMS) = -G(1:DIMS)
+         CP = POINT
+
+         DO I=1,BOUND
+            CP = CP - 1
+            IF (CP.EQ.-1) CP = MUPDATE-1
+            SQ = DOT_PRODUCT(SEARCHSTEP(CP,1:DIMS),GTMP(1:DIMS))
+            ALPHA(CP+1) = RHO1(CP+1) * SQ
+            GTMP(1:DIMS) = -ALPHA(CP+1)*GDIF(CP,1:DIMS) + GTMP(1:DIMS)
+         END DO
+
+         GTMP(1:DIMS)=DIAG(1)*GTMP(1:DIMS)
+
+         DO I=1,BOUND
+            YR = DOT_PRODUCT(GDIF(CP,1:DIMS),GTMP)
+            BETA= RHO1(CP+1)*YR
+            BETA= ALPHA(CP+1)-BETA
+            GTMP(1:DIMS) = BETA*SEARCHSTEP(CP,1:DIMS) + GTMP(1:DIMS)
+            CP=CP+1
+            IF (CP.EQ.MUPDATE) CP=0
+         END DO
+
+         STP(1:DIMS) = 1.0D0
+         SEARCHSTEP(POINT,1:DIMS)=GTMP(1:DIMS)
+      END SUBROUTINE MAKESTEP
+
 END MODULE QCIINTERPOLATION
