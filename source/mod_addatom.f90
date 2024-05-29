@@ -235,8 +235,6 @@ MODULE ADDATOM
             !this is the end of the add atom loop - the loop will continue if MORETOADD is set to TRUE, otherwise we leave the loop
          END DO
 
-         !TODO: potentially add QCIRADSHIFT here
-
          CALL CHECKREP(XYZ,NNREPSAVE,NREPSAVE+1)
          ! call congrad routine
          IF (CHECKCONINT) THEN

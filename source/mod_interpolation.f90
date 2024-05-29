@@ -3,7 +3,6 @@ MODULE QCIINTERPOLATION
    USE MOD_INTCOORDS
    USE PREC
    IMPLICIT NONE
-   REAL(KIND = REAL64), ALLOCATABLE :: GTMP(:), DIAG(:), STP(:), SEARCHSTEP(:,:), GDIF(:,:), STEPIMAGE(:)
    
    CONTAINS
       SUBROUTINE RUN_QCI_INTERPOLATION()
@@ -192,7 +191,7 @@ MODULE QCIINTERPOLATION
             CALL MAKESTEP(NITERUSE,NPT,POINT)
 
             IF ((DOT_PRODUCT(G,GTMP)/MAX(1.0-100,SQRT(DOT_PRODUCT(G,G))*SQRT(DOT_PRODUCT(GTMP,GTMP)))).GT.0.0D0) THEN
-               IF (DEBUG) WRITE(*,*) 'Search direction has positive projection onto gradient - reversing step'
+               IF (DEBUG) WRITE(*,*) ' QCIinterp - Search direction has positive projection onto gradient - reversing step'
                GTMP(1:DIMS)=-GTMP(1:DIMS)
                SEARCHSTEP(POINT,1:DIMS)=GTMP(1:DIMS)
             END IF
@@ -214,14 +213,29 @@ MODULE QCIINTERPOLATION
             IF (REMOVEIMAGE.OR.(MOD(NITERDONE,QCIIMAGECHECK).EQ.0)) THEN
                MOREIMAGES=.TRUE.
                DO WHILE(MOREIMAGES)
+                  MOREIMAGES = .FALSE.
                   CALL GET_IMAGE_SEPARATION(CURRMINSEP,CURRMAXSEP,IDXMIN,IDXMAX)
                   IF ((.NOT.REMOVEIMAGE).AND.((CURRMAXSEP.GT.IMSEPMAX).AND.(NIMAGES.LT.MAXNIMAGES))) THEN
-                     !TODO CONTINUE LINE 1632
-                     CALL ADD_IMAGE()
+                     WRITE(*,*) " QCIinterp> Adding image between images ", IDXMAX, " and ", IDXMAX+1
+                     CALL ADD_IMAGE(IDXMAX,ETOTAL,RMS)
+                     NITERUSE = 0
+                     !scale gradient if necessary
+                     IF (MAXGRADCOMP.GT.0.0D0) CALL SCALEGRAD(DIMS,G,RMS,MAXGRADCOMP)
+                     NLASTGOODE=NITERDONE
+                     MOREIMAGES = .TRUE. !if we add an atom we will stay in the loop and check whether we should add more images
                   END IF
                   IF (REMOVEIMAGE.OR.((CURRMINSEP.LT.IMSEPMIN).AND.(INTIMAGE.GT.1))) THEN
-                     CALL REMOVE_IMAGE()
+                     IF (IDXMIN.EQ.1) IDXMIN = 2
+                     WRITE(*,*) " QCIinterp> Removing image ", IDXMIN
+                     CALL REMOVE_IMAGE(IDXMAX,ETOTAL,RMS)
+                     NITERUSE = 0
+                     !scale gradient if necessary
+                     IF (MAXGRADCOMP.GT.0.0D0) CALL SCALEGRAD(DIMS,G,RMS,MAXGRADCOMP)
+                     NLASTGOODE=NITERDONE
+                     MOREIMAGES = .TRUE. !if we add an atom we will stay in the loop and check whether we should add more images
                   END IF
+                  !line 1798 gets us to here
+                  IF (.NOT.MOREIMAGES) WIRTE(*,*) " QCIinterp> Not adding or removing further images"
                END DO
             END IF
 
@@ -261,28 +275,6 @@ MODULE QCIINTERPOLATION
             END IF
          END DO
       END SUBROUTINE GET_IMAGE_SEPARATION
-
-
-      SUBROUTINE ALLOC_STEPTAKING()
-         USE QCIKEYS, ONLY: NIMAGES, NATOMS,MUPDATE
-         IMPLICIT NONE
-         CALL DEALLOC_STEPTAKING()
-         ALLOCATE(DIAG(3*NATOMS*NIMAGES))
-         ALLOCATE(GTMP(3*NATOMS*NIMAGES))
-         ALLOCATE(GDIF(0:MUPDATE,(3*NATOMS)*NIMAGES))
-         ALLOCATE(STP(3*NATOMS*NIMAGES))
-         ALLOCATE(SEARCHSTEP(0:MUPDATE,(3*NATOMS)*NIMAGES))
-         ALLCOATE(STEPIMAGE(NIMAGES))
-      END SUBROUTINE ALLOC_STEPTAKING
-
-      SUBROUTINE DEALLOC_STEPTAKING()
-         IF (ALLOCATED(DIAG)) DEALLOCATE(DIAG)
-         IF (ALLOCATED(GTMP)) DEALLOCATE(GTMP)
-         IF (ALLOCATED(GDIF)) DEALLOCATE(GDIF)
-         IF (ALLOCATED(STP)) DEALLOCATE(STP)
-         IF (ALLOCATED(SEARCHSTEP)) DEALLOCATE(SEARCHSTEP)
-         IF (ALLOCATED(STEPIMAGE)) DEALLOCATE(STEPIMAGE)
-      END SUBROUTINE DEALLOC_STEPTAKING
 
 
       SUBROUTINE INITIALISE_INTERPOLATION_VARS()
