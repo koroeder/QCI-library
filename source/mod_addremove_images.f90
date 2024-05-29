@@ -3,6 +3,9 @@ MODULE ADDREMOVE_IMAGES
    IMPLICIT NONE
 
    CONTAINS
+      !TODO are the energy checks needed here?
+      ! I am not sure we actually use them before we test the energy anyway - it's not a lot of overhead but a little
+
       SUBROUTINE ADD_IMAGE(IDXMAX, ETOTAL, RMS)
          USE QCIKEYS, ONLY: NATOMS, NIMAGES, MUPDATE
          USE MOD_INTCOORDS, ONLY: ALLOC_INTCOORDS, XYZ, EEE, GGG

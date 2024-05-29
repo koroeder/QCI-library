@@ -206,39 +206,90 @@ MODULE QCIINTERPOLATION
                   STPMIN=MIN(STPMIN,STP((3*NATOMS)*(J1-1)+1))
                END IF
             END DO
-            STP(1:D) = STPMIN
+            STP(1:DIMS) = STPMIN
 
-            !continue at line 1575 with the removing and adding image blocks
-            !check for image addition or removal
-            IF (REMOVEIMAGE.OR.(MOD(NITERDONE,QCIIMAGECHECK).EQ.0)) THEN
-               MOREIMAGES=.TRUE.
-               DO WHILE(MOREIMAGES)
-                  MOREIMAGES = .FALSE.
+            ACCEPTEDSTEP = .FALSE.
+            NDECREASE = 0
+            DO WHILE(.NOT.ACCEPTEDSTEP)
+               !apply our step to our coordinates
+               X(1:DIMS) = X(1:DIMS) + STP(1:DIMS)*SEARCHSTEP(POINT,1:D)
+
+               !adding or removing images if required
+               IF (REMOVEIMAGE.OR.(MOD(NITERDONE,QCIIMAGECHECK).EQ.0)) THEN
+                  MOREIMAGES=.TRUE.
+                  DO WHILE(MOREIMAGES)
+                     MOREIMAGES = .FALSE.
+                     CALL GET_IMAGE_SEPARATION(CURRMINSEP,CURRMAXSEP,IDXMIN,IDXMAX)
+                     IF ((.NOT.REMOVEIMAGE).AND.((CURRMAXSEP.GT.IMSEPMAX).AND.(NIMAGES.LT.MAXNIMAGES))) THEN
+                        WRITE(*,*) " QCIinterp> Adding image between images ", IDXMAX, " and ", IDXMAX+1
+                        CALL ADD_IMAGE(IDXMAX,ETOTAL,RMS)
+                        NITERUSE = 0
+                        !scale gradient if necessary
+                        IF (MAXGRADCOMP.GT.0.0D0) CALL SCALEGRAD(DIMS,G,RMS,MAXGRADCOMP)
+                        NLASTGOODE=NITERDONE
+                        MOREIMAGES = .TRUE. !if we add an atom we will stay in the loop and check whether we should add more images
+                     END IF
+                     IF (REMOVEIMAGE.OR.((CURRMINSEP.LT.IMSEPMIN).AND.(INTIMAGE.GT.1))) THEN
+                        IF (IDXMIN.EQ.1) IDXMIN = 2
+                        WRITE(*,*) " QCIinterp> Removing image ", IDXMIN
+                        CALL REMOVE_IMAGE(IDXMAX,ETOTAL,RMS)
+                        NITERUSE = 0
+                        !scale gradient if necessary
+                        IF (MAXGRADCOMP.GT.0.0D0) CALL SCALEGRAD(DIMS,G,RMS,MAXGRADCOMP)
+                        NLASTGOODE=NITERDONE
+                        MOREIMAGES = .TRUE. !if we add an atom we will stay in the loop and check whether we should add more images
+                     END IF
+                     !line 1798 gets us to here
+                     IF (.NOT.MOREIMAGES) WIRTE(*,*) " QCIinterp> Not adding or removing further images"
+                  END DO
+               ELSE
                   CALL GET_IMAGE_SEPARATION(CURRMINSEP,CURRMAXSEP,IDXMIN,IDXMAX)
-                  IF ((.NOT.REMOVEIMAGE).AND.((CURRMAXSEP.GT.IMSEPMAX).AND.(NIMAGES.LT.MAXNIMAGES))) THEN
-                     WRITE(*,*) " QCIinterp> Adding image between images ", IDXMAX, " and ", IDXMAX+1
-                     CALL ADD_IMAGE(IDXMAX,ETOTAL,RMS)
-                     NITERUSE = 0
-                     !scale gradient if necessary
-                     IF (MAXGRADCOMP.GT.0.0D0) CALL SCALEGRAD(DIMS,G,RMS,MAXGRADCOMP)
-                     NLASTGOODE=NITERDONE
-                     MOREIMAGES = .TRUE. !if we add an atom we will stay in the loop and check whether we should add more images
-                  END IF
-                  IF (REMOVEIMAGE.OR.((CURRMINSEP.LT.IMSEPMIN).AND.(INTIMAGE.GT.1))) THEN
-                     IF (IDXMIN.EQ.1) IDXMIN = 2
-                     WRITE(*,*) " QCIinterp> Removing image ", IDXMIN
-                     CALL REMOVE_IMAGE(IDXMAX,ETOTAL,RMS)
-                     NITERUSE = 0
-                     !scale gradient if necessary
-                     IF (MAXGRADCOMP.GT.0.0D0) CALL SCALEGRAD(DIMS,G,RMS,MAXGRADCOMP)
-                     NLASTGOODE=NITERDONE
-                     MOREIMAGES = .TRUE. !if we add an atom we will stay in the loop and check whether we should add more images
-                  END IF
-                  !line 1798 gets us to here
-                  IF (.NOT.MOREIMAGES) WIRTE(*,*) " QCIinterp> Not adding or removing further images"
-               END DO
-            END IF
+               END IF
 
+               !get energies and gradient and check whether we are making progress
+               
+               !at some intervals check repulsion neighbour list
+               IF (MOD(NITERDONE,CHECKREPINTERVAL).EQ.0) CALL CHECKREP(XYZ,0,1)
+
+               ! call congrad routine
+               IF (CHECKCONINT) THEN
+                  CALL CONGRAD2(ETOTAL, XYZ, GGG, EEE, RMS)
+               ELSE
+                  CALL  CONGRAD1(ETOTAL, XYZ, GGG, EEE, RMS)
+               END IF
+               !TODO: check with old routine: There is a weirder energy call here that I am not sure I udnerstand:
+               !CALL CONGRAD(NMAXINT,NMININT,ETOTAL,XYZ,GGG,EEE,IMGFREEZE,RMS)
+
+               !TODO: what happens to GPREV and XPREV when we add/remove an image - this needs to be set correctly!
+               !TODO: need to set these variables alongside X and G etc.
+               !TODO: add MAXERISE to QCIKEYS at default 1.0D100
+               IF ((ETOTAL-EPREV.LT.MAXERISE).OR.ADDATOM) THEN
+                  EPREV = ETOTAL
+                  GPREV(1:DIMS) = G(1:DIMS)
+                  XPREV(1:DIMS) = X(1:DIMS)
+                  ACCEPTEDSTEP = .TRUE.
+               ELSE
+                  NDECREASE = NDECREASE + 1
+                  !TODO: add NDECREASE and a parameter variable for its limit 
+                  IF (NDECREASE.GT.5) THEN
+                     NFAIL = NFAIL + 1
+                     X(1:DIMS) = XPREV(1:DIMS)
+                     G(1:DIMS) = GPREV(1:DIMS)
+                     WRITE(*,*) " QCIinterp> WARNING - LBFGS cannot find a lower energy, NFAIL=",NFAIL
+                     ACCEPTEDSTEP = .TRUE. !we failed to many times, so for now we accept failure and leave the loop
+                  ELSE
+                     X(1:DIMS) = XPREV(1:DIMS)
+                     G(1:DIMS) = GPREV(1:DIMS)
+                     !TODO: add stepreduction as parameter variable at 10.0D0
+                     STP(1:DIMS) = STP(1:DIMS)/STPREDUCTION  
+                     WRITE(*,*) " QCIinterp> Energy increased from ", EPREV, "to", ETOTAL, "; decreasing step size"                 
+                  END IF
+               END IF
+            END DO ! end of loop for accepting the step size
+            !scale gradient if necessary
+            IF (MAXGRADCOMP.GT.0.0D0) CALL SCALEGRAD(DIMS,G,RMS,MAXGRADCOMP)
+            CALL CHECK_FOR_COLDFUSION(ETOTAL)
+            !TODO - continue at line 1948 old routine
          END DO
       END SUBROUTINE RUN_QCI_INTERPOLATION
 
@@ -249,20 +300,27 @@ MODULE QCIINTERPOLATION
          IMPLICIT NONE
          REAL(KIND = REAL64), INTENT(OUT) :: DMIN, DMAX
          INTEGER, INTENT(OUT) :: JMIN, JMAX
+         REAL(KIND = REAL64) : ADMAX
          REAL(KIND = REAL64) :: DISTATOM, DISTTOTAL, X1(3*NATOMS), X2(3*NATOMS)
-         INTEGER :: J1, J2
+         INTEGER :: J1, J2, JAMAX_IMG, JAMAX_ATOM
 
          DMIN = HUGE(1.0D0)
          DMAX = -1.0D0
+         ADMAX = -1.0D0
 
          DO J1=1,NIMAGES+1
             DISTTOTAL = 0.0D0
             X1(1:3*NATOMS) = XYZ((J1-1)*3*NATOMS+1:J1*3*NATOMS)
             X2(1:3*NATOMS) = XYZ(J1*3*NATOMS+1:(J1+1)*3*NATOMS)
-            DO J1=1,NATOMS
+            DO J2=1,NATOMS
                IF (ATOMACTIVE(J2)) THEN
                   CALL DISTANCE_ATOM_DIFF_IMAGES(NATOMS, X1, X2, IDX, DISTATOM)
                   DISTTOTAL = DISTTOTAL + DISTATOM
+                  IF (DISTATOM.GT.ADMAX) THEN
+                     ADMAX = DISTATOM
+                     JAMAX_ATOM = J2
+                     JAMAX_IMG = J1
+                  END IF
                END IF
             END DO
             IF (DISTTOTAL.GT.DMAX) THEN
@@ -274,6 +332,9 @@ MODULE QCIINTERPOLATION
                JMIN = J1
             END IF
          END DO
+         WRITE(*,*) " get_image_separation> The largest distance between images is ", DMAX
+         WRITE(*,*) "                       The smallest distance between images is ", DMIN
+         WRITE(*,*) "                       The largest distance by atom is for atom,",JAMAX_ATOM," between images", JAMAX_IMG," and ", JAMAX_IMG+1
       END SUBROUTINE GET_IMAGE_SEPARATION
 
 
