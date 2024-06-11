@@ -18,11 +18,13 @@ MODULE QCIINTERPOLATION
          INTEGER :: NBEST, NITERDONE, FIRSTATOM
          INTEGER :: J1
          LOGICAL :: QCICONVT 
+         LOGICAL ::ADDATOMT
          REAL(KIND = REAL64) :: GLAST(NDIMS), XLAST(NDIMS), ELAST
          CHARACTER(25) :: XYZFILE = "int.xyz"
          CHARACTER(25) :: EEEFILE = "int.EofS"
          CHARACTER(25) :: RESETXYZFILE = "QCIreset.int.xyz"
          CHARACTER(25) :: RESETEEEFILE = "QCIreset.int.EofS"     
+         CHARACTER(6) :: ITERSTRING
          REAL(KIND = REAL64), PARAMETER :: INCREASETOL = 1.1D0   
          INTEGER :: NITERUSE, POINT, NPT ! variables needed for lbfgs steps
          REAL(KIND = REAL64) :: STPMIN ! minimum step-size
@@ -101,6 +103,7 @@ MODULE QCIINTERPOLATION
          NITERUSE = 1
          NLASTGOODE = 0
          QCICONVT = .FALSE.
+         ADDATOMT = .TRUE.
 
          ! now enter main loop and add atom by atom going through congrad routines as we go along
          DO WHILE (NITERDONE.LT.MAXITER)
@@ -129,8 +132,6 @@ MODULE QCIINTERPOLATION
                ELSEIF (CONCUTABSINC) THEN
                   IF (NITERDONE-NCONCUTABSINC.GT.QCIRESETINT1) THEN ! reset CONCUTABS
                      CONCUTABS=CONCUTABSSAVE
-                     !TODO: what is this line below doing?
-                     !->?? IF (CCABSPHASE2) CONCUTABS=CONCUTABSSAVE2
                      CONCUTABSINC=.FALSE.
                      WRITE(*,*) " QCIinterp> Interpolation seems to be stuck. Resetting concutabs"
                      WRITE(*,*) "            MAXECON = ",MAXCONE, ", QCIRMSTOL = ", QCIRMSTOL, ", CONCUTABS = ", CONCUTABS
@@ -178,7 +179,7 @@ MODULE QCIINTERPOLATION
             END IF
 
             !if not all atoms are active, we add an atom now to the active set and hence the images
-            IF (ADDATOM.AND.(NACTIVE.LT.NATOMS)) THEN
+            IF (ADDATOMT.AND.(NACTIVE.LT.NATOMS)) THEN
                WRITE(*,*) " QCIinterp> Adding the next atom to active set" 
                CALL ADDATOM()
                !scale gradient if necessary
@@ -263,7 +264,7 @@ MODULE QCIINTERPOLATION
                !TODO: what happens to GPREV and XPREV when we add/remove an image - this needs to be set correctly!
                !TODO: need to set these variables alongside X and G etc.
                !TODO: add MAXERISE to QCIKEYS at default 1.0D100
-               IF ((ETOTAL-EPREV.LT.MAXERISE).OR.ADDATOM) THEN
+               IF ((ETOTAL-EPREV.LT.MAXERISE).OR.ADDATOMT) THEN
                   EPREV = ETOTAL
                   GPREV(1:DIMS) = G(1:DIMS)
                   XPREV(1:DIMS) = X(1:DIMS)
@@ -289,9 +290,116 @@ MODULE QCIINTERPOLATION
             !scale gradient if necessary
             IF (MAXGRADCOMP.GT.0.0D0) CALL SCALEGRAD(DIMS,G,RMS,MAXGRADCOMP)
             CALL CHECK_FOR_COLDFUSION(ETOTAL)
-            !TODO - continue at line 1948 old routine
+            CALL GET_STATISTIC_INTERP()
+
+            ! set INTDGUESS to a reasonable guess
+            INTDGUESS=DIAG(1)
+            !get exit status
+            CALL SET_EXIT_STATUS(NITERDONE,EXITSTATUS)
+            !first check if we should add an atom
+            ADDATOMT = .FALSE.
+            IF ((EXITSTATUS.GT.0).AND.(NACTIVE.LT.NATOMS)) THEN
+               ADDATOMT = .TRUE. 
+            END IF
+            !if we don't add an atom, check if we converged
+            IF (.NOT.(ADDATOMT).AND.(EXITSTATUS.EQ.1)) THEN
+               !we have converged and there is no more atom to add - we can leave the main loop
+               EXIT
+            END IF
+
+            ! Compute the new step and gradient change
+            NPT=POINT*DIMS
+            SEARCHSTEP(POINT,:) = STP*SEARCHSTEP(POINT,:)
+            GDIF(POINT,:)=G-GTMP
+
+            POINT=POINT+1
+            IF (POINT.EQ.MUPDATE) POINT=0
+            NITERUSE=NITERUSE+1
+
+            IF (DUMPQCIXYZ.AND.(MOD(NITERDONE,DUMPQCIXYZFRQS).EQ.0)) THEN
+               WRITE(ITERSTRING,'(I6)') NITERDONE 
+               CALL WRITE_BAND(XYZFILE//"."//ADJUSTL(TRIM(ITERSTRING)))
+               CALL WRITE_PROFILE(EEEFILE//"."//ADJUSTL(TRIM(ITERSTRING)),EEE)
+            END IF
+
          END DO
+         ! if the exit status is not 1, we left without convergence 
+         IF (NACTIVE.LT.NATOMS) THEN
+            WRITE(*,*) " QCIinterp> QCI did not activate all atoms during interpolation. Final number of active atoms: ", NACTIVE
+            CALL INT_ERR_TERMINATE()
+         END IF
+         IF (EXITSTATUS.EQ.1) THEN
+            WRITE(*,*) " QCIinterp> Converged after ", NITERDONE," steps, energy/image=",ETOTAL/NIMAGES, &
+                                 ' RMS=',RMS,' images=',NIMAGES
+         ELSE
+            WRITE(*,*) " QCIinterp> Not converged after ", NITERDONE," steps, energy/image=",ETOTAL/NIMAGES, &
+                                 ' RMS=',RMS,' images=',NIMAGES, ", but all atoms were activated."
+         END IF
+         CALL WRITE_BAND(XYZFILE)
+         CALL WRITE_PROFILE(EEEFILE)
+         WRITE(*,*) " QCIinterp> Leaving interpolation"
       END SUBROUTINE RUN_QCI_INTERPOLATION
+
+
+      SUBROUTINE SET_EXIT_STATUS(NITERDONE,EXITSTATUS)
+         USE CONSTR_E_GRAD, ONLY: CONVERGECONTEST, CONVERGEREPTEST, FCONMAX, FREPMAX, INTADDATOM
+         USE QCIKEYS, ONLY: MAXCONE, QCIRMSTOL
+         IMPLICIT NONE
+         INTEGER, INTENT(IN) :: NITERDONE
+         INTEGER, INTENT(OUT) :: EXITSTATUS
+
+         EXITSTATUS = 0
+         !is the simulation converged?
+         IF ((FCONTEST.LT.QCIRMSTOL).AND.(FREPTEST.LT.QCIRMSTOL).AND.(CONVERGECONTEST.LT.MAXCONE).AND.(CONVERGEREPTEST.LT.MAXCONE).AND.(NITERDONE.GT.1)) THEN
+            EXITSTATUS = 1
+         END IF
+
+         !should we add more atoms?
+         IF (MOD(NITDERON,INTADDATOM).EQ.0) EXISTATUS = 2
+      END SUBROUTINE SET_EXIT_STATUS
+
+      SUBROUTINE GET_STATISTIC_INTERP()
+         USE QCIKEYS, ONLY: NATOMS, NIMAGES
+         IMPLICIT NONE
+         REAL(KIND = REAL64) :: MINE, MAXE, SUME, SUME2, MAXRMS, THISE, THISRMS, SIGMAE
+         INTEGER :: I, J, JMAX, JMIN
+
+         MINE = 1.0D100
+         MAXE = -1.0D100
+         MAXRMS = -1.0D0
+         SUME = 0.0D0
+         SUME2 = 0.0D0
+
+         DO I=2,NIMAGES+1
+            THISE = EEE(I)
+            SUME = SUME + THISE
+            SUME2 = SUME2 + THISE**2
+            IF (THISE.GT.MAXE) THEN
+               MAXE = THISE
+               JMAX = I
+            END IF
+            IF (THISE.LT.MINE) THEN
+               MINE = THISE
+               JMIN = I
+            END IF
+            THISRMS = 0.0D0
+            DO J=1,3*NATOMS
+               THISRMS = THISRMS + GGG(3*NATOMS*(I-1)+J)**2
+            END DO
+            IF (THISRMS.GT.MAXRMS) THEN
+               MAXRMS = THISRMS
+            END IF
+         END DO
+
+         MAXRMS = SQRT(MAXRMS/(3*NACTIVE))
+         SUME = SUME/NIMAGES
+         SUME2 = SUME2/(NIMAGES-1)
+         SIGMAE = SQRT(MAX(SUME2-SUME**2,1.0D-100))
+         WRITE(*,*) " get_interp_stat> The highest image ", JMAX, " with energy ", MAXE, " is " ABS(MAXE-SUME)/SIGMAE, " sigma from the mean"
+         WRITE(*,*) "                  The average energy per image is ", SUME, " with variance of ", SUME2
+         WRITE(*,*)
+
+      END SUBROUTINE GET_STATISTIC_INTERP
 
       SUBROUTINE GET_IMAGE_SEPARATION(DMIN,DMAX,JMIN,JMAX)
          USE QCIKEYS, ONLY: NATOMS, NIMAGES
@@ -300,7 +408,7 @@ MODULE QCIINTERPOLATION
          IMPLICIT NONE
          REAL(KIND = REAL64), INTENT(OUT) :: DMIN, DMAX
          INTEGER, INTENT(OUT) :: JMIN, JMAX
-         REAL(KIND = REAL64) : ADMAX
+         REAL(KIND = REAL64) :: ADMAX
          REAL(KIND = REAL64) :: DISTATOM, DISTTOTAL, X1(3*NATOMS), X2(3*NATOMS)
          INTEGER :: J1, J2, JAMAX_IMG, JAMAX_ATOM
 
