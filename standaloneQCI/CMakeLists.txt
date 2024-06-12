@@ -88,7 +88,7 @@ set(CMAKE_Fortran_MODULE_DIRECTORY ${HIRE_BINARY_DIR}/modules)
 include_directories(${CMAKE_SOURCE_DIR})
 
 # Glob all the sources
-file(GLOB HIRE_LIB_SOURCES ${GIT_ROOT}/source/*.f90
+file(GLOB QCI_LIB_SOURCES ${GIT_ROOT}/source/*.f90
                            ${GIT_ROOT}/source/*.F90
                            ${GIT_ROOT}/source/utils/*.f90
                            ${GIT_ROOT}/source/utils/*.F90)
