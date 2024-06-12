@@ -1,3 +1,5 @@
+!Module that controls the interpolation coordinates and related information such as energy and gradient
+!TODO add PREV here
 MODULE MOD_INTCOORDS
    USE QCIPREC
    USE QCIKEYS, ONLY: NATOMS, NIMAGES, DEBUG
