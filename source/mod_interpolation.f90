@@ -3,6 +3,7 @@ MODULE QCIINTERPOLATION
    USE MOD_INTCOORDS
    USE PREC
    IMPLICIT NONE
+   LOGICAL :: QCICOMPLETE
    
    CONTAINS
       SUBROUTINE RUN_QCI_INTERPOLATION()
@@ -331,9 +332,11 @@ MODULE QCIINTERPOLATION
          IF (EXITSTATUS.EQ.1) THEN
             WRITE(*,*) " QCIinterp> Converged after ", NITERDONE," steps, energy/image=",ETOTAL/NIMAGES, &
                                  ' RMS=',RMS,' images=',NIMAGES
+            QCICOMPLETE = .TRUE.
          ELSE
             WRITE(*,*) " QCIinterp> Not converged after ", NITERDONE," steps, energy/image=",ETOTAL/NIMAGES, &
                                  ' RMS=',RMS,' images=',NIMAGES, ", but all atoms were activated."
+            QCICOMPLETE = .FALSE.                     
          END IF
          CALL WRITE_BAND(XYZFILE)
          CALL WRITE_PROFILE(EEEFILE)
