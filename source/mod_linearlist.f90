@@ -33,7 +33,7 @@ MODULE QCI_LINEAR
             READ(LINUNIT, '(I6)') NDUMMY
             DO J1=1,NDUMMY
                READ(LINUNIT, '(I6)') DUMMY
-               LINEARLIST(DUMMY) = 1
+               LINEART(DUMMY) = 1
             END DO
             CLOSE(LINUNIT)
          END IF
@@ -41,11 +41,11 @@ MODULE QCI_LINEAR
          DO J1=1,NATOMS
             CALL DISTANCE_ATOM_DIFF_IMAGES(NATOMS, XSTART, XFINAL, J1, DIST)
             IF (DIST.LT.LINEARCUT) THEN
-               LINEARLIST(J1) = 1
+               LINEART(J1) = 1
             END IF
          END DO
 
-         NQCILINEAR = SUM(LINEARLIST)
+         NQCILINEAR = SUM(LINEART)
          CALL ALLOC_QCI_LINEAR()
          INLINLIST(1:NATOMS) = .FALSE.
          DUMMY=0

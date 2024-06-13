@@ -20,11 +20,12 @@ MODULE ADDINGATOM
       END SUBROUTINE DEALLOC_ADDATOM
 
       SUBROUTINE ADDATOM()
-         USE QCIKEYS, ONLY: QCIDOBACK, NATOMS, DEBUG, QCILINEART
+         USE MOD_INTCOORDS, ONLY: XYZ, EEE, GGG
+         USE QCIKEYS, ONLY: QCIDOBACK, NATOMS, DEBUG, QCILINEART, INLINLIST
          USE REPULSION, ONLY: NNREPULSIVE, NREPULSIVE
-         USE QCI_LINEAR, ONLY: NQCILINEAR, INLINLIST
-         USE QCICONSTRAINTS, ONLY: NCONSTRAINT, CONI, CONJ
-         USE INTERPOLATION_KEYS, ONLY: CONACTIVE
+         USE QCI_LINEAR, ONLY: NQCILINEAR
+         USE QCI_CONSTRAINT_KEYS, ONLY: NCONSTRAINT, CONI, CONJ
+         USE INTERPOLATION_KEYS, ONLY: CONACTIVE, NACTIVE
          IMPLICIT NONE
          INTEGER :: NTOADD, NADDED                          !number to be added and number already added
          INTEGER :: NNREPSAVE, NREPSAVE                     !variables for saving repulsion list
@@ -44,7 +45,8 @@ MODULE ADDINGATOM
          INTEGER :: THISIMAGE, NEWATOMOFFSET, CONONEOFFSET, ENDPOINT !offsets used to simplify linear interpolation
          REAL(KIND = REAL64) :: STARTWEIGHT, ENDWEIGHT      !weights of endpoints in linear interpolation
          REAL(KIND = REAL64) :: ELIN, ECON, EDIST, ETOTAL   !linear, constraint and distance measure-based energies
-         REAL(KIND = REAL64) :: XLIN(3,NIMAGES), XCON(3,NIMAGES), XDIST(3,NIMAGES) !saved coordinates for interpolations
+         REAL(KIND = REAL64) :: XLIN(NIMAGES,3), XCON(NIMAGES,3), XDIST(NIMAGES,3) !saved coordinates for interpolations
+         INTEGER :: J1
       
          ! setup book keeping
          NTOADD = 1
@@ -117,7 +119,7 @@ MODULE ADDINGATOM
                ECON = ETOTAL
                DO J1=1,NIMAGES
                   NEWATOMOFFSET = J1*3*NATOMS + 3*(NEWATOM-1)
-                  XCON(1:3,J1) = XYZ(NEWATOMOFFSET+1:NEWATOMOFFSET+3) 
+                  XCON(J1,1:3) = XYZ((NEWATOMOFFSET+1):(NEWATOMOFFSET+3)) 
                END DO
             END IF
             !if we don't have enough constraints, use the closest active atoms instead to construct the axis system
@@ -140,7 +142,7 @@ MODULE ADDINGATOM
                EDIST = ETOTAL
                DO J1=1,NIMAGES
                   NEWATOMOFFSET = J1*3*NATOMS + 3*(NEWATOM-1)
-                  XDIST(1:3,J1) = XYZ(NEWATOMOFFSET+1:NEWATOMOFFSET+3) 
+                  XDIST(J1,1:3) = XYZ(NEWATOMOFFSET+1:NEWATOMOFFSET+3) 
                END DO
             END IF
             !if we haven't suceeded in adding the atom or it is QCIlinear, go for a linear interpolation for new atom based on the tightest constraint
@@ -176,7 +178,7 @@ MODULE ADDINGATOM
                ELIN = ETOTAL
                DO J1=1,NIMAGES
                   NEWATOMOFFSET = J1*3*NATOMS + 3*(NEWATOM-1)
-                  XLIN(1:3,J1) = XYZ(NEWATOMOFFSET+1:NEWATOMOFFSET+3) 
+                  XLIN(J1,1:3) = XYZ(NEWATOMOFFSET+1:NEWATOMOFFSET+3) 
                END DO
             END IF
             
@@ -256,12 +258,12 @@ MODULE ADDINGATOM
          REAL(KIND=REAL64) :: P1(3), P2(3), P3(3), R1, R2, R3
          REAL(KIND=REAL64) :: SOL1(3), SOL2(3), PREV(3), D1SQ, D2SQ
          INTEGER :: IMAGEOFFSET
-         INTEGER :: N1, N2, N3, IDX1, IDX2, IDX3
+         INTEGER :: N1, N2, N3, IDX1, IDX2, IDX3, J1
          LOGICAL :: FTEST
 
          !set initial guess to the best three constrained atoms
          N1=1; N2=2; N3=3
-         IDX1 = CONIDXLIST(N1); IDX2 = CONIDXLIST(N2), IDX3 = CONIDXLIST(N3)
+         IDX1 = CONIDXLIST(N1); IDX2 = CONIDXLIST(N2); IDX3 = CONIDXLIST(N3)
 
          DO J1=2,NIMAGES+1
             IMAGEOFFSET = (J1-1)*3*NIMAGES
@@ -338,10 +340,10 @@ MODULE ADDINGATOM
 
          !set initial guess to the best three constrained atoms
          N1=1; N2=2; N3=3
-         IDX1 = CONIDXLIST(N1); IDX2 = CONIDXLIST(N2), IDX3 = CONIDXLIST(N3)
+         IDX1 = CONIDXLIST(N1); IDX2 = CONIDXLIST(N2); IDX3 = CONIDXLIST(N3)
          IF (DEBUG) THEN
             WRITE(*,*) " place_atom> Use the closest three constrained active atoms as initial guess"
-            WRITE(*,*) "             New atom: ", NEWATOM, "Closest active atoms: ", CONLIST(N1:N3)
+            WRITE(*,*) "             New atom: ", NEWATOM, "Closest active atoms: ", CONIDXLIST(N1:N3)
          END IF
 
          !Setting up local axis system
@@ -361,12 +363,12 @@ MODULE ADDINGATOM
             !position of reference atom 1
             POS1(1:3) = XYZ((IMAGEOFFSET+3*(IDX1-1)+1):(IMAGEOFFSET+3*(IDX1-1)+3))
             !place new atom usig fractional coordinates from start image
-            XYZ((IMAGEOFFSET+3*(NEWATOM-1)+1):(IMAGEOFFSET+3*(NEWATOM-1)+3)) =  POS(1:3) + C1*B1(1:3) + C2*B2(1:3) + C3*B3(1:3) 
+            XYZ((IMAGEOFFSET+3*(NEWATOM-1)+1):(IMAGEOFFSET+3*(NEWATOM-1)+3)) =  POS1(1:3) + C1*B1(1:3) + C2*B2(1:3) + C3*B3(1:3) 
          END DO
       END SUBROUTINE PLACE_ATOM
 
       SUBROUTINE GET_LOCAL_AXIS(IDX1,IDX2,IDX3,IMAGE,B1,B2,B3)
-         USE QCIKEYS, ONLY: NATOMS
+         USE QCIKEYS, ONLY: NATOMS, NIMAGES
          USE HELPER_FNCTS, ONLY: NORM_VEC, CROSS_PROD
          USE MOD_INTCOORDS, ONLY: XYZ
          IMPLICIT NONE
@@ -395,7 +397,6 @@ MODULE ADDINGATOM
       SUBROUTINE CHECK_NACTIVE()
          USE INTERPOLATION_KEYS, ONLY: NACTIVE, ATOMACTIVE
          USE QCIKEYS, ONLY: NATOMS
-         USE MOD_TERMINATE, ONLY: INT_ERR_TERMINATE
          IMPLICIT NONE
          INTEGER :: NDUMMY, J1
 
@@ -414,11 +415,12 @@ MODULE ADDINGATOM
          USE QCIKEYS, ONLY: NATOMS, DEBUG, QCIREPCUT
          USE INTERPOLATION_KEYS, ONLY: ATOMACTIVE  
          USE REPULSION
-         USE QCICONSTRAINTS, ONLY: NCONSTRAINT, CONI, CONJ
+         USe MOD_INTCOORDS, ONLY: XSTART, XFINAL
+         USE QCI_CONSTRAINT_KEYS, ONLY: NCONSTRAINT, CONI, CONJ
 
          IMPLICIT NONE  
          INTEGER, INTENT(IN) :: NEWATOM
-         INTEGER :: J1
+         INTEGER :: J1, J2
          LOGICAL :: ISCONSTRAINED  
          REAL(KIND = REAL64) :: DF, DS , DMIN      
          
@@ -438,7 +440,7 @@ MODULE ADDINGATOM
                DMIN=MIN(DS,DF)
                DMIN=MIN(DMIN,QCIREPCUT)
                NREPULSIVE=NREPULSIVE+1
-               IF (NREPULSIVE.GT.NREPMAX) CALL DOUBLE_ALLOC_REP()
+               IF (NREPULSIVE.GT.NREPCURR) CALL DOUBLE_ALLOC_REP()
                REPI(NREPULSIVE)=J1
                REPJ(NREPULSIVE)=NEWATOM
                REPCUT(NREPULSIVE)=DMIN
@@ -451,7 +453,7 @@ MODULE ADDINGATOM
       SUBROUTINE UPDATE_CONSTRAINTS(NEWATOM,NCONNEWATOM,BESTCONDIST,BESTCONIDX)
          USE QCIKEYS, ONLY: NATOMS, DEBUG, MAXCONUSE
          USE INTERPOLATION_KEYS, ONLY: CONACTIVE, ATOMACTIVE
-         USE QCICONSTRAINTS, ONLY: NCONSTRAINT, CONI, CONJ, CONDISTREF
+         USE QCI_CONSTRAINT_KEYS, ONLY: NCONSTRAINT, CONI, CONJ, CONDISTREF
          USE HELPER_FNCTS, ONLY: DISTANCE_TWOATOMS
          USE MOD_INTCOORDS, ONLY: XSTART, XFINAL
          IMPLICIT NONE
@@ -459,7 +461,7 @@ MODULE ADDINGATOM
          REAL(KIND=REAL64), INTENT(OUT) :: BESTCONDIST(NATOMS)  !sorted list of average distances
          INTEGER, INTENT(OUT)  :: BESTCONIDX(NATOMS)            !associated list of atom ids
          INTEGER, INTENT(OUT) :: NCONNEWATOM                    !number of atoms found that are within the cut offs and active     
-         INTEGER :: J1, ATOM1, ATOM2
+         INTEGER :: J1, J2, J3, ATOM1, ATOM2
 
          BESTCONDIST(1:NATOMS) = 1.0D100
          BESTCONIDX(1:NATOMS) = -1
@@ -489,9 +491,9 @@ MODULE ADDINGATOM
          
          IF (DEBUG) THEN
             WRITE(*,*) " get_constraints_by_dist> Constraints including new atom by average reference distance:"
-            WRITE(*,'(10I6)') BESTDIST(1:MIN(10,NCONNEWATOM))
+            WRITE(*,'(10I6)') BESTCONDIST(1:MIN(10,NCONNEWATOM))
             WRITE(*,*) "                    Average distances:"
-            WRITE(*,'(10G12.4)') BESTIDX(1:MIN(10,NCONNEWATOM))
+            WRITE(*,'(10G12.4)') BESTCONIDX(1:MIN(10,NCONNEWATOM))
          END IF
 
          ! Turning on constraints identified
@@ -519,8 +521,8 @@ MODULE ADDINGATOM
          REAL(KIND=REAL64), INTENT(OUT) :: BESTDIST(NATOMS)  !sorted list of average distances
          INTEGER, INTENT(OUT)  :: BESTIDX(NATOMS)            !associated list of atom ids
          INTEGER, INTENT(OUT) :: NDISTNEWATOM                !number of atoms found that are within the cut offs and active
-         REAL(KIND = REAL64) : : DF, DS, AVD
-         INTEGER :: J1, J2, STARTIDX, ENDIDX
+         REAL(KIND = REAL64) :: DF, DS, AVD
+         INTEGER :: J1, J2, J3, STARTIDX, ENDIDX
 
          BESTDIST(1:NATOMS) = 1.0D100
          BESTIDX(1:NATOMS) = -1
@@ -560,15 +562,14 @@ MODULE ADDINGATOM
          END IF
       END SUBROUTINE GET_ATOMS_BY_DISTANCE
 
-      SUBROUTINE FIND_NEXT_ATOM(CHOSENACID,ACID,NEXTATOM,NCONTOACT,SHORTESTCON)
-         USE QCIKEYS, ONLY: QCILINEAR, INLINLIST, ATOMS2RES, QCIDOBACK, ISBBATOM
+      SUBROUTINE FIND_NEXT_ATOM(CHOSENACID,ACID,NEWATOM,NCONTOACT,SHORTESTCON)
+         USE QCIKEYS, ONLY: QCILINEART, INLINLIST, ATOMS2RES, QCIDOBACK, ISBBATOM
          USE INTERPOLATION_KEYS, ONLY: ATOMACTIVE, CONACTIVE
-         USE QCICONSTRAINTS, ONLY: NCONSTRAINT, CONDISTREF
-         USE MOD_TERMINATE, ONLY: INT_ERR_TERMINATE
+         USE QCI_CONSTRAINT_KEYS, ONLY: NCONSTRAINT, CONDISTREF
          IMPLICIT NONE
          INTEGER, INTENT(IN) :: ACID
          LOGICAL, INTENT(IN) :: CHOSENACID
-         INTEGER, INTENT(OUT) :: NEXTATOM
+         INTEGER, INTENT(OUT) :: NEWATOM
          INTEGER, INTENT(OUT) :: NCONTOACT
          REAL(KIND=REAL64), INTENT(OUT)  :: SHORTESTCON
          INTEGER :: J1, IDXACTIVE, IDXINACTIVE
@@ -596,7 +597,7 @@ MODULE ADDINGATOM
             END IF 
             ! Now test for various options to get the next atom
             ! 1. Are we using QCIlinear, and is the inactive atom in the list?
-            IF (QCILINEAR.AND.(.NOT.INLINLIST(IDXINACTIVE))) CYCLE
+            IF (QCILINEART.AND.(.NOT.INLINLIST(IDXINACTIVE))) CYCLE
             ! 2. Is CHOSENACID set, and is the inactive atom in the residue to be added?
             IF (CHOSENACID.AND.(.NOT.(ATOMS2RES(IDXINACTIVE).EQ.ACID))) CYCLE
             ! 3. Are we adding backbone atoms, and is the inactive atom a backbone atom?
@@ -620,12 +621,14 @@ MODULE ADDINGATOM
 
 
       SUBROUTINE CREATE_NCONTOACTIVE_LIST(INVDTOACTIVE,NBEST)
-         USE INTERPOLATION_KEYS, ONLY: ATOMACTIVE, CONACTIVE
-         USE QCICONSTRAINTS, ONLY: NCONSTRAINT, CONI, CONJ, CONDISTREF
+         USE QCIKEYS, ONLY: NATOMS
+         USE INTERPOLATION_KEYS, ONLY: NACTIVE, ATOMACTIVE, CONACTIVE
+         USE QCI_CONSTRAINT_KEYS, ONLY: NCONSTRAINT, CONI, CONJ, CONDISTREF
          INTEGER, INTENT(OUT) :: NBEST ! maximum number of constraintson inactive atom
          REAL(KIND = REAL64), INTENT(OUT) :: INVDTOACTIVE(1:NACTIVE)  !inverse distance
          INTEGER :: I, ATOM1, ATOM2
          REAL(KIND = REAL64) :: INVDIST 
+         INTEGER :: BESTIDX
 
          NBEST = 0
          NCONTOACTIVE(1:NATOMS) = 0
@@ -646,13 +649,16 @@ MODULE ADDINGATOM
                IF (INVDIST.GT.INVDTOACTIVE(ATOM1)) INVDTOACTIVE(ATOM1)=INVDIST               
             END IF
             !update current best
-            IF (NCONTOACTIVE(ATOM1).GT.BEST) NBEST = NCONTOACTIVE(ATOM1)
-            IF (NCONTOACTIVE(ATOM2).GT.BEST) NBEST = NCONTOACTIVE(ATOM2)
+            IF (NCONTOACTIVE(ATOM1).GT.NBEST) BESTIDX = NCONTOACTIVE(ATOM1)
+            IF (NCONTOACTIVE(ATOM2).GT.NBEST) BESTIDX = NCONTOACTIVE(ATOM2)
          END DO
       END SUBROUTINE CREATE_NCONTOACTIVE_LIST
 
       SUBROUTINE CHECK_BBLIST()
-         USE QCIKEYS, ONLY: NATOMS
+         USE QCIKEYS, ONLY: NATOMS, DEBUG
+         USE INTERPOLATION_KEYS, ONLY: ATOMACTIVE
+         IMPLICIT NONE
+         INTEGER :: J1
          DO J1=1,NATOMS
             IF (AABACK(J1)) THEN
                IF (.NOT.ATOMACTIVE(J1)) THEN

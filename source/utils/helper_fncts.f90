@@ -46,11 +46,11 @@ MODULE HELPER_FNCTS
          B1xB2 = CROSS_PROD(VECS(1:3), VECS(4:6))
          B2xB3 = CROSS_PROD(VECS(4:6), VECS(7:9))
          X = CROSS_PROD(B1xB2, B2xB3)
-         B2NORM = VECTORS(4:6)/DNRM2(3, VECS(4:6), 1)
+         B2NORM = VECS(4:6)/EUC_NORM(VECS(4:6))
 
          ! calculate angle according to formula (Blondel and Karplus, 1996):
          ! phi = atan2( ([b1 x b2] x [b2 x b3]) . (b2/|b2|), [b1 x b2] . [b2 x b3] )
-         DIH = ATAN2(DDOT(3, X, 1, B2NORM, 1), DDOT(3, B1xB2, 1, B2xB3, 1))
+         DIH = ATAN2(DOT_PRODUCT(X,B2NORM), DOT_PRODUCT(B1xB2,B2xB3))
       END FUNCTION DIHEDRAL
     
       SUBROUTINE DISTANCE_SIMPLE(X1, X2, DIST)

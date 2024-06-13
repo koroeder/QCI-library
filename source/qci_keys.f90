@@ -8,6 +8,8 @@ MODULE QCIKEYS
 
    INTEGER :: NATOMS = 0
 
+   INTEGER :: NIMAGES
+
    LOGICAL :: QCIAMBERT = .FALSE.
    LOGICAL :: QCIHIRET = .FALSE.
    LOGICAL :: QCISBT = .FALSE.
@@ -36,7 +38,7 @@ MODULE QCIKEYS
 
    !frozen atoms 
    LOGICAL :: QCIFREEZET = .FALSE. ! Shall some atoms be frozen?
-   INTEGER :: NCQIFROZEN = 0 ! total number of frozen atoms
+   INTEGER :: NQCIFROZEN = 0 ! total number of frozen atoms
    INTEGER :: NMINUNFROZEN = 0 ! minimum number unfrozen 
    LOGICAL, ALLOCATABLE :: QCIFROZEN(:)  ! frozen atoms in interpolation
    LOGICAL, ALLOCATABLE :: FREEZE(:) ! input of atoms to be frozen

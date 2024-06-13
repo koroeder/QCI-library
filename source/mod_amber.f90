@@ -16,13 +16,13 @@ MODULE AMBER_CONSTRAINTS
    INTEGER :: NBOND = 0
    INTEGER :: NANGLE = 0
    INTEGER :: NBIOCONSTR = 0 ! biological constraints - cis-trans and planarity
-   INTEGER, ALLOCATABLE :: RESFINAL(:)
+   INTEGER, ALLOCATABLE :: RES_START(:), RES_END(:)
    CHARACTER(LEN=4), ALLOCATABLE :: AMBER_NAMES(:), RESNAMES(:)
 
    CONTAINS
       ! from AMBER
       SUBROUTINE AMBER_QCI_CONSTRAINTS(NATOMS)
-         USE QCI_KEYS, ONLY: XSTART, XFINAL
+         USE MOD_INTCOORDS, ONLY: XSTART, XFINAL
          USE QCIFILEHANDLER, ONLY: GETUNIT, FILE_LENGTH
          USE HELPER_FNCTS, ONLY: DISTANCE_TWOATOMS
          IMPLICIT NONE
@@ -32,7 +32,7 @@ MODULE AMBER_CONSTRAINTS
          LOGICAL :: YESNO ! do we have a contact file
          INTEGER :: CONUNIT ! unit for opening file
          INTEGER :: NADDCONSTR ! number of additional constraints
- 
+         INTEGER :: J1
          INTEGER :: IDX1, IDX2 !indices for atoms
 
          ! parse topology
@@ -133,7 +133,7 @@ MODULE AMBER_CONSTRAINTS
       END SUBROUTINE AMBER_QCI_CONSTRAINTS
 
       SUBROUTINE CREATE_ATOMS2RES()
-         USE QCIKEYS, ONLY: ATOMS2RES
+         USE QCIKEYS, ONLY: ATOMS2RES, NATOMS
          IMPLICIT NONE
          INTEGER :: I, START, END
          
@@ -157,13 +157,12 @@ MODULE AMBER_CONSTRAINTS
          IF (ALLOCATED(RESNAMES)) DEALLOCATE(RESNAMES)
          IF (ALLOCATED(RES_START)) DEALLOCATE(RES_START)
          IF (ALLOCATED(RES_END)) DEALLOCATE(RES_END)
-         IF (ALLOCATED(RESTYPE)) DEALLOCATE(RESTYPE)
          IF (ALLOCATED(AMBER_NAMES)) DEALLOCATE(AMBER_NAMES)
          IF (ALLOCATED(ELEMENT)) DEALLOCATE(ELEMENT)
       END SUBROUTINE AMBER_QCI_DEALLOCATE
 
       SUBROUTINE GET_BACKBONE(NATOMS)
-         USE QCI_KEYS, ONLY: NBACKBONE, ISBBATOM
+         USE QCIKEYS, ONLY: NBACKBONE, ISBBATOM
          IMPLICIT NONE
          INTEGER, INTENT(IN) :: NATOMS
          INTEGER :: NDUMMY
@@ -194,7 +193,7 @@ MODULE AMBER_CONSTRAINTS
       SUBROUTINE GET_BIOCONSTR()
          IMPLICIT NONE
         
-         INTEGER :: NDUMMY, J1, OPOS1, CPOS1, CPOS2, HPOS2
+         INTEGER :: NDUMMY, J1, OPOS1, CPOS1, CPOS2, HPOS2, ATOMID
          LOGICAL :: AAT, RNAT, DNAT, CAPT, AALIST(NRES), ISTER(NRES), ISCAP(NRES)
          INTEGER, ALLOCATABLE :: DUMMYC(:,:)
 
@@ -279,46 +278,46 @@ MODULE AMBER_CONSTRAINTS
          IMPLICIT NONE
          INTEGER, INTENT(IN) :: RESID
 
-         CHARACTER(LEN=4) :: NAME
+         CHARACTER(LEN=4) :: RES
 
-         NAME = RESNAMES(RESID)
+         RES = RESNAMES(RESID)
          IF ((RES.EQ.'ARG').OR.(RES.EQ.'CARG').OR.(RES.EQ.'NARG')) THEN
-            CALL ADD_CONSTRAINT("HH12","HH22",RESID)
-            CALL ADD_CONSTRAINT("HH12","HH21",RESID)
-            CALL ADD_CONSTRAINT("HH11","HH22",RESID)
-            CALL ADD_CONSTRAINT("HH11","HH21",RESID)
-            CALL ADD_CONSTRAINT("HH11","NE",RESID)
-            CALL ADD_CONSTRAINT("HH12","NE",RESID)
-            CALL ADD_CONSTRAINT("HH21","NE",RESID)
-            CALL ADD_CONSTRAINT("HH22","NE",RESID)
+            CALL ADD_CONSTRAINT("HH12 ","HH22",RESID)
+            CALL ADD_CONSTRAINT("HH12 ","HH21",RESID)
+            CALL ADD_CONSTRAINT("HH11 ","HH22",RESID)
+            CALL ADD_CONSTRAINT("HH11 ","HH21",RESID)
+            CALL ADD_CONSTRAINT("HH11 ","NE  ",RESID)
+            CALL ADD_CONSTRAINT("HH12 ","NE  ",RESID)
+            CALL ADD_CONSTRAINT("HH21 ","NE  ",RESID)
+            CALL ADD_CONSTRAINT("HH22 ","NE  ",RESID)
          ELSE IF ((RES.EQ.'HID').OR.(RES.EQ.'HIE').OR.(RES.EQ.'HIS').OR.(RES.EQ.'HIP').OR. &
                   (RES.EQ.'CHID').OR.(RES.EQ.'CHIE').OR.(RES.EQ.'CHIS').OR.(RES.EQ.'CHIP').OR. &
                   (RES.EQ.'NHID').OR.(RES.EQ.'NHIE').OR.(RES.EQ.'NHIS').OR.(RES.EQ.'NHIP')) THEN
-            CALL ADD_CONSTRAINT("HD1","NE2",RESID)
-            CALL ADD_CONSTRAINT("HE1","CD2",RESID)
-            CALL ADD_CONSTRAINT("HE2","CG",RESID)
-            CALL ADD_CONSTRAINT("HD2","ND1",RESID)
-         ELSE IF ((NAME.EQ.'PHE').OR.(NAME.EQ.'CPHE').OR.(NAME.EQ.'NPHE')) THEN
-            CALL ADD_CONSTRAINT("HD2","CE1",RESID)
-            CALL ADD_CONSTRAINT("HE2","CD1",RESID)
-            CALL ADD_CONSTRAINT("HZ","CG",RESID)
-            CALL ADD_CONSTRAINT("HE1","CD2",RESID)
-            CALL ADD_CONSTRAINT("HD1","CE2",RESID)
-            CALL ADD_CONSTRAINT("CB","CZ",RESID)
+            CALL ADD_CONSTRAINT("HD1 ","NE2 ",RESID)
+            CALL ADD_CONSTRAINT("HE1 ","CD2 ",RESID)
+            CALL ADD_CONSTRAINT("HE2 ","CG  ",RESID)
+            CALL ADD_CONSTRAINT("HD2 ","ND1 ",RESID)
+         ELSE IF ((RES.EQ.'PHE').OR.(RES.EQ.'CPHE').OR.(RES.EQ.'NPHE')) THEN
+            CALL ADD_CONSTRAINT("HD2 ","CE1 ",RESID)
+            CALL ADD_CONSTRAINT("HE2 ","CD1 ",RESID)
+            CALL ADD_CONSTRAINT("HZ  ","CG  ",RESID)
+            CALL ADD_CONSTRAINT("HE1 ","CD2 ",RESID)
+            CALL ADD_CONSTRAINT("HD1 ","CE2 ",RESID)
+            CALL ADD_CONSTRAINT("CB  ","CZ  ",RESID)
          ELSE IF ((RES.EQ.'TRP').OR.(RES.EQ.'CTRP').OR.(RES.EQ.'NTRP')) THEN
-            CALL ADD_CONSTRAINT("HD1","CD2",RESID)
-            CALL ADD_CONSTRAINT("HE1","CG",RESID)
-            CALL ADD_CONSTRAINT("HZ2","CE3",RESID)
-            CALL ADD_CONSTRAINT("HH2","CD2",RESID)
-            CALL ADD_CONSTRAINT("HZ3","CE2",RESID)
-            CALL ADD_CONSTRAINT("HE3","CZ2",RESID)
+            CALL ADD_CONSTRAINT("HD1 ","CD2 ",RESID)
+            CALL ADD_CONSTRAINT("HE1 ","CG  ",RESID)
+            CALL ADD_CONSTRAINT("HZ2 ","CE3 ",RESID)
+            CALL ADD_CONSTRAINT("HH2 ","CD2 ",RESID)
+            CALL ADD_CONSTRAINT("HZ3 ","CE2 ",RESID)
+            CALL ADD_CONSTRAINT("HE3 ","CZ2 ",RESID)
          ELSE IF ((RES.EQ.'TYR').OR.(RES.EQ.'CTYR').OR.(RES.EQ.'NTYR')) THEN
-            CALL ADD_CONSTRAINT("HD1","CE2",RESID)
-            CALL ADD_CONSTRAINT("HE1","CD2",RESID)
-            CALL ADD_CONSTRAINT("OH","CG",RESID)
-            CALL ADD_CONSTRAINT("HE2","CD1",RESID)
-            CALL ADD_CONSTRAINT("HD2","CE1",RESID)
-            CALL ADD_CONSTRAINT("CB","CZ",RESID)
+            CALL ADD_CONSTRAINT("HD1 ","CE2 ",RESID)
+            CALL ADD_CONSTRAINT("HE1 ","CD2 ",RESID)
+            CALL ADD_CONSTRAINT("OH  ","CG  ",RESID)
+            CALL ADD_CONSTRAINT("HE2 ","CD1 ",RESID)
+            CALL ADD_CONSTRAINT("HD2 ","CE1 ",RESID)
+            CALL ADD_CONSTRAINT("CB  ","CZ  ",RESID)
          END IF 
       END SUBROUTINE GET_AA_CONSTR
 
@@ -329,75 +328,75 @@ MODULE AMBER_CONSTRAINTS
          CHARACTER(LEN=4) :: NAME
 
          NAME = RESNAMES(RESID)
-         IF ((RESNAMES(J1).EQ.'A').OR.(RESNAMES(J1).EQ.'A3').OR.(RESNAMES(J1).EQ.'A5').OR.  &
-             (RESNAMES(J1).EQ.'AN').OR.(RESNAMES(J1).EQ.'DA').OR.(RESNAMES(J1).EQ.'DA3').OR.  &
-             (RESNAMES(J1).EQ.'DA5').OR.(RESNAMES(J1).EQ.'DAN')) THEN
+         IF ((NAME.EQ.'A').OR.(NAME.EQ.'A3').OR.(NAME.EQ.'A5').OR.  &
+             (NAME.EQ.'AN').OR.(NAME.EQ.'DA').OR.(NAME.EQ.'DA3').OR.  &
+             (NAME.EQ.'DA5').OR.(NAME.EQ.'DAN')) THEN
             
-            CALL ADD_CONSTRAINT("N1","N9",RESID)        
-            CALL ADD_CONSTRAINT("C2","N7",RESID) 
-            CALL ADD_CONSTRAINT("N3","C6",RESID) 
-            CALL ADD_CONSTRAINT("N3","N6",RESID) 
-            CALL ADD_CONSTRAINT("C4","N1",RESID) 
-            CALL ADD_CONSTRAINT("C5","H2",RESID) 
-            CALL ADD_CONSTRAINT("C8","C4",RESID) 
-            CALL ADD_CONSTRAINT("C8","C5",RESID) 
+            CALL ADD_CONSTRAINT("N1  ","N9  ",RESID)        
+            CALL ADD_CONSTRAINT("C2  ","N7  ",RESID) 
+            CALL ADD_CONSTRAINT("N3  ","C6  ",RESID) 
+            CALL ADD_CONSTRAINT("N3  ","N6  ",RESID) 
+            CALL ADD_CONSTRAINT("C4  ","N1  ",RESID) 
+            CALL ADD_CONSTRAINT("C5  ","H2  ",RESID) 
+            CALL ADD_CONSTRAINT("C8  ","C4  ",RESID) 
+            CALL ADD_CONSTRAINT("C8  ","C5  ",RESID) 
 
-         ELSE IF ((RESNAMES(J1).EQ.'C').OR.(RESNAMES(J1).EQ.'C3').OR.(RESNAMES(J1).EQ.'C5').OR.  &
-                  (RESNAMES(J1).EQ.'CN').OR.(RESNAMES(J1).EQ.'DC').OR.(RESNAMES(J1).EQ.'DC3').OR.  &
-                  (RESNAMES(J1).EQ.'DC5').OR.(RESNAMES(J1).EQ.'DCN')) THEN
+         ELSE IF ((NAME.EQ.'C').OR.(NAME.EQ.'C3').OR.(NAME.EQ.'C5').OR.  &
+                  (NAME.EQ.'CN').OR.(NAME.EQ.'DC').OR.(NAME.EQ.'DC3').OR.  &
+                  (NAME.EQ.'DC5').OR.(NAME.EQ.'DCN')) THEN
 
-            CALL ADD_CONSTRAINT("N1","N4",RESID) 
-            CALL ADD_CONSTRAINT("C2","H5",RESID) 
-            CALL ADD_CONSTRAINT("N3","H6",RESID) 
-            CALL ADD_CONSTRAINT("N3","C6",RESID) 
-            CALL ADD_CONSTRAINT("C4","N1",RESID) 
-            CALL ADD_CONSTRAINT("C5","O2",RESID) 
+            CALL ADD_CONSTRAINT("N1  ","N4  ",RESID) 
+            CALL ADD_CONSTRAINT("C2  ","H5  ",RESID) 
+            CALL ADD_CONSTRAINT("N3  ","H6  ",RESID) 
+            CALL ADD_CONSTRAINT("N3  ","C6  ",RESID) 
+            CALL ADD_CONSTRAINT("C4  ","N1  ",RESID) 
+            CALL ADD_CONSTRAINT("C5  ","O2  ",RESID) 
         
-         ELSE IF ((RESNAMES(J1).EQ.'G').OR.(RESNAMES(J1).EQ.'G3').OR.(RESNAMES(J1).EQ.'G5').OR.  &
-                  (RESNAMES(J1).EQ.'GN').OR.(RESNAMES(J1).EQ.'DG').OR.(RESNAMES(J1).EQ.'DG3').OR.  &
-                  (RESNAMES(J1).EQ.'DG5').OR.(RESNAMES(J1).EQ.'DGN')) THEN
+         ELSE IF ((NAME.EQ.'G').OR.(NAME.EQ.'G3').OR.(NAME.EQ.'G5').OR.  &
+                  (NAME.EQ.'GN').OR.(NAME.EQ.'DG').OR.(NAME.EQ.'DG3').OR.  &
+                  (NAME.EQ.'DG5').OR.(NAME.EQ.'DGN')) THEN
         
-            CALL ADD_CONSTRAINT("N1","N9",RESID)        
-            CALL ADD_CONSTRAINT("C2","N7",RESID) 
-            CALL ADD_CONSTRAINT("N3","C6",RESID) 
-            CALL ADD_CONSTRAINT("N3","O6",RESID) 
-            CALL ADD_CONSTRAINT("C4","H1",RESID) 
-            CALL ADD_CONSTRAINT("C5","N2",RESID) 
-            CALL ADD_CONSTRAINT("C8","C4",RESID) 
-            CALL ADD_CONSTRAINT("C8","C5",RESID) 
+            CALL ADD_CONSTRAINT("N1  ","N9  ",RESID)        
+            CALL ADD_CONSTRAINT("C2  ","N7  ",RESID) 
+            CALL ADD_CONSTRAINT("N3  ","C6  ",RESID) 
+            CALL ADD_CONSTRAINT("N3  ","O6  ",RESID) 
+            CALL ADD_CONSTRAINT("C4  ","H1  ",RESID) 
+            CALL ADD_CONSTRAINT("C5  ","N2  ",RESID) 
+            CALL ADD_CONSTRAINT("C8  ","C4  ",RESID) 
+            CALL ADD_CONSTRAINT("C8  ","C5  ",RESID) 
 
-         ELSE IF ((RESNAMES(J1).EQ.'U').OR.(RESNAMES(J1).EQ.'U3').OR.(RESNAMES(J1).EQ.'U5').OR.  &
-                  (RESNAMES(J1).EQ.'UN')) THEN
+         ELSE IF ((NAME.EQ.'U').OR.(NAME.EQ.'U3').OR.(NAME.EQ.'U5').OR.  &
+                  (NAME.EQ.'UN')) THEN
 
-            CALL ADD_CONSTRAINT("N1","O4",RESID) 
-            CALL ADD_CONSTRAINT("C2","H5",RESID) 
-            CALL ADD_CONSTRAINT("N3","H6",RESID) 
-            CALL ADD_CONSTRAINT("H3","C6",RESID) 
-            CALL ADD_CONSTRAINT("C4","N1",RESID) 
-            CALL ADD_CONSTRAINT("C5","O2",RESID)
+            CALL ADD_CONSTRAINT("N1  ","O4  ",RESID) 
+            CALL ADD_CONSTRAINT("C2  ","H5  ",RESID) 
+            CALL ADD_CONSTRAINT("N3  ","H6  ",RESID) 
+            CALL ADD_CONSTRAINT("H3  ","C6  ",RESID) 
+            CALL ADD_CONSTRAINT("C4  ","N1  ",RESID) 
+            CALL ADD_CONSTRAINT("C5  ","O2  ",RESID)
                   
-         ELSE IF ((RESNAMES(J1).EQ.'DT').OR.(RESNAMES(J1).EQ.'DT3').OR.  &
-                  (RESNAMES(J1).EQ.'DT5').OR.(RESNAMES(J1).EQ.'DTN')) THEN
+         ELSE IF ((NAME.EQ.'DT').OR.(NAME.EQ.'DT3').OR.  &
+                  (NAME.EQ.'DT5').OR.(NAME.EQ.'DTN')) THEN
 
-            CALL ADD_CONSTRAINT("N1","O4",RESID) 
-            CALL ADD_CONSTRAINT("C2","C7",RESID) 
-            CALL ADD_CONSTRAINT("N3","H6",RESID) 
-            CALL ADD_CONSTRAINT("N3","C6",RESID) 
-            CALL ADD_CONSTRAINT("C4","N1",RESID) 
-            CALL ADD_CONSTRAINT("C5","O2",RESID) 
+            CALL ADD_CONSTRAINT("N1  ","O4  ",RESID) 
+            CALL ADD_CONSTRAINT("C2  ","C7  ",RESID) 
+            CALL ADD_CONSTRAINT("N3  ","H6  ",RESID) 
+            CALL ADD_CONSTRAINT("N3  ","C6  ",RESID) 
+            CALL ADD_CONSTRAINT("C4  ","N1  ",RESID) 
+            CALL ADD_CONSTRAINT("C5  ","O2  ",RESID) 
 
          ENDIF
 
          !constrain the sugar to keep its shape
-         CALL ADD_CONSTRAINT("O4'","C2'",RESID) 
-         CALL ADD_CONSTRAINT("C1'","C3'",RESID)         
+         CALL ADD_CONSTRAINT("O4' ","C2' ",RESID) 
+         CALL ADD_CONSTRAINT("C1' ","C3' ",RESID)         
 
          !constrain chiral centres
-         CALL ADD_CONSTRAINT("O2'","O3'",RESID)
-         CALL ADD_CONSTRAINT("H2''","O3'",RESID)
-         CALL ADD_CONSTRAINT("H3'","C5'",RESID)
-         CALL ADD_CONSTRAINT("H3'","H2'",RESID)
-         CALL ADD_CONSTRAINT("O3''","H4'",RESID)
+         CALL ADD_CONSTRAINT("O2' ","O3' ",RESID)
+         CALL ADD_CONSTRAINT("H2''","O3' ",RESID)
+         CALL ADD_CONSTRAINT("H3' ","C5' ",RESID)
+         CALL ADD_CONSTRAINT("H3' ","H2' ",RESID)
+         CALL ADD_CONSTRAINT("O3''","H4' ",RESID)
 
       END SUBROUTINE GET_NA_CONSTR
 
@@ -434,6 +433,7 @@ MODULE AMBER_CONSTRAINTS
 
       ! parse topology
       SUBROUTINE PARSE_TOPOLOGY()
+         USE QCIKEYS, ONLY: NATOMS
          USE HELPER_FNCTS, ONLY: READ_LINE
          USE QCIFILEHANDLER, ONLY: GETUNIT, FILE_LENGTH
          IMPLICIT NONE
@@ -446,7 +446,7 @@ MODULE AMBER_CONSTRAINTS
          CHARACTER(25) :: ENTRIES(NWORDS)='' !array of entries per line
          INTEGER :: NBONDH, NBONDA, NANGH, NANGA
          INTEGER :: NLINES
-         INTEGER :: J1, J2
+         INTEGER :: J1, J2, IDX, INTDUM, NDUMMY
          INTEGER, ALLOCATABLE :: INDICES(:)
          CHARACTER(4) :: NAMES_CURR(20)
 
@@ -481,19 +481,18 @@ MODULE AMBER_CONSTRAINTS
                READ(ENTRIES(3),'(I8)') NBONDH
                READ(ENTRIES(4),'(I8)') NBONDA
                NBOND = NBONDH + NBONDA
-               WRITE(MYUNIT,'(A,I8)') 'readtopology> Number of bonds:',NBOND
+               WRITE(*,'(A,I8)') ' readtopology> Number of bonds:',NBOND
                ALLOCATE(BONDS(NBOND,2))
                READ(ENTRIES(5),'(I8)') NANGH
                READ(ENTRIES(6),'(I8)') NANGA
                NANGLE = NANGH + NANGA
-               WRITE(MYUNIT,'(A,I8)') 'readtopology> Number of angles:',NANGLE
+               WRITE(*,'(A,I8)') ' readtopology> Number of angles:',NANGLE
                ALLOCATE(ANGLES(NANGLE,2))
                READ(TOPUNIT,'(A)') ENTRY
                LINECOUNTER = LINECOUNTER + 1
                CALL READ_LINE(ENTRY,NWORDS,ENTRIES)
                READ(ENTRIES(2),'(I8)') NRES
-               ALLOCATE(RESNAMES(NRES),RES_START(NRES),RES_END(NRES),RESTYPE(NRES))
-               RESTYPE(1:NRES) = 0
+               ALLOCATE(RESNAMES(NRES),RES_START(NRES),RES_END(NRES))
                ALLOCATE(AMBER_NAMES(NATOMS),ELEMENT(NATOMS))
             END IF
             
@@ -508,7 +507,7 @@ MODULE AMBER_CONSTRAINTS
                   READ(TOPUNIT,'(20 A4)') NAMES_CURR
                   LINECOUNTER = LINECOUNTER + 1
                   DO J2=1,20
-                     AMBER_NAMES(NDUMMY)= NAMES_CURR(J4)
+                     AMBER_NAMES(NDUMMY)= NAMES_CURR(J2)
                      NDUMMY=NDUMMY+1
                      IF(NDUMMY.GT.NATOMS) EXIT
                   END DO
@@ -526,7 +525,7 @@ MODULE AMBER_CONSTRAINTS
                   READ(TOPUNIT,'(20 A4)') NAMES_CURR
                   LINECOUNTER = LINECOUNTER + 1
                   DO J2=1,20
-                     RESNAMES(NDUMMY) = NAMES_CURR(J4)
+                     RESNAMES(NDUMMY) = NAMES_CURR(J2)
                      NDUMMY = NDUMMY+1
                      IF(NDUMMY.GT.NRES) EXIT
                   END DO
@@ -540,11 +539,11 @@ MODULE AMBER_CONSTRAINTS
                NLINES=NRES/10   
                IF(NRES.GT.NLINES*10) NLINES=NLINES+1 
                NDUMMY=1
-               DO J1=1,LINES !go through all lines  
+               DO J1=1,NLINES !go through all lines  
                   READ(TOPUNIT,'(A)') ENTRY
                   LINECOUNTER = LINECOUNTER + 1
                   CALL READ_LINE(ENTRY,NWORDS,ENTRIES) 
-                  J2=1,10
+                  J2=1
                   DO WHILE(J2.LE.10)
                      READ(ENTRIES(J2),'(I8)') INTDUM
                      RES_START(NDUMMY) = INTDUM
@@ -564,11 +563,11 @@ MODULE AMBER_CONSTRAINTS
                NLINES=NATOMS/10   
                IF(NATOMS.GT.NLINES*10) NLINES=NLINES+1 
                NDUMMY=1
-               DO J1=1,LINES !go through all lines  
+               DO J1=1,NLINES !go through all lines  
                   READ(TOPUNIT,'(A)') ENTRY
                   LINECOUNTER = LINECOUNTER + 1
                   CALL READ_LINE(ENTRY,NWORDS,ENTRIES) 
-                  J2=1,10
+                  J2=1
                   DO WHILE(J2.LE.10)
                      READ(ENTRIES(J2),'(I8)') INTDUM
                      ELEMENT(NDUMMY) = INTDUM
@@ -611,7 +610,7 @@ MODULE AMBER_CONSTRAINTS
                   READ(TOPUNIT,*) ENTRY
                   LINECOUNTER = LINECOUNTER + 1
                   CALL READ_LINE(ENTRY,NWORDS,ENTRIES)
-                  DO J2=1,NENT_NBONDA
+                  DO J2=1,10
                      READ(ENTRIES(J2), '(I8)') INDICES((J1-1)*10+J2) 
                   END DO
                END DO
@@ -669,16 +668,6 @@ MODULE AMBER_CONSTRAINTS
 
          END DO
          CLOSE(TOPUNIT)
-         DO J1=1,NRES
-            CALL CHECK_RES(J1,AAT,DNAT,RNAT)
-            IF (AAT) THEN
-               RESTYPE(J1) = 1
-            ELSE IF (DNAT) THEN
-               RESTYPE(J1) = 2
-            ELSE IF (RNAT) THEN
-               RESTYPE(J1) = 3
-            ENDIF
-         ENDDO
       END SUBROUTINE PARSE_TOPOLOGY
 
         ! check if residue is an amino acid - brute force ...
@@ -741,7 +730,7 @@ MODULE AMBER_CONSTRAINTS
          FIRST=RES_START(RESID)
          LAST=RES_END(RESID)
          DO J1=FIRST,LAST
-            IF (ADJUSTL(TRIM(ATNAMES(J1))).EQ.ADJUSTL(TRIM(ATNAME))) THEN
+            IF (ADJUSTL(TRIM(AMBER_NAMES(J1))).EQ.ADJUSTL(TRIM(ATNAME))) THEN
                ATOMID = J1
                EXIT
             ENDIF
