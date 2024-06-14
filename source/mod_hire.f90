@@ -19,7 +19,7 @@ MODULE HIRE_CONSTRAINTS
    CONTAINS
       ! from HiRE topology
       SUBROUTINE HIRE_QCI_CONSTRAINTS(NATOMS)
-         USE QCI_KEYS, ONLY: XSTART, XFINAL
+         USE INTERPOLATION_KEYS, ONLY: XSTART, XFINAL
          USE QCIFILEHANDLER, ONLY: GETUNIT, FILE_LENGTH
          USE HELPER_FNCTS, ONLY: DISTANCE_TWOATOMS
          IMPLICIT NONE
@@ -29,7 +29,7 @@ MODULE HIRE_CONSTRAINTS
          LOGICAL :: YESNO ! do we have a contact file
          INTEGER :: CONUNIT ! unit for opening file
          INTEGER :: NADDCONSTR ! number of additional constraints
- 
+         INTEGER :: J1
          INTEGER :: IDX1, IDX2 !indices for atoms
 
          ! parse topology
@@ -37,7 +37,7 @@ MODULE HIRE_CONSTRAINTS
          ! check for additional constraints in file
          INQUIRE(FILE=HIRECONSTRFILE, EXIST=YESNO)
          IF (YESNO) THEN
-            NADDCONSTR = FILE_LENGTH(HIRECONTACTFILE)
+            NADDCONSTR = FILE_LENGTH(HIRECONSTRFILE)
          ELSE
             NADDCONSTR = 0
          END IF
@@ -84,7 +84,7 @@ MODULE HIRE_CONSTRAINTS
          ! now add additional constraints from file provided
          IF (YESNO) THEN
             CONUNIT = GETUNIT()
-            OPEN(CONUNIT,FILE=AMBERCONSTRFILE,STATUS='OLD')
+            OPEN(CONUNIT,FILE=HIRECONSTRFILE,STATUS='OLD')
             DO J1=1,NADDCONSTR
                READ(CONUNIT,*) IDX1, IDX2
                NDUMMY = NDUMMY + 1
@@ -109,7 +109,7 @@ MODULE HIRE_CONSTRAINTS
       END SUBROUTINE HIRE_QCI_CONSTRAINTS
 
       SUBROUTINE GET_BACKBONE_HIRE(NATOMS)
-         USE QCI_KEYS, ONLY: NBACKBONE, ISBBATOM
+         USE QCIKEYS, ONLY: NBACKBONE, ISBBATOM
          IMPLICIT NONE
          INTEGER, INTENT(IN) :: NATOMS
          INTEGER :: NDUMMY
@@ -207,7 +207,7 @@ MODULE HIRE_CONSTRAINTS
                   ALLOCATE(DUMMY(NCHAINS,2))
                   ALLOCATE(DUMMY1(NPARTICLES),DUMMY2(NUMBND),DUMMY3(NUMANG),DUMMY4(NPTRA))
                   ALLOCATE(DUMMY1R(NPARTICLES))
-                  ALLOCATE(DUMMY5(NBONDS),DUMMY6(NANGLES),DUMMY7(NDIHS))
+                  ALLOCATE(DUMMY5(NBOND),DUMMY6(NANGLE),DUMMY7(NDIHS))
                CASE("PARTICLE_NAMES")
                   READ(TOPUNIT,'(20A4)') (HIRE_NAMES(J), J=1,NPARTICLES)
                CASE("RESIDUE_LABELS")
@@ -238,10 +238,10 @@ MODULE HIRE_CONSTRAINTS
                CASE("DIHEDRAL_PHASE")
                   READ(TOPUNIT,'(5E16.8)') (DUMMY4(J), J=1,NPTRA) 
                CASE("BONDS")
-                  READ(TOPUNIT,'(12I6)') (BONDS(J,1), BONDS(J,2), DUMMY5(J), J=1,NBONDS)
+                  READ(TOPUNIT,'(12I6)') (BONDS(J,1), BONDS(J,2), DUMMY5(J), J=1,NBOND)
                CASE("ANGLES")
                   READ(TOPUNIT,'(12I6)') &
-                              (ANGLES(J,1), DUMMY6(J), ANGLES(J,2), DUMMY6(J), J=1,NANGLES)
+                              (ANGLES(J,1), DUMMY6(J), ANGLES(J,2), DUMMY6(J), J=1,NANGLE)
                CASE("DIHEDRALS") 
                   READ(TOPUNIT,'(12I6)') &
                               (DUMMY7(J), DUMMY7(J), DUMMY7(J), DUMMY7(J), DUMMY7(J), J=1,NDIHS)

@@ -17,7 +17,7 @@ MODULE AMBER_CONSTRAINTS
    INTEGER :: NANGLE = 0
    INTEGER :: NBIOCONSTR = 0 ! biological constraints - cis-trans and planarity
    INTEGER, ALLOCATABLE :: RES_START(:), RES_END(:)
-   CHARACTER(LEN=4), ALLOCATABLE :: AMBER_NAMES(:), RESNAMES(:)
+   CHARACTER(LEN=4), ALLOCATABLE :: AMBER_NAMES(:), RESNAMES(:), RESTYPE(:)
 
    CONTAINS
       ! from AMBER
@@ -159,6 +159,7 @@ MODULE AMBER_CONSTRAINTS
          IF (ALLOCATED(RES_END)) DEALLOCATE(RES_END)
          IF (ALLOCATED(AMBER_NAMES)) DEALLOCATE(AMBER_NAMES)
          IF (ALLOCATED(ELEMENT)) DEALLOCATE(ELEMENT)
+         IF (ALLOCATED(RESTYPE)) DEALLOCATE(RESTYPE)
       END SUBROUTINE AMBER_QCI_DEALLOCATE
 
       SUBROUTINE GET_BACKBONE(NATOMS)
@@ -493,7 +494,7 @@ MODULE AMBER_CONSTRAINTS
                CALL READ_LINE(ENTRY,NWORDS,ENTRIES)
                READ(ENTRIES(2),'(I8)') NRES
                ALLOCATE(RESNAMES(NRES),RES_START(NRES),RES_END(NRES))
-               ALLOCATE(AMBER_NAMES(NATOMS),ELEMENT(NATOMS))
+               ALLOCATE(AMBER_NAMES(NATOMS),ELEMENT(NATOMS),RESTYPE(NRES))
             END IF
             
             IF (ENTRIES(2).EQ. 'ATOM_NAME') THEN
@@ -696,16 +697,19 @@ MODULE AMBER_CONSTRAINTS
             (DNAME.EQ."THR").OR.(DNAME.EQ."TRP").OR.(DNAME.EQ."TYR").OR.  &
             (DNAME.EQ."VAL")) THEN
             AAT = .TRUE.
+            RESTYPE(RESID) = "AA"
          ELSE IF ((DNAME.EQ."A").OR.(DNAME.EQ."A3").OR.(DNAME.EQ."A5").OR.(DNAME.EQ."AN").OR.  &
                   (DNAME.EQ."C").OR.(DNAME.EQ."C3").OR.(DNAME.EQ."C5").OR.(DNAME.EQ."CN").OR.  &
                   (DNAME.EQ."G").OR.(DNAME.EQ."G3").OR.(DNAME.EQ."G5").OR.(DNAME.EQ."GN").OR.  &
                   (DNAME.EQ."U").OR.(DNAME.EQ."U3").OR.(DNAME.EQ."U5").OR.(DNAME.EQ."UN")) THEN
             RNAT = .TRUE.
+            RESTYPE(RESID) = "RNA"           
          ELSE IF ((DNAME.EQ."DA").OR.(DNAME.EQ."DA3").OR.(DNAME.EQ."DA5").OR.(DNAME.EQ."DAN").OR.  &
                   (DNAME.EQ."DC").OR.(DNAME.EQ."DC3").OR.(DNAME.EQ."DC5").OR.(DNAME.EQ."DCN").OR.  &
                   (DNAME.EQ."DG").OR.(DNAME.EQ."DG3").OR.(DNAME.EQ."DG5").OR.(DNAME.EQ."DGN").OR.  &
                   (DNAME.EQ."DT").OR.(DNAME.EQ."DT3").OR.(DNAME.EQ."DT5").OR.(DNAME.EQ."DTN")) THEN
             DNAT = .TRUE.
+            RESTYPE(RESID) = "DNA"            
          ELSE IF ((DNAME.EQ."ACE").OR.(DNAME.EQ."NHE").OR.(DNAME.EQ."NME")) THEN
             CAPT = .TRUE. 
          ENDIF
@@ -715,6 +719,7 @@ MODULE AMBER_CONSTRAINTS
             DNAME = DNAME(2:4)
             GOTO 60
          ENDIF
+         
       END SUBROUTINE CHECK_RES
 
       !get atom id from name for given residue

@@ -12,11 +12,18 @@ MODULE QCIKEYS
 
    LOGICAL :: QCIAMBERT = .FALSE.
    LOGICAL :: QCIHIRET = .FALSE.
-   LOGICAL :: QCISBT = .FALSE.
+   LOGICAL :: QCISBMT = .FALSE.
 
    LOGICAL :: QCIDOBACK = .FALSE.    ! do backbone first
    LOGICAL, ALLOCATABLE :: ISBBATOM(:)
    INTEGER :: NBACKBONE = 0
+
+   LOGICAL :: QCIADDACIDT = .FALSE.
+   LOGICAL :: QCIDOBACKALL = .FALSE.
+
+   LOGICAL :: QCITRILATERATION = .FALSE.
+
+   LOGICAL :: CHECKCONINT = .FALSE. !which congrad should be used?
 
    LOGICAL :: QCIREADGUESS = .FALSE. ! read guess for band
    CHARACTER(20) :: GUESSFILE = "int_guess.xyz"
@@ -45,22 +52,21 @@ MODULE QCIKEYS
    CHARACTER(LEN=30) :: FREEZEFILE = 'qci_frozen.dat' ! input file with atoms to be frozen -> used to populate FREEZE
    REAL(KIND=REAL64) :: QCIFREEZETOL = 1.0D-3 ! distance tolerance for atoms to be frozen
 
-   !constraint
-   INTEGER :: MAXCONUSE = 100
-   INTEGER :: QCICONSEP = 15
-   REAL(KIND=REAL64) :: QCICONSTRAINTTOL = 0.1D0
-   REAL(KIND=REAL64) :: QCICONCUT = 6.0D0   
 
-   CHARACTER(LEN=30) :: GEOMFILE = "congeom.dat"
-   INTEGER :: NCONGEOM = 0
-   REAL(KIND=REAL64), ALLOCATABLE :: CONGEOM(:,:) 
-   CHARACTER(LEN=30) :: CONSTRFILE = "constraintfile"
+   REAL(KIND=REAL64) :: INTMINFAC=1.0D0 !Scaling factor for internal minima
 
    !repulsions
    REAL(KIND=REAL64) :: QCIREPCUT = 1.0D-3
+   REAL(KIND=REAL64) :: QCICONSTRREP=100.0D0
+   INTEGER ::  QCIINTREPMINSEP=20 !Minimum separation in atom index for internal minimum check in repulsion
+
+   !QUERY: what exactly is this
+   REAL(KIND=REAL64) :: INTCONSTRAINTDEL=10.0D0
+
 
    !spring constants and adjustment
    !TODO: add initialisation and setting in qci setup
+   LOGICAL :: QCISPRINGACTIVET = .TRUE. !QUERY: what is this?
    LOGICAL :: QCIADJUSTKT = .FALSE. ! adjust spring constant
    INTEGER :: QCIADJUSTKFRQ = 0
    REAL(KIND=REAL64) :: QCIADJUSTKTOL = 0.0D0
@@ -83,11 +89,6 @@ MODULE QCIKEYS
    REAL(KIND=REAL64) :: MAXCONE = 0.01D0
    !convergence for RMS
    REAL(KIND=REAL64) :: QCIRMSTOL=0.01D0
-
-   !cut off for constraints
-   LOGICAL :: CONCUTABSINC = .FALSE.
-   REAL(KIND=REAL64) :: CONCUTABS = 0.7D0
-   REAL(KIND=REAL64) :: CONCUTABS2 = 0.05D0
 
    !QCI resetting
    LOGICAL :: QCIRESET = .TRUE.

@@ -1,13 +1,13 @@
 MODULE CHIRALITY
    USE QCIPREC
    USE QCIKEYS, ONLY: NATOMS
-   USE AMBER_CONSTRAINTS, ONLY: NRES, NBOND, BONDS, RESNAMES, RES_START, RES_END, RESTYPE, AMBER_NAMES, ELEMENT
+   USE AMBER_CONSTRAINTS, ONLY: NRES, NBOND, BONDS, RESNAMES, RES_START, RES_END, AMBER_NAMES, ELEMENT
    IMPLICIT NONE
    INTEGER, SAVE :: NCHIRAL = -1
    INTEGER :: NCSP2                                          !number of sp2 hybridised carbons
    INTEGER :: NDOUBLE                                        !number of double bonds
    INTEGER, ALLOCATABLE :: CSP2(:)                           !list of sp2 hybridised carbon
-   INTEGER :: DOUBLE(NBOND,2)                                !array to store double bonds
+   INTEGER, ALLOCATABLE :: DOUBLEB(:,:)                                !array to store double bonds
    INTEGER, DIMENSION(:,:), ALLOCATABLE, SAVE :: CHIR_INFO   !array for chiral centres
    INTEGER, ALLOCATABLE, SAVE :: NBONDED(:)                  !number of bonds for each atom 
    INTEGER, ALLOCATABLE, SAVE :: NNEIGHBOURS(:)              !number of bonded atoms 
@@ -18,6 +18,7 @@ MODULE CHIRALITY
 
    CONTAINS
       SUBROUTINE DEALLOC_CHIR_INTERNALS()
+         IF (ALLOCATED(DOUBLEB)) DEALLOCATE(DOUBLEB)
          IF (ALLOCATED(NBONDED)) DEALLOCATE(NBONDED)
          IF (ALLOCATED(NNEIGHBOURS)) DEALLOCATE(NNEIGHBOURS)
          IF (ALLOCATED(CHIR_INFO)) DEALLOCATE(CHIR_INFO) 
@@ -28,14 +29,14 @@ MODULE CHIRALITY
          IF (ALLOCATED(CSP2)) DEALLOCATE(CSP2)
       END SUBROUTINE DEALLOC_CHIR_INTERNALS
 
-      SUBROUTINE CHIRALITY_CHECK(XYZ,)
+      SUBROUTINE CHIRALITY_CHECK(XYZ)
          USE INTERPOLATION_KEYS, ONLY: ATOMACTIVE
          USE QCIKEYS, ONLY: NATOMS, DEBUG, NIMAGES
          IMPLICIT NONE
          REAL(KIND = REAL64), INTENT(IN) :: XYZ((3*NATOMS)*(NIMAGES+2))
          REAL(KIND = REAL64) :: NEIGHBOUR_COORDS(12), CENTRE_COORDS(3) !intent needed?
          INTEGER :: CHIRALCENTRE
-         INTEGER :: J1
+         INTEGER :: J1, J2, J3, J4, ATOMID
          LOGICAL :: CENTREACTIVE
          LOGICAL :: THIS_SR, PREV_SR
 
@@ -95,6 +96,7 @@ MODULE CHIRALITY
       ! 1 - centre - 4 - 2
       LOGICAL FUNCTION ASSIGNMENT_SR(COORDS,CENTRE) RESULT(RIGHT_HANDED)
          USE HELPER_FNCTS, ONLY: DIHEDRAL
+         IMPLICIT NONE
          REAL(KIND = REAL64) :: COORDS(12)
          REAL(KIND = REAL64) :: CENTRE(3)
          REAL(KIND = REAL64) :: DIHX(12)
@@ -113,6 +115,7 @@ MODULE CHIRALITY
 
       SUBROUTINE FIND_CHIRAL_CENTRES()
          USE COMPARELIST
+         USE AMBER_CONSTRAINTS, ONLY: AMBER_NAMES, RESTYPE
          IMPLICIT NONE
          INTEGER :: J1, J2, ATOMID, J3, ATOMID2, VALENCY, GHOSTEL, J4
          INTEGER :: DUMMY_ELS(4), DUMMY_ELS_2(4), DUMMY_ATS(4), DUMMY_ATS_2(4)
@@ -120,7 +123,7 @@ MODULE CHIRALITY
          INTEGER :: LIST1(4), LIST2(4), LIST3(4), LIST4(4)
          LOGICAL :: CHIRALT, EQ12, EQ23, EQ34, GHOSTS(4), TRIPLE, QUADRUPLE
          LOGICAL :: GT12T,ID12T,GT23T,ID23T,GT34T,ID34T,CHECKUNIQUE(4),IDFOUND
-         INTEGER :: DUMMY_CHIR_INFO(NATS,5)     !array for chiral centres
+         INTEGER :: DUMMY_CHIR_INFO(NATOMS,5)     !array for chiral centres
          INTEGER :: C3AT1
          !get the number of atoms bonded to each atom 
          !anything with four bonds is considered a possible chiral centre
@@ -134,7 +137,7 @@ MODULE CHIRALITY
          CALL DISCOUNT_H()
          !now check all possible centres
          NCHIRAL=0
-         DO J1=1,NATS
+         DO J1=1,NATOMS
             IF (POSSIBLE_CC(J1)) THEN
                CHIRALT = .FALSE.   
                !first copy the data for the directly attached atoms
@@ -267,13 +270,13 @@ MODULE CHIRALITY
                   ! in RNA we have one issue - for the C3' C2' and C4' 
                   ! can only be resolved with an additional list
                   ! in other nucleic acids we can, so if the atom name is C3', we need one more step
-                  ELSE IF ((ATNAMES(J1).EQ."C3'").AND.(TYPERES(J1).EQ."RNA")) THEN
+                  ELSE IF ((AMBER_NAMES(J1).EQ."C3'").AND.(RESTYPE(J1).EQ."RNA")) THEN
                      C3AT1 = DUMMY_ATS(2)
-                     IF (ATNAMES(C3AT1).EQ."C2'") THEN
+                     IF (AMBER_NAMES(C3AT1).EQ."C2'") THEN
                         FINALPRIO(3) = FINALPRIO(3) + 1
                         FINALPRIO(4) = FINALPRIO(4) + 1
                         CHIRALT=.TRUE.
-                     ELSE IF (ATNAMES(C3AT1).EQ."C4'") THEN 
+                     ELSE IF (AMBER_NAMES(C3AT1).EQ."C4'") THEN 
                         FINALPRIO(2) = FINALPRIO(2) + 1
                         FINALPRIO(4) = FINALPRIO(4) + 1  
                         CHIRALT=.TRUE. 
@@ -309,9 +312,9 @@ MODULE CHIRALITY
          INTEGER :: DUMMY_ATS(6), DUMMY_ELS(6)
          INTEGER :: NEW_ATS(6), NEW_ELS(6)  
          
-         ALLOCATE(NNEIGHBOURS(NATS))
-         NNEIGHBOURS(1:NATS)=0
-         DO J1=1,NATS
+         ALLOCATE(NNEIGHBOURS(NATOMS))
+         NNEIGHBOURS(1:NATOMS)=0
+         DO J1=1,NATOMS
             NEW_ATS(1:6) = -1
             NEW_ELS(1:6) = -1
             DUMMY_ATS(1:6) = BONDEDATS(J1,1:6)
@@ -364,10 +367,11 @@ MODULE CHIRALITY
          IMPLICIT NONE
          LOGICAL :: PROCESSED(NCSP2)
          INTEGER :: I, J, BONDED2AT(3)
+         INTEGER :: ATOM1, ATOM2
 
          PROCESSED(1:NCSP2) = .FALSE.
          NDOUBLE = 0
-         DOUBLE(1:NATOMS,1:2) = -1
+         DOUBLEB(1:NATOMS,1:2) = -1
          ! we iterate over the list of C sp2 atoms and find their binding partner
          DO I=1,NCSP2
             ! for C=C bonds we have two atoms in the list and have to avoid adding the bond twice
@@ -460,14 +464,15 @@ MODULE CHIRALITY
          IMPLICIT NONE
          INTEGER :: J1, ATOMID1, ATOMID2
          
+         ALLOCATE(DOUBLEB(NBOND,2))
          ALLOCATE(NBONDED(NATOMS))
          ALLOCATE(BONDEDATS(NATOMS,6))
          ALLOCATE(BONDEDELS(NATOMS,6))   
          ALLOCATE(POSSIBLE_CC(NATOMS))
-         POSSIBLE_CC(1:NATS) = .FALSE.
-         NBONDED(1:NATS) = 0
-         BONDEDATS(1:NATS,1:6) = -1
-         BONDEDELS(1:NATS,1:6) = -1    
+         POSSIBLE_CC(1:NATOMS) = .FALSE.
+         NBONDED(1:NATOMS) = 0
+         BONDEDATS(1:NATOMS,1:6) = -1
+         BONDEDELS(1:NATOMS,1:6) = -1    
          DO J1=1,NBOND
             ATOMID1 = BONDS(J1,1)
             ATOMID2 = BONDS(J1,2)  
@@ -478,7 +483,7 @@ MODULE CHIRALITY
             BONDEDATS(ATOMID2,NBONDED(ATOMID2)) = ATOMID1  
             BONDEDELS(ATOMID2,NBONDED(ATOMID2)) = ELEMENT(ATOMID1)          
          ENDDO    
-         DO J1=1,NATS
+         DO J1=1,NATOMS
             IF (NBONDED(J1).EQ.4) POSSIBLE_CC(J1) = .TRUE.
          ENDDO
          RETURN

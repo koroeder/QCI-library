@@ -9,7 +9,7 @@ MODULE SBM_CONSTRAINTS
    CONTAINS
       ! for SBM go model
       SUBROUTINE SBMMODEL_QCI_CONSTRAINTS(NATOMS)
-         USE QCI_KEYS, ONLY: XSTART, XFINAL
+         USE INTERPOLATION_KEYS, ONLY: XSTART, XFINAL
          USE QCIFILEHANDLER, ONLY: GETUNIT, FILE_LENGTH
          USE HELPER_FNCTS, ONLY: DISTANCE_TWOATOMS
          IMPLICIT NONE
@@ -20,7 +20,8 @@ MODULE SBM_CONSTRAINTS
          INTEGER :: CONUNIT ! unit for opening file
          INTEGER :: NADDCONSTR ! number of additional constraints
          INTEGER :: IDX1, IDX2 !indices read in from file
-
+         INTEGER :: J1
+         
          ! check for additional constraints in file
          INQUIRE(FILE=SBMCONTACTFILE, EXIST=YESNO)
          IF (YESNO) THEN
