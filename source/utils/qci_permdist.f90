@@ -37,8 +37,6 @@ MODULE QCIPERMDIST
    INTEGER :: LOCALPERMMAXSEP = 3
 
    LOGICAL :: PERMDISTINIT = .FALSE.
-   LOGICAL :: LOCALPERMDIST = .FALSE.
-   LOGICAL :: LPERMDIST = .FALSE.
    LOGICAL :: PERMGUESS = .FALSE.
    LOGICAL :: LPERMOFF=.FALSE.
 
@@ -172,20 +170,21 @@ MODULE QCIPERMDIST
          END DO
       END SUBROUTINE UPDATE_ACTIVE_PERMGROUPS
 
-      SUBROUTINE CHECK_PERM_BAND(PERMGROUP, FIRSTATOM, REVERSET)
+      SUBROUTINE CHECK_PERM_BAND(PERMGROUPIDX, FIRSTATOM, REVERSET)
          USE QCIKEYS, ONLY: DEBUG, NATOMS, NIMAGES
          USE MOD_INTCOORDS, ONLY: XYZ
          IMPLICIT NONE
-         INTEGER, INTENT(IN) :: PERMGROUP !number of permutational group
+         INTEGER, INTENT(IN) :: PERMGROUPIDX !number of permutational group
          INTEGER, INTENT(IN) :: FIRSTATOM !first atom id in permutational group
          LOGICAL, INTENT(IN) :: REVERSET  !stepping direction through images
 
-         INTEGER :: J1, J2, J3, FIRSTIMAGE, SECONDIMAGE
+         INTEGER :: J1, J2, IDX, FIRSTIMAGE, SECONDIMAGE
          INTEGER :: STARTIDX, ENDIDX, STEP
          REAL(KIND = REAL64) :: COORDSA(3*NATOMS), COORDSB(3*NATOMS)
          INTEGER :: PERMP(NATOMS), NMOVEP
-         REAL(KIND = REAL64) :: BOXLX,BOXLY,BOXLZ,RMATBEST(3,3),DISTANCEP
+         REAL(KIND = REAL64) :: BOXLX,BOXLY,BOXLZ,RMATBEST(3,3)
          LOGICAL :: BULKT = .FALSE., TWOD = .FALSE.
+         REAL(KIND=REAL64) :: DISTANCE, DIST2
 
          ! going forward through the images
          IF (.NOT.REVERSET) THEN
@@ -222,23 +221,23 @@ MODULE QCIPERMDIST
             !coordinates for image 2
             COORDSA(1:3*NATOMS) = XYZ((3*NATOMS*(SECONDIMAGE-1)+1):3*NATOMS*SECONDIMAGE)            
 
-            CALL LOPERMDIST(COORDSB,COORDSA,NATOMS,DEBUG,BOXLX,BOXLY,BOXLZ,BULKT,TWOD,DISTANCE,DIST2,.FALSE.,RMATBEST,PERMGROUP,NMOVEP,PERMP)
+            CALL LOPERMDIST(COORDSB,COORDSA,DISTANCE,DIST2,RMATBEST,PERMGROUPIDX,NMOVEP,PERMP)
    
             IF (NMOVEP.GT.0)  THEN
-               WRITE(*,*) ' check_perm_band> group ',PERMGROUP,' alignment of images ',SECONDIMAGE,FIRSTIMAGE,' moves=',&
-                          NMOVEP, ' permutations, distance with/without permutations=',PDISTANCE,NOPDISTANCE    
+               WRITE(*,*) ' check_perm_band> group ',PERMGROUPIDX,' alignment of images ',SECONDIMAGE,FIRSTIMAGE,' moves=',&
+                          NMOVEP, ' permutations, distance =',DISTANCE    
             END IF
 
             !swap atoms if we found a better permutational alignment
             IF ((NMOVEP.GT.0).AND.PBETTER) THEN 
                COORDSA(1:3*NATOMS) = XYZ((3*NATOMS*(SECONDIMAGE-1)+1):3*NATOMS*SECONDIMAGE) 
-               DO J2=1,NPERMSIZE(PERMGROUP)
-                  J3=PERMGROUP(FIRSTATOM+J2-1)
-                  IF (PERMP(J3).NE.J3) THEN
-                     WRITE(*,*) ' check_perm_band> image ',SECONDIMAGE,' move atom ',PERMP(J3),' to position ',J3
-                     COORDSA(3*(J3-1)+1)=XYZ(3*NATOMS*(SECONDIMAGE-1)+3*(PERMP(J3)-1)+1)
-                     COORDSA(3*(J3-1)+2)=XYZ(3*NATOMS*(SECONDIMAGE-1)+3*(PERMP(J3)-1)+2)
-                     COORDSA(3*(J3-1)+3)=XYZ(3*NATOMS*(SECONDIMAGE-1)+3*(PERMP(J3)-1)+3)
+               DO J2=1,NPERMSIZE(PERMGROUPIDX)
+                  IDX = PERMGROUP(FIRSTATOM+J2-1)
+                  IF (PERMP(IDX).NE.IDX) THEN
+                     WRITE(*,*) ' check_perm_band> image ',SECONDIMAGE,' move atom ',PERMP(IDX),' to position ',IDX
+                     COORDSA(3*(IDX-1)+1)=XYZ(3*NATOMS*(SECONDIMAGE-1)+3*(PERMP(IDX)-1)+1)
+                     COORDSA(3*(IDX-1)+2)=XYZ(3*NATOMS*(SECONDIMAGE-1)+3*(PERMP(IDX)-1)+2)
+                     COORDSA(3*(IDX-1)+3)=XYZ(3*NATOMS*(SECONDIMAGE-1)+3*(PERMP(IDX)-1)+3)
                   ENDIF
                ENDDO
                XYZ((3*NATOMS*(SECONDIMAGE-1)+1):3*NATOMS*SECONDIMAGE) = COORDSA(1:3*NATOMS)
@@ -249,10 +248,11 @@ MODULE QCIPERMDIST
       SUBROUTINE CHECK_COMMON_CONSTR()
          USE QCICONSTRAINTS, ONLY: NCONPERATOM, CONLIST
 
-         INTEGER :: J1, J2, J3, J4, PATOM1, PATOMTEST
+         INTEGER :: J1, J2, J3, J4, PATOM1, PATOM2, PATOMTEST
          INTEGER :: NENTRY
+         LOGICAL :: COMMONCONST, THISATOMFOUND
 
-         NCOMMONCON(1:NPERMGROUP) = 0
+         NCONCOMMON(1:NPERMGROUP) = 0
          NENTRY = 1 ! counter for position of entries in permutational groups
          DO J1=1,NPERMGROUP
             PATOM1 = PERMGROUP(NENTRY)
@@ -283,7 +283,7 @@ MODULE QCIPERMDIST
                END DO
                ! if we found a common constraint, add it to our list
                IF (COMMONCONST) THEN
-                  NCOMMONCON(J1) = NCOMMONCON(J1) + 1
+                  NCONCOMMON(J1) = NCONCOMMON(J1) + 1
                END IF
             END DO
             NENTRY=NENTRY+NPERMSIZE(J1)
@@ -291,8 +291,8 @@ MODULE QCIPERMDIST
          END DO
 
          ! allocate common constraint array
-         IF (ALLOCATED(COMMONCON)) DEALLOCATE(COMMONCON)
-         ALLOCATE(COMMONCON(NPERMGROUP,NCOMMONMAX))
+         IF (ALLOCATED(CONCOMMON)) DEALLOCATE(CONCOMMON)
+         ALLOCATE(CONCOMMON(NPERMGROUP,NCOMMONMAX))
 
          ! reiterating over all groups, this time to save common constraints
          NENTRY = 1 ! counter for position of entries in permutational groups
@@ -327,7 +327,7 @@ MODULE QCIPERMDIST
                ! if we found a common constraint, add it to our list
                IF (COMMONCONST) THEN
                   NCONCOMMON(J1)=NCONCOMMON(J1)+1
-                  COMMONCON(J1,NCONCOMMON(J1))=PATOMTEST
+                  CONCOMMON(J1,NCONCOMMON(J1))=PATOMTEST
                END IF
             END DO
             NENTRY=NENTRY+NPERMSIZE(J1)
@@ -336,20 +336,15 @@ MODULE QCIPERMDIST
       END SUBROUTINE CHECK_COMMON_CONSTR
 
       !
-      SUBROUTINE LOPERMDIST(COORDSB,COORDSA,NATOMS,DEBUG,BOXLX,BOXLY,BOXLZ,BULKT,TWOD,DISTANCE,DIST2,RIGID,RMATBEST,DOGROUP,NMOVE,NEWPERM)
-         USE QCIKEYS
+      SUBROUTINE LOPERMDIST(COORDSB,COORDSA,DISTANCE,DIST2,RMATBEST,DOGROUP,NMOVE,NEWPERM)
+         USE QCIKEYS, ONLY: NATOMS, DEBUG, BOXLX, BOXLY, BOXLZ, BULKT, TWOD, RIGID, STOCKT
          USE QCIPREC
+         USE INTERPOLATION_KEYS, ONLY: ATOMACTIVE
          IMPLICIT NONE
          ! input and output variables
-         INTEGER, INTENT(IN) :: NATOMS ! number of atoms
-         REAL(KIND = REAL64), INTENT(IN) :: COORDSA(3*NATOMS), COORDSB(3*NATOMS) ! coordinates for structure A and B
-         LOGICAL, INTENT(IN) :: DEBUG ! debugging switch
-         REAL(KIND = REAL64), INTENT(IN) :: BOXLX, BOXLY, BOXLZ ! box coordinates
-         LOGICAL, INTENT(IN) :: BULKT ! switch for bulk systems
-         LOGICAL, INTENT(IN) :: TWOD ! switch for two dimensional systems
+         REAL(KIND = REAL64), INTENT(INOUT) :: COORDSA(3*NATOMS), COORDSB(3*NATOMS) ! coordinates for structure A and B
          REAL(KIND = REAL64), INTENT(OUT) :: DISTANCE ! distance between A and B
          REAL(KIND = REAL64), INTENT(OUT) :: DIST2 ! distance squared between A and B
-         LOGICAL, INTENT(IN) :: RIGID ! rigid body switch
          REAL(KIND = REAL64), INTENT(OUT) :: RMATBEST(3,3) ! best rotational matrix
          INTEGER, INTENT(IN) :: DOGROUP ! do group number for QCI
          INTEGER, INTENT(OUT) :: NMOVE ! number of permutational moves
@@ -850,7 +845,7 @@ MODULE QCIPERMDIST
       ! TODO add routines below
       ! Put permutational isomers into a standard orientation
       SUBROUTINE MYORIENT(Q1,T1,NORBIT1,NCHOOSE1,NORBIT2,NCHOOSE2,NATOMS,DEBUG,ROT,ROTINV,STOCKT)
-         USE QCIKEYS
+         USE QCIKEYS, ONLY: ORBITTOL
          IMPLICIT NONE
          INTEGER, INTENT(IN) :: NATOMS
          REAL(KIND=REAL64), INTENT(INOUT) :: Q1(3*NATOMS)
@@ -863,7 +858,7 @@ MODULE QCIPERMDIST
          REAL(KIND=REAL64) :: CUTOFF1
          REAL(KIND=REAL64) :: XVEC(3), YVEC(3), ZVEC(3) ! unit vectors for tracking
          REAL(KIND=REAL64) :: CMX, CMY, CMZ ! centre of mass
-         INTEGER :: I, J1, J1MAX, J2, J2MAX ! counters
+         INTEGER :: I, J1, JMAX1, J2, JMAX2 ! counters
          REAL(KIND=REAL64) :: DIST(NATOMS), DMAX, DMAX2
          REAL(KIND=REAL64) :: COST, SINT
          REAL(KIND=REAL64) :: RVEC(3), RDOTN, DUM1, PROJ
@@ -891,12 +886,6 @@ MODULE QCIPERMDIST
             Q1(3*(I-1)+2)=Q1(3*(I-1)+2)-CMY
             Q1(3*(I-1)+3)=Q1(3*(I-1)+3)-CMZ
          ENDDO
-
-         ! We can only rotate around the z axis with a pulling potential!
-         IF (PULLT) THEN
-            T1(1:3*NATOMS)=Q1(1:3*NATOMS)
-            GOTO 10
-         ENDIF
 
          DMAX=-1.0D0
          NORBIT1=1
@@ -1085,7 +1074,7 @@ MODULE QCIPERMDIST
          REAL(KIND = REAL64) :: XA(3*NATOMS), XB(3*NATOMS) ! copy of coordinates to be manipulated
          INTEGER :: J1, JMIN, J2 ! counters
          REAL(KIND = REAL64) :: QMAT(4,4), Q1, Q2, Q3, Q4, XM, YM, ZM, XP, YP, ZP ! quaternion
-         REAL(KIND = REAL64) :: DIAG(4), TEMPA(3*NOPT), ! arrays needed for diagonalisation
+         REAL(KIND = REAL64) :: DIAG(4), TEMPA(9*NATOMS) ! arrays needed for diagonalisation
          INTEGER :: INFO ! exit status for dysev
          REAL(KIND = REAL64) :: MINV
          REAL(KIND = REAL64) :: DISTANCE, SCDUM
@@ -1124,7 +1113,7 @@ MODULE QCIPERMDIST
          !  involve a sum of coordinates! We need to have XA and XB coordinate centres both 
          !  at the origin!!
          QMAT(1:4,1:4)=0.0D0
-         DO J1=1,NSIZE
+         DO J1=1,NATOMS
             XM=XA(3*(J1-1)+1)-XB(3*(J1-1)+1)
             YM=XA(3*(J1-1)+2)-XB(3*(J1-1)+2)
             ZM=XA(3*(J1-1)+3)-XB(3*(J1-1)+3)
@@ -1196,7 +1185,7 @@ MODULE QCIPERMDIST
          INTEGER, INTENT(IN) :: N ! system size
          REAL(KIND = REAL64), INTENT(IN) :: P(3*N), Q(3*N) ! coordinates
          REAL(KIND = REAL64), INTENT(IN) :: SX, SY, SZ ! box length
-         REAL(KIND = REAL64), INTENT(IN) :: WORSTDIST, WORSTRADIUS
+         REAL(KIND = REAL64), INTENT(OUT) :: WORSTDIST, WORSTRADIUS
          LOGICAL, INTENT(IN) :: PBC ! periodic boundary conditions?
          INTEGER, INTENT(OUT) :: PERM(N) ! Permutation so that p(i) <--> q(perm(i))
          REAL(KIND = REAL64), INTENT(OUT) :: DIST ! Minimum attainable distance
@@ -1213,10 +1202,11 @@ MODULE QCIPERMDIST
          !       Column indexes of existing elements in row i
          !     cc(first(i)..first(i+1)-1):
          !       Matrix elements of row i
-         INTEGER(KIND=INT64) :: FIRST(N+1), X(N), Y(N)
-         INTEGER(KIND=INT64) :: U(N), V(N), H
+         ! These integers might need to be be INT64 - but we try INT32 for now
+         INTEGER :: FIRST(N+1), X(N), Y(N)
+         INTEGER :: U(N), V(N), H
          INTEGER :: M, I, J, K, L, L2, T, A, I3, J3
-         INTEGER(KIND=INT64) :: N8, SZ8, D
+         INTEGER :: N8, SZ8, D
          INTEGER :: NDONE, J1, J2
 
          ! allocate KK and CC
@@ -1426,7 +1416,7 @@ MODULE QCIPERMDIST
          INTEGER, INTENT(OUT) :: V(N)   ! V = DUAL COLUMN VARIABLE
          INTEGER, INTENT(OUT) :: H   ! H = VALUE OF OPTIMAL SOLUTION
 
-         INTEGER, PARAMETER :: BIGINT = 1.0D12
+         INTEGER, PARAMETER :: BIGINT = HUGE(1)
          INTEGER :: J, J0, J1, I, I0, K, L, L0, T, T0, CNT
          INTEGER :: TODO(N), FREE(N), MIN, D(N)
          INTEGER :: V0, VJ
@@ -1475,7 +1465,7 @@ MODULE QCIPERMDIST
                X(I) = -X(I)
             ELSE
                J1 = X(I)
-               MIN = BIGINIT
+               MIN = BIGINT
                DO T=FIRST(I),FIRST(I+1)-1
                   J = KK(T)
                   IF (J.EQ.J1) CYCLE
@@ -1515,24 +1505,21 @@ MODULE QCIPERMDIST
                END DO
 
                I0=Y(J0)
+               IF (V0.LT.VJ) THEN
+                  V(J0) = V(J0) - VJ+V0               
+               ELSE IF (I0.NE.0) THEN
+                  J0=J1
+                  I0=Y(J1)
+               END IF
                IF (I0.NE.0) THEN
                   IF (V0.LT.VJ) THEN
-                     V(J0) = V(J0) - VJ+V0
+                     K=K-1
+                     FREE(K)=I0
                   ELSE
-                     IF (I0.EQ.0) GOTO 43
-                     J0=J1
-                     I0=Y(J1)
+                     L=L+1
+                     FREE(L)=I0
                   END IF
-                  IF (I0.NE.0) THEN
-                     IF (V0.LT.VJ) THEN
-                        K=K-1
-                        FREE(K)=I0
-                     ELSE
-                        L=L+1
-                        FREE(L)=I0
-                     END IF
-                  END IF
-               END IF
+               END IF                 
                X(I)=J0
                Y(J0)=I
             END DO
@@ -1648,7 +1635,7 @@ MODULE QCIPERMDIST
                   PRINT '(A,I6,A)','minperm> WARNING D - atom ',I,' not matched - maximum number of neighbours too small?'
                   RETURN
                ENDIF 
-            END DO GOTO
+            END DO 
             DJ=CC(T)
             U(I)=DJ-V(J)
             H=H+DJ

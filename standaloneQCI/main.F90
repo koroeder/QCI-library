@@ -1,20 +1,23 @@
 PROGRAM QCI_STANDALONE
    USE QCI_INTERFACE
    IMPLICIT NONE
-   INTEGER, PARAMETER  :: R64 = SELECTED_REAL_KIND(15, 307)
+   INTEGER, PARAMETER  :: REAL64 = SELECTED_REAL_KIND(15, 307)
    
    INTEGER :: NARGS, NATOMS, NIMAGES
    INTEGER, PARAMETER :: XUNIT = 11 
    INTEGER, PARAMETER :: STDOUT = 6 
+   CHARACTER(LEN=10) ::NATSDUMMY
    CHARACTER(LEN=50) :: PARAMFILE !Name of parameter file
-   REAL(KIND = R64), ALLOCATABLE :: XYZ(:,:), XS(:), XF(:)
+   REAL(KIND = REAL64), ALLOCATABLE :: XYZ(:), XS(:), XF(:)
    LOGICAL :: COMPLETED
+   INTEGER :: I
 
    ! check number of arguments
    NARGS = COMMAND_ARGUMENT_COUNT()
    ! We expect two arguments, the number of atoms and the parameter file name
    IF (NARGS.EQ.2) THEN
-      CALL GET_COMMAND_ARGUMENT(1, NATOMS)
+      CALL GET_COMMAND_ARGUMENT(1, NATSDUMMY)
+      READ(NATSDUMMY,*) NATOMS
       CALL GET_COMMAND_ARGUMENT(2, PARAMFILE) 
    ELSE
       WRITE(STDOUT,'(A,I4)') "Expecting two arguments, but got ", NARGS
@@ -45,8 +48,8 @@ PROGRAM QCI_STANDALONE
        WRITE(STDOUT,'(A)') "Quasi-continuous interpolation band did not converge"   
    END IF   
    WRITE(STDOUT,'(A,I6,A)') "QCI band has ",NIMAGES, " images"
-   ALLOCATE(XYZ((3*NATOMS)*(NIMAGES+2))
-   CALL GET_QCI_INTERPOLATION(XYZ)
+   ALLOCATE(XYZ((3*NATOMS)*(NIMAGES+2)))
+   CALL GET_QCI_INTERPOLATION(NATOMS,NIMAGES,XYZ)
    !potentially do something here
    !...
    CALL QCI_TERMINATE()

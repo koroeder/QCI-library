@@ -25,14 +25,16 @@ MODULE MOD_INTCOORDS
          USE QCIKEYS, ONLY: QCIFROZEN, NQCIFROZEN
          IMPLICIT NONE
          INTEGER :: J1
-         CHARACTER(LEN=25) :: LINFILE = "linear.xyz"
+         CHARACTER(LEN=25) :: LINFILE = "int_linear.xyz"
 
          CALL ALLOC_INTCOORDS()
+         CALL ALLOC_PREVCOORDS()
          XYZ(1:(3*NATOMS))=XSTART(1:3*NATOMS)
          XYZ((3*NATOMS)*(NIMAGES+1)+1:(3*NATOMS)*(NIMAGES+2))=XFINAL(1:3*NATOMS)
          DO J1=1,NIMAGES+2
             XYZ((J1-1)*(3*NATOMS)+1:J1*(3*NATOMS))=((NIMAGES+2-J1)*XSTART(1:3*NATOMS)+(J1-1)*XFINAL(1:3*NATOMS))/(NIMAGES+1)
          ENDDO
+         XPREV(:)  = XYZ(:)
 
          !Deal with any frozen atoms
          IF (NQCIFROZEN.GT.0) THEN

@@ -31,12 +31,15 @@ MODULE CHIRALITY
 
       SUBROUTINE CHIRALITY_CHECK(XYZ)
          USE INTERPOLATION_KEYS, ONLY: ATOMACTIVE
-         USE QCIKEYS, ONLY: NATOMS, DEBUG, NIMAGES
+         USE QCIKEYS, ONLY: NATOMS, DEBUG, NIMAGES, ATOMS2RES
+         USE MOD_AMBER, ONLY: RES_START, RES_END
          IMPLICIT NONE
          REAL(KIND = REAL64), INTENT(IN) :: XYZ((3*NATOMS)*(NIMAGES+2))
          REAL(KIND = REAL64) :: NEIGHBOUR_COORDS(12), CENTRE_COORDS(3) !intent needed?
+         REAL(KIND = REAL64) :: COORDSA(3*NATOMS), CORDSB(3*NATOMS)
          INTEGER :: CHIRALCENTRE
-         INTEGER :: J1, J2, J3, J4, ATOMID
+         INTEGER :: J1, J2, J3, J4, ATOMID, ACID
+         INTEGER :: NCHANGE, CHANGEAT(NATOMS), THISIMAGE, PREVIMAGE, OFFSET, OFFSET2
          LOGICAL :: CENTREACTIVE
          LOGICAL :: THIS_SR, PREV_SR
 
@@ -79,10 +82,33 @@ MODULE CHIRALITY
                ! S/R assignment for current image
                THIS_SR = ASSIGNMENT_SR(NEIGHBOUR_COORDS,CENTRE_COORDS)
                IF (THIS_SR.NEQV.PREV_SR) THEN
-                  !TODO continue here with dev
-                  ! strategy of how to change chirality
-                  ! are we cahnging the entire amino acid or better just switch atoms?
-                  ! discuss with David...
+                  WRITE(*,*) " chirality_check> Atom ", CHIRALCENTRE, " image ", J3, " chirality changed"
+                  WRITE(*,*) "                  Using previous image coordinates."
+                  ACID = ATOMS2RES(CHIRALCENTRE)
+                  NCHANGE = 0
+                  CHANGEAT(1:NATOMS) = -1
+                  THISIMAGE = 3*NATOMS*(J3-1)
+                  PREVIMAGE = 3*NATOMS*(J3-2)
+                  DO J4=RES_START(ACID),RES_END(ACID)
+                     IF (.NOT.ATOMACTIVE(J4)) CYCLE
+                     WRITE(*,*) " chirality_check> Changing active atom ", J4, " in image ", J3
+                     NCHANGE=NCHANGE+1
+                     CHANGEAT(NCHANGE)=J4
+                     OFFSET = 3*(NCHANGE-1)
+                     OFFSET2 = 3*(J4-1)
+                     COORDSA(OFFSET+1:OFFSET+3)=XYZ(THISIMAGE+OFFSET2+1:THISIMAGE+OFFSET2+3)
+                     COORDSB(OFFSET+1:OFFSET+3)=XYZ(PREVIMAGE+OFFSET2+1:PREVIMAGE+OFFSET2+3)
+                  END DO
+
+                  !TODO continue here - NEWMINDIST vs LOPERMDIST
+                  ! Align the replacement atoms with the original atoms as far as possible
+!
+            ZUSE='LA   '
+            CALL NEWMINDIST(COORDSA,COORDSB,NCHANGE,DIST,BULKT,TWOD,ZUSE,.FALSE.,RIGIDBODY,DEBUG,RMAT,DWORST)
+
+            DO J4=1,NCHANGE
+               XYZ(3*NATOMS*(J3-1)+3*(CHANGEAT(J4)-1)+1:3*NATOMS*(J3-1)+3*(CHANGEAT(J4)-1)+3)=COORDSB(3*(J4-1)+1:3*(J4-1)+3)  
+            ENDDO
 
                END IF
             END DO

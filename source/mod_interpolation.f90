@@ -7,26 +7,38 @@ MODULE QCIINTERPOLATION
    
    CONTAINS
       SUBROUTINE RUN_QCI_INTERPOLATION()
-         USE QCIKEYS, ONLY: QCIREADGUESS, QCIRESTART, QCIFREEZET, MAXITER, MAXGRADCOMP, MAXCONE, &
-                            CONCUTABS, CONCUTABSINC, CHECKCHIRAL, CHECKCONINT
+         USE QCIKEYS, ONLY: QCIREADGUESS, QCIFREEZET, MAXITER, MAXGRADCOMP, MAXCONE, &
+                            CHECKCHIRAL, CHECKCONINT, CHECKREPINTERVAL, IMSEPMIN, IMSEPMAX, &
+                            KINT, MAXERISE, MAXINTIMAGE, MAXQCIBFGS, MUPDATE, DGUESS, &
+                            DUMPQCIXYZFRQS, DUMPQCIXYZ, QCIADJUSTKFRQ, QCIADJUSTKT, QCIAVDEV, &
+                            QCIKINTMIN, QCIKINTMAX, QCIADJUSTKFRAC, QCIADJUSTKTOL, QCIIMAGECHECK, &
+                            QCIPERMCHECKINT, QCIPERMT, QCIRMSTOL, QCIFROZEN, QCIRESET, QCIRESETINT1
          USE MOD_FREEZE, ONLY: ADD_CONSTR_AND_REP_FROZEN_ATOMS
          USE CONSTR_E_GRAD, ONLY: CONGRAD1, CONGRAD2, CONVERGECONTEST, CONVERGEREPTEST, &
                                   FCONMAX, FREPMAX
-         USE QCIPERMDIST, ONLY: CHECK_COMMON_CONSTR, UPDATE_ACTIVE_PERMGROUPS
+         USE QCIPERMDIST, ONLY: NPERMGROUP, CHECK_COMMON_CONSTR, UPDATE_ACTIVE_PERMGROUPS, GROUPACTIVE, &
+                                NPERMSIZE
          USE QCI_CONSTRAINT_KEYS
          USE CHIRALITY, ONLY: ASSIGNMENT_SR
+         USE ADDINGATOM, ONLY: ADDATOM
+         USE REPULSION, ONLY: NREPULSIVE
          IMPLICIT NONE
-         INTEGER :: NBEST, NITERDONE, FIRSTATOM
+         INTEGER :: NBEST, NITERDONE, FIRSTATOM, NCONCUTABSINC, NDECREASE, NFAIL, NLASTGOODE
          INTEGER :: J1
          LOGICAL :: QCICONVT 
-         LOGICAL ::ADDATOMT
-         REAL(KIND = REAL64) :: GLAST(NDIMS), XLAST(NDIMS), ELAST
+         LOGICAL :: ADDATOMT
+         LOGICAL :: ACCEPTEDSTEP
+         LOGICAL :: MOREIMAGES
          CHARACTER(25) :: XYZFILE = "int.xyz"
          CHARACTER(25) :: EEEFILE = "int.EofS"
          CHARACTER(25) :: RESETXYZFILE = "QCIreset.int.xyz"
          CHARACTER(25) :: RESETEEEFILE = "QCIreset.int.EofS"     
          CHARACTER(6) :: ITERSTRING
+         REAL(KIND = REAL64) :: ETOTAL, EPREV
+         REAL(KIND = REAL64) :: CONCUTABSSAVE
+         INTEGER :: EXITSTATUS
          REAL(KIND = REAL64), PARAMETER :: INCREASETOL = 1.1D0   
+         REAL(KIND = REAL64), PARAMETER :: STPREDUCTION = 10.0D0
          INTEGER :: NITERUSE, POINT, NPT ! variables needed for lbfgs steps
          REAL(KIND = REAL64) :: STPMIN ! minimum step-size
          REAL(KIND = REAL64) :: CURRMAXSEP, CURRMINSEP ! current minimum and maximum image separation
@@ -90,15 +102,15 @@ MODULE QCIINTERPOLATION
          !scale gradient if necessary
          IF (MAXGRADCOMP.GT.0.0D0) CALL SCALEGRAD(DIMS,G,RMS,MAXGRADCOMP)
          !save gradient and coordinates (we use the pointer to the images here)
-         GLAST(1:DIMS) = G(1:DIMS)
-         XLAST(1:DIMS) = X(1:DIMS)
-         ELAST = ETOTAL 
+         GPREV(:) = GGG(:)
+         XPREV(:) = XYZ(:)
+         EPREV = ETOTAL 
 
          !call check for cold fusion
          CALL CHECK_FOR_COLDFUSION(ETOTAL)
 
          !save concut settings
-         CALL SET_CONCUTABS()
+         CONCUTABSSAVE = CONCUTABS
 
          NITERDONE = 0
          NITERUSE = 1
@@ -171,11 +183,11 @@ MODULE QCIINTERPOLATION
             ! spring constant dynamic adjustment
             IF (QCIADJUSTKT.AND.MOD(NITERDONE,QCIADJUSTKFRQ).EQ.0) THEN
                IF (QCIAVDEV.GT.QCIADJUSTKTOL) THEN
-                  WRITE(*,*) " QCIinterp> Lowering spring constant from ", KINT, " to ", MIN(KINT*QCIKADJUSTFRAC,QCIKINTMAX)
-                  KINT=MIN(KINT*QCIKADJUSTFRAC,QCIKINTMAX)
+                  WRITE(*,*) " QCIinterp> Lowering spring constant from ", KINT, " to ", MIN(KINT*QCIADJUSTKFRAC,QCIKINTMAX)
+                  KINT=MIN(KINT*QCIADJUSTKFRAC,QCIKINTMAX)
                ELSE IF (QCIAVDEV.LT.QCIADJUSTKTOL) THEN
-                  KINT=MAX(KINT/QCIKADJUSTFRAC,QCIKINTMIN)
-                  WRITE(*,*) " QCIinterp> Increasing spring constant from ", KINT, " to ", MAX(KINT*QCIKADJUSTFRAC,QCIKINTMAX)
+                  KINT=MAX(KINT/QCIADJUSTKFRAC,QCIKINTMIN)
+                  WRITE(*,*) " QCIinterp> Increasing spring constant from ", KINT, " to ", MAX(KINT*QCIADJUSTKFRAC,QCIKINTMAX)
                END IF
             END IF
 
@@ -188,7 +200,7 @@ MODULE QCIINTERPOLATION
                NLASTGOODE=NITERDONE
             END IF
 
-            GTMP(1:D)=0.0D0
+            GTMP(1:DIMS)=0.0D0
             ! the variables needed for step taking are either module variables in this module or saved in mod_intcoords
             CALL MAKESTEP(NITERUSE,NPT,POINT)
 
@@ -197,11 +209,11 @@ MODULE QCIINTERPOLATION
                GTMP(1:DIMS)=-GTMP(1:DIMS)
                SEARCHSTEP(POINT,1:DIMS)=GTMP(1:DIMS)
             END IF
-            GTMP(1:D)=G(1:D)
+            GTMP(1:DIMS)=G(1:DIMS)
             ! Take the minimum scale factor for all images for LBFGS step to avoid discontinuities
             STPMIN = 1.0D0
             DO J1=1,NIMAGES
-               STEPIMAGE(J2) = SQRT(DOT_PRODUCT(SEARCHSTEP(POINT,(3*NATOMS)*(J1-1)+1:(3*NATOMS)*J1), &
+               STEPIMAGE(J1) = SQRT(DOT_PRODUCT(SEARCHSTEP(POINT,(3*NATOMS)*(J1-1)+1:(3*NATOMS)*J1), &
                                                 SEARCHSTEP(POINT,(3*NATOMS)*(J1-1)+1:(3*NATOMS)*J1)))
                IF (STEPIMAGE(J1).GT.MAXQCIBFGS) THEN
                   STP((3*NATOMS)*(J1-1)+1:(3*NATOMS)*J1) = MAXQCIBFGS/STEPIMAGE(J1)
@@ -214,15 +226,15 @@ MODULE QCIINTERPOLATION
             NDECREASE = 0
             DO WHILE(.NOT.ACCEPTEDSTEP)
                !apply our step to our coordinates
-               X(1:DIMS) = X(1:DIMS) + STP(1:DIMS)*SEARCHSTEP(POINT,1:D)
+               X(1:DIMS) = X(1:DIMS) + STP(1:DIMS)*SEARCHSTEP(POINT,1:DIMS)
 
                !adding or removing images if required
-               IF (REMOVEIMAGE.OR.(MOD(NITERDONE,QCIIMAGECHECK).EQ.0)) THEN
+               IF (MOD(NITERDONE,QCIIMAGECHECK).EQ.0) THEN
                   MOREIMAGES=.TRUE.
                   DO WHILE(MOREIMAGES)
                      MOREIMAGES = .FALSE.
                      CALL GET_IMAGE_SEPARATION(CURRMINSEP,CURRMAXSEP,IDXMIN,IDXMAX)
-                     IF ((.NOT.REMOVEIMAGE).AND.((CURRMAXSEP.GT.IMSEPMAX).AND.(NIMAGES.LT.MAXNIMAGES))) THEN
+                     IF ((CURRMAXSEP.GT.IMSEPMAX).AND.(NIMAGES.LT.MAXINTIMAGE)) THEN
                         WRITE(*,*) " QCIinterp> Adding image between images ", IDXMAX, " and ", IDXMAX+1
                         CALL ADD_IMAGE(IDXMAX,ETOTAL,RMS)
                         NITERUSE = 0
@@ -231,7 +243,7 @@ MODULE QCIINTERPOLATION
                         NLASTGOODE=NITERDONE
                         MOREIMAGES = .TRUE. !if we add an atom we will stay in the loop and check whether we should add more images
                      END IF
-                     IF (REMOVEIMAGE.OR.((CURRMINSEP.LT.IMSEPMIN).AND.(INTIMAGE.GT.1))) THEN
+                     IF ((CURRMINSEP.LT.IMSEPMIN).AND.(NIMAGES.GT.1)) THEN
                         IF (IDXMIN.EQ.1) IDXMIN = 2
                         WRITE(*,*) " QCIinterp> Removing image ", IDXMIN
                         CALL REMOVE_IMAGE(IDXMAX,ETOTAL,RMS)
@@ -242,7 +254,7 @@ MODULE QCIINTERPOLATION
                         MOREIMAGES = .TRUE. !if we add an atom we will stay in the loop and check whether we should add more images
                      END IF
                      !line 1798 gets us to here
-                     IF (.NOT.MOREIMAGES) WIRTE(*,*) " QCIinterp> Not adding or removing further images"
+                     IF (.NOT.MOREIMAGES) WRITE(*,*) " QCIinterp> Not adding or removing further images"
                   END DO
                ELSE
                   CALL GET_IMAGE_SEPARATION(CURRMINSEP,CURRMAXSEP,IDXMIN,IDXMAX)
@@ -262,26 +274,23 @@ MODULE QCIINTERPOLATION
                !TODO: check with old routine: There is a weirder energy call here that I am not sure I udnerstand:
                !CALL CONGRAD(NMAXINT,NMININT,ETOTAL,XYZ,GGG,EEE,IMGFREEZE,RMS)
 
-               !TODO: what happens to GPREV and XPREV when we add/remove an image - this needs to be set correctly!
-               !TODO: need to set these variables alongside X and G etc.
-               !TODO: add MAXERISE to QCIKEYS at default 1.0D100
                IF ((ETOTAL-EPREV.LT.MAXERISE).OR.ADDATOMT) THEN
                   EPREV = ETOTAL
-                  GPREV(1:DIMS) = G(1:DIMS)
-                  XPREV(1:DIMS) = X(1:DIMS)
+                  GPREV(:) = GGG(:)
+                  XPREV(:) = XYZ(:)
                   ACCEPTEDSTEP = .TRUE.
                ELSE
                   NDECREASE = NDECREASE + 1
                   !TODO: add NDECREASE and a parameter variable for its limit 
                   IF (NDECREASE.GT.5) THEN
                      NFAIL = NFAIL + 1
-                     X(1:DIMS) = XPREV(1:DIMS)
-                     G(1:DIMS) = GPREV(1:DIMS)
+                     XYZ(:) = XPREV(:)
+                     GGG(:) = GPREV(:)
                      WRITE(*,*) " QCIinterp> WARNING - LBFGS cannot find a lower energy, NFAIL=",NFAIL
                      ACCEPTEDSTEP = .TRUE. !we failed to many times, so for now we accept failure and leave the loop
                   ELSE
-                     X(1:DIMS) = XPREV(1:DIMS)
-                     G(1:DIMS) = GPREV(1:DIMS)
+                     XYZ(:) = XPREV(:)
+                     GGG(:) = GPREV(:)
                      !TODO: add stepreduction as parameter variable at 10.0D0
                      STP(1:DIMS) = STP(1:DIMS)/STPREDUCTION  
                      WRITE(*,*) " QCIinterp> Energy increased from ", EPREV, "to", ETOTAL, "; decreasing step size"                 
@@ -293,8 +302,8 @@ MODULE QCIINTERPOLATION
             CALL CHECK_FOR_COLDFUSION(ETOTAL)
             CALL GET_STATISTIC_INTERP()
 
-            ! set INTDGUESS to a reasonable guess
-            INTDGUESS=DIAG(1)
+            ! set DGUESS to a reasonable guess
+            DGUESS=DIAG(1)
             !get exit status
             CALL SET_EXIT_STATUS(NITERDONE,EXITSTATUS)
             !first check if we should add an atom
@@ -339,14 +348,14 @@ MODULE QCIINTERPOLATION
             QCICOMPLETE = .FALSE.                     
          END IF
          CALL WRITE_BAND(XYZFILE)
-         CALL WRITE_PROFILE(EEEFILE)
+         CALL WRITE_PROFILE(EEEFILE,EEE)
          WRITE(*,*) " QCIinterp> Leaving interpolation"
       END SUBROUTINE RUN_QCI_INTERPOLATION
 
 
       SUBROUTINE SET_EXIT_STATUS(NITERDONE,EXITSTATUS)
-         USE CONSTR_E_GRAD, ONLY: CONVERGECONTEST, CONVERGEREPTEST, FCONMAX, FREPMAX, INTADDATOM
-         USE QCIKEYS, ONLY: MAXCONE, QCIRMSTOL
+         USE CONSTR_E_GRAD, ONLY: CONVERGECONTEST, CONVERGEREPTEST, FCONTEST, FREPTEST
+         USE QCIKEYS, ONLY: MAXCONE, QCIRMSTOL, INTADDATOM
          IMPLICIT NONE
          INTEGER, INTENT(IN) :: NITERDONE
          INTEGER, INTENT(OUT) :: EXITSTATUS
@@ -358,7 +367,7 @@ MODULE QCIINTERPOLATION
          END IF
 
          !should we add more atoms?
-         IF (MOD(NITDERON,INTADDATOM).EQ.0) EXISTATUS = 2
+         IF (MOD(NITERDONE,INTADDATOM).EQ.0) EXITSTATUS = 2
       END SUBROUTINE SET_EXIT_STATUS
 
       SUBROUTINE GET_STATISTIC_INTERP()
@@ -398,7 +407,7 @@ MODULE QCIINTERPOLATION
          SUME = SUME/NIMAGES
          SUME2 = SUME2/(NIMAGES-1)
          SIGMAE = SQRT(MAX(SUME2-SUME**2,1.0D-100))
-         WRITE(*,*) " get_interp_stat> The highest image ", JMAX, " with energy ", MAXE, " is " ABS(MAXE-SUME)/SIGMAE, " sigma from the mean"
+         WRITE(*,*) " get_interp_stat> The highest image ", JMAX, " with energy ", MAXE, " is ", ABS(MAXE-SUME)/SIGMAE, " sigma from the mean"
          WRITE(*,*) "                  The average energy per image is ", SUME, " with variance of ", SUME2
          WRITE(*,*)
 
@@ -425,7 +434,7 @@ MODULE QCIINTERPOLATION
             X2(1:3*NATOMS) = XYZ(J1*3*NATOMS+1:(J1+1)*3*NATOMS)
             DO J2=1,NATOMS
                IF (ATOMACTIVE(J2)) THEN
-                  CALL DISTANCE_ATOM_DIFF_IMAGES(NATOMS, X1, X2, IDX, DISTATOM)
+                  CALL DISTANCE_ATOM_DIFF_IMAGES(NATOMS, X1, X2, J2, DISTATOM)
                   DISTTOTAL = DISTTOTAL + DISTATOM
                   IF (DISTATOM.GT.ADMAX) THEN
                      ADMAX = DISTATOM
@@ -451,13 +460,13 @@ MODULE QCIINTERPOLATION
 
       SUBROUTINE INITIALISE_INTERPOLATION_VARS()
          USE QCIKEYS, ONLY: USEIMAGEDENSITY, NIMAGES, E2E_DIST, IMAGEDENSITY, MAXINTIMAGE
-         USE ADDATOM, ONLY: ALLOC_ADDATOM
+         USE ADDINGATOM, ONLY: ALLOC_ADDATOM
          IMPLICIT NONE
 
          CONACTIVE(:) = .FALSE.
          ATOMACTIVE(1:NATOMS) = .FALSE.
          NTRIES(1:NATOMS) = 0
-         TURNONRODER(1:NATOMS) = 0
+         TURNONORDER(1:NATOMS) = 0
 
          IF (USEIMAGEDENSITY) THEN
             NIMAGES=MIN(IMAGEDENSITY*E2E_DIST,1.0D0*MAXINTIMAGE)
@@ -522,9 +531,9 @@ MODULE QCIINTERPOLATION
          !if it is the first step, we use a cautious guess
          IF (NITERDONE.EQ.1) THEN
             POINT = 0
-            DIAG(1:NDIMS) = DGUESS
-            SEARCHSTEP(0,1:NDIMS) = -DGUESS*G(1:NDIMS)
-            GTMP(1:DIMS) = SEARCHSTEP(0,1:NDIMS)
+            DIAG(1:DIMS) = DGUESS
+            SEARCHSTEP(0,1:DIMS) = -DGUESS*G(1:DIMS)
+            GTMP(1:DIMS) = SEARCHSTEP(0,1:DIMS)
             GNORM =  MAX(SQRT(DOT_PRODUCT(G(1:DIMS),G(1:DIMS))),1.0D-100)
             STP(1:DIMS) = MIN(1.0D0/GNORM, GNORM)
             RETURN

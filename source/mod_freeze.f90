@@ -83,9 +83,9 @@ MODULE MOD_FREEZE
 
       SUBROUTINE ADD_CONSTR_AND_REP_FROZEN_ATOMS(NBEST)
          USE QCIPREC, ONLY: REAL64
-         USE QCIKEYS, ONLY: NATOMS, QCIREPCUT, QCIFROZEN
+         USE QCIKEYS, ONLY: NATOMS, QCIREPCUT, QCIFROZEN, QCIINTREPMINSEP
          USE INTERPOLATION_KEYS, ONLY: CONACTIVE, ATOMACTIVE
-         USE REPULSION, ONLY: SEPREPULSION, NREPCURR, NREPULSIVE, REPI, REPJ, REPCUT, &
+         USE REPULSION, ONLY: NREPCURR, NREPULSIVE, REPI, REPJ, REPCUT, &
                               DOUBLE_ALLOC_REP
          USE QCI_CONSTRAINT_KEYS, ONLY: NCONSTRAINT, CONI, CONJ
          USE MOD_INTCOORDS, ONLY: XSTART, XFINAL
@@ -116,7 +116,7 @@ MODULE MOD_FREEZE
             ! we only want active atoms
             IF (.NOT.ATOMACTIVE(I)) CYCLE
             ! we have a minimum separation for atoms in sequence
-            IF (ABS(I-NI).LE.SEPREPULSION) CYCLE
+            IF (ABS(I-NI).LE.QCIINTREPMINSEP) CYCLE
             ! ignore pairs of frozen atoms
             IF (QCIFROZEN(I).AND.QCIFROZEN(NI)) CYCLE
             ! make sure we are not adding a repulsion to an existing cosntraint
@@ -149,7 +149,7 @@ MODULE MOD_FREEZE
             ! we only want active atoms
             IF (.NOT.ATOMACTIVE(I)) CYCLE
             ! we have a minimum separation for atoms in sequence
-            IF (ABS(I-NJ).LE.SEPREPULSION) CYCLE
+            IF (ABS(I-NJ).LE.QCIINTREPMINSEP) CYCLE
             ! ignore pairs of frozen atoms
             IF (QCIFROZEN(I).AND.QCIFROZEN(NJ)) CYCLE
             ! make sure we are not adding a repulsion to an existing cosntraint

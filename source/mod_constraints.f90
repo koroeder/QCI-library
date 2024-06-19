@@ -5,15 +5,9 @@ MODULE QCICONSTRAINTS
 
    CONTAINS
 
-      SUBROUTINE SET_CONCUTABS()
-         IMPLICIT NONE
-         CONCUTABSSAVE = CONCUTABS
-         CONCUTABS2SAVE = CONCUTABS2
-      END SUBROUTINE SET_CONCUTABS
-
       ! create constraints and check them
       SUBROUTINE CREATE_CONSTRAINTS()
-         USE QCIKEYS, ONLY: NATOMS, QCIAMBERT, QCIHIRET, QCISBMT
+         USE QCIKEYS, ONLY: NATOMS, QCIAMBERT, QCIHIRET, QCISBMT, QCIDOBACK, QCIDOBACKALL
          USE SBM_CONSTRAINTS, ONLY: SBMMODEL_QCI_CONSTRAINTS, DEALLOC_SBM_CONST, SBM_NCONST, &
                                     SBM_CONI, SBM_CONJ, SBM_CONDISTREF, SBM_CONCUT
          USE AMBER_CONSTRAINTS, ONLY: AMBER_QCI_CONSTRAINTS, DEALLOC_AMBER_CONSTR, GET_BACKBONE, AMBER_NCONST, &
@@ -28,7 +22,7 @@ MODULE QCICONSTRAINTS
             ! get constraints
             CALL AMBER_QCI_CONSTRAINTS(NATOMS)
             ! get backbone information
-            IF (QCIBBT) THEN
+            IF (QCIDOBACK.OR.QCIDOBACKALL) THEN
                CALL GET_BACKBONE(NATOMS)
             END IF
             ! set the global number of constraints
@@ -43,7 +37,7 @@ MODULE QCICONSTRAINTS
             CALL DEALLOC_AMBER_CONSTR()
          ELSE IF (QCIHIRET) THEN
             CALL HIRE_QCI_CONSTRAINTS(NATOMS)
-            IF (QCIBBT) THEN
+            IF (QCIDOBACK.OR.QCIDOBACKALL) THEN
                CALL GET_BACKBONE_HIRE(NATOMS)
             END IF
             NCONSTRAINT = HIRE_NCONST
@@ -79,12 +73,14 @@ MODULE QCICONSTRAINTS
       END SUBROUTINE CREATE_CONSTRAINTS
 
       SUBROUTINE GET_GEOMCONSTRAINTS()
+         USE QCIKEYS, ONLY: NATOMS
          USE CONGEOM
          IMPLICIT NONE
          LOGICAL :: PERCT
          INTEGER :: COUNTER
          REAL(KIND = REAL64), PARAMETER :: TOLMOD = 1.1
          INTEGER, PARAMETER :: MAXCYCLES = 5
+         LOGICAL :: READADDLIST
 
          CALL READ_GEOMS()
          PERCT = .FALSE.
@@ -93,7 +89,7 @@ MODULE QCICONSTRAINTS
          DO WHILE (.NOT.PERCT)
             COUNTER = COUNTER + 1
             IF (COUNTER.GT.MAXCYCLES) THEN
-               WRITE(*,*) " get_geomconstraints> Canot not find a percolating network - STOP"
+               WRITE(*,*) " get_geomconstraints> Cannot not find a percolating network - STOP"
                STOP
             END IF
             IF (USEENDPOINTS) THEN
@@ -171,7 +167,7 @@ MODULE QCICONSTRAINTS
                    ((NEWCONI(J2).EQ.J).AND.(NEWCONJ(J2).EQ.I))) THEN
                   DUPLICATE = .TRUE.
                   NDUPL = NDUPL + 1
-                  IF (((NEWCONDISTREF(J2)-CONDISTREF(J1)).GT.TOL).OR.((NEWCONUT(J2)-CONCUT(J1)).GT.TOL)) THEN
+                  IF (((NEWCONDISTREF(J2)-CONDISTREF(J1)).GT.TOL).OR.((NEWCONCUT(J2)-CONCUT(J1)).GT.TOL)) THEN
                      WRITE(*,*) " WARNING> Duplicate has different constraints:"
                      WRITE(*,*) " CONDISTREF: ", NEWCONDISTREF(J2), CONDISTREF(J1)
                      WRITE(*,*) " CONCUT: ", NEWCONCUT(J2), CONCUT(J1)
@@ -311,7 +307,7 @@ MODULE QCICONSTRAINTS
          ENDDO
          MAXCONSTRAINTS=-1
          DO J1=1,NATOMS
-            IF (NCONATOM(J1).GT.MAXCONSTRAINTS) THEN
+            IF (NCONPERATOM(J1).GT.MAXCONSTRAINTS) THEN
                MAXCONSTRAINTS=NCONPERATOM(J1)
                JMAX=J1
             ENDIF
