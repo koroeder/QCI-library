@@ -44,6 +44,12 @@ MODULE ADDREMOVE_IMAGES
          CALL ALLOC_STEPTAKING()
          !write search step and gdif back into the correct variables
          !here we need to be more careful, as no endpoints are included and IDXMAX can be 0!
+         !debug printing
+         WRITE(*,*) "addImage> Nimages: ", NIMAGES, "New image: ", IDXMAX
+         WRITE(*,*) "addImage> OFFSET1: 3*NATOMS*(IDXMAX-1) ", OFFSET1
+         WRITE(*,*) "addImage> OFFSET2: 3*NATOMS*IDXMAX     ", OFFSET2
+         WRITE(*,*) "addImage> OFFSET3: 3*NATOMS*(IDXMAX+1) ", OFFSET3
+
          DO J1=1,MUPDATE
             IF (IDXMAX.GT.1) THEN
                SEARCHSTEP(J1,1:OFFSET1)=TEMPSTEP(J1,1:OFFSET1)
@@ -54,6 +60,7 @@ MODULE ADDREMOVE_IMAGES
                GDIF(J1,OFFSET2+1:3*NATOMS*NIMAGES) = TEMPGDIF(J1,OFFSET1+1:3*NATOMS*(NIMAGES-1))
             END IF
             NIMAGEDUMMY = MIN(IDXMAX,NIMAGES-1)
+            WRITE(*,*) NIMAGEDUMMY
             WRITE(*,*) "searchstep new indices: ", J1,OFFSET1+1,OFFSET2,J1,3*NATOMS*NIMAGEDUMMY+1,3*NATOMS*(NIMAGEDUMMY+1)
             WRITE(*,*) "shapes: SEARCHSTEP - ", SHAPE(SEARCHSTEP), " TEMPSTEP - ", SHAPE(TEMPSTEP)
             SEARCHSTEP(J1,OFFSET1+1:OFFSET2) = TEMPSTEP(J1,3*NATOMS*NIMAGEDUMMY+1:3*NATOMS*(NIMAGEDUMMY+1))
