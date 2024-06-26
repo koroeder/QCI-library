@@ -47,6 +47,7 @@ MODULE QCIINTERPOLATION
 
          !initiate variables for the interpolation, including image density set nimage
          CALL ALLOC_INTERPOLATION_VARS()
+         CALL ALLOC_STEPTAKING()
          CALL INITIALISE_INTERPOLATION_VARS()
          ! allocate the coordinate, energy and gradient variables for the band and
          ! initiate the interpolation band
@@ -203,6 +204,8 @@ MODULE QCIINTERPOLATION
             GTMP(1:DIMS)=0.0D0
             ! the variables needed for step taking are either module variables in this module or saved in mod_intcoords
             CALL MAKESTEP(NITERUSE,NPT,POINT)
+
+            WRITE(*,*) "shape of g and gtmp: ", SHAPE(G), SHAPE(GTMP)
 
             IF ((DOT_PRODUCT(G,GTMP)/MAX(1.0-100,SQRT(DOT_PRODUCT(G,G))*SQRT(DOT_PRODUCT(GTMP,GTMP)))).GT.0.0D0) THEN
                IF (DEBUG) WRITE(*,*) ' QCIinterp - Search direction has positive projection onto gradient - reversing step'

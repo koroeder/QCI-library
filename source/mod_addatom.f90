@@ -65,6 +65,7 @@ MODULE ADDINGATOM
          !Set variable for tracking whether we completed adding atoms
          MORETOADD = .TRUE.
          DO WHILE (MORETOADD)
+            WRITE(*,*) "NADDED: ", NADDED, "NTOADD: ", NTOADD
             !get list of atoms by number of constraints to current active atoms
             CALL CREATE_NCONTOACTIVE_LIST(INVDTOACTIVE,NMAXCON)
             !find the next atom to be added
@@ -87,7 +88,7 @@ MODULE ADDINGATOM
             CALL GET_ATOMS_BY_DISTANCE(NEXTATOM,NDISTNEWATOM,BESTDIST,BESTIDX)
             ! Now update the constraints including the new atom, and get list of constraints ordered by distance
             CALL UPDATE_CONSTRAINTS(NEXTATOM,NCONNEWATOM,BESTCONDIST,BESTCONIDX)
-            !update the repulsions - TOO continue here (line 64 in sub_doatom and line 2845)
+            !update the repulsions
             CALL UPDATE_REPULSIONS(NEXTATOM)
 
             !activate new atom
@@ -195,14 +196,14 @@ MODULE ADDINGATOM
                   ETOTAL = ECON
                   DO J1=1,NIMAGES
                      NEWATOMOFFSET = J1*3*NATOMS + 3*(NEXTATOM-1)
-                     XYZ(NEWATOMOFFSET+1:NEWATOMOFFSET+3) = XCON(1:3,J1)
+                     XYZ(NEWATOMOFFSET+1:NEWATOMOFFSET+3) = XCON(J1,1:3)
                   END DO
                ELSE IF ((EDIST.LT.ELIN).AND.(EDIST.LT.ECON)) THEN
                   WRITE(*,*) " addatom> Using interpolation from closest atoms for new atom ", NEXTATOM
                   ETOTAL = EDIST
                   DO J1=1,NIMAGES
                      NEWATOMOFFSET = J1*3*NATOMS + 3*(NEXTATOM-1)
-                     XYZ(NEWATOMOFFSET+1:NEWATOMOFFSET+3) = XDIST(1:3,J1)
+                     XYZ(NEWATOMOFFSET+1:NEWATOMOFFSET+3) = XDIST(J1,1:3)
                   END DO
                END IF
             END IF
@@ -567,7 +568,7 @@ MODULE ADDINGATOM
 
       SUBROUTINE FIND_NEXT_ATOM(CHOSENACID,ACID,NEWATOM,NCONTOACT,SHORTESTCON)
          USE QCIKEYS, ONLY: QCILINEART, INLINLIST, ATOMS2RES, QCIDOBACK, ISBBATOM
-         USE INTERPOLATION_KEYS, ONLY: ATOMACTIVE, CONACTIVE
+         USE INTERPOLATION_KEYS, ONLY: ATOMACTIVE, CONACTIVE, NACTIVE
          USE QCI_CONSTRAINT_KEYS, ONLY: NCONSTRAINT, CONDISTREF, CONI, CONJ
          IMPLICIT NONE
          INTEGER, INTENT(IN) :: ACID
@@ -617,6 +618,10 @@ MODULE ADDINGATOM
 
          !sanity check that we have found an atom to be added - if not we terminate
          IF (NEWATOM*NCONTOACT.EQ.0) THEN
+            WRITE(*,*) NCONTOACTIVE
+            WRITE(*,*) "Nactive; ", NACTIVE
+            WRITE(*,*) "QCI linear: ", QCILINEART
+            WRITE(*,*) NEWATOM, NCONTOACT
             WRITE(*,*) " find_next_atom> Error - new active atom not set, NEWATOM: ", NEWATOM, " NCONTOACT: ", NCONTOACT
             CALL INT_ERR_TERMINATE()
          END IF

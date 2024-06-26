@@ -148,6 +148,7 @@ MODULE HELPER_FNCTS
          CHARACTER(25) :: WORD
 
          ! WRITE(*,*) " read_line> ", LINE
+         WORDSOUT(1:NWORDS) = ""
          START_IND=0
          END_IND=0
          J1=1

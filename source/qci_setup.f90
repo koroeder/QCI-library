@@ -35,11 +35,14 @@ MODULE QCISETUP
 
       SUBROUTINE PARSE_SETTINGS(PARAMETERFILE)
          USE QCIFILEHANDLER, ONLY: GETUNIT
+         USE HELPER_FNCTS, ONLY: READ_LINE
          IMPLICIT NONE
          CHARACTER(30), INTENT(IN) :: PARAMETERFILE
          INTEGER :: PARAMUNIT, IOS
          LOGICAL :: YESNO, EOFT
-         CHARACTER(25) :: ENTRY, VALUE 
+         INTEGER, PARAMETER :: NWORDS = 20
+         CHARACTER(25) :: ENTRIES(NWORDS)=''
+         CHARACTER(200) :: LINE
             
          ! open parameter file
          INQUIRE(FILE=PARAMETERFILE, EXIST=YESNO)
@@ -53,11 +56,12 @@ MODULE QCISETUP
          !loop over lines in file
          EOFT = .FALSE.
          DO WHILE (.NOT. EOFT)
-            READ(PARAMUNIT,*,IOSTAT=IOS) ENTRY, VALUE
+            READ(PARAMUNIT,'(A)',IOSTAT=IOS) LINE
             IF (IOS.GT.0) THEN
                EOFT = .TRUE.     
             ELSE
-               CALL SETKEYS(ENTRY, VALUE)
+               CALL READ_LINE(LINE,NWORDS,ENTRIES)
+               IF (ENTRIES(1).NE."") CALL SETKEYS(ENTRIES(1), ENTRIES(2))
             ENDIF
          END DO
          CLOSE(PARAMUNIT)
