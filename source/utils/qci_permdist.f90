@@ -911,7 +911,7 @@ MODULE QCIPERMDIST
             ENDIF
          ENDDO 
          ! the following debug statement overcomes a runtime bug of uninitialised values - not sure why - likely a code optimisation somewhere
-         IF (DEBUG) WRITE(*,*) " myorient> Atom chosen is ", J1, " with distance ", DMAX
+         IF (DEBUG.AND..FALSE.) WRITE(*,*) " myorient> Atom chosen is ", J1, " with distance ", DMAX
 
          ! For tagged atoms the choice of the first atom matters if it belongs to an orbit of size > 1.
          IF ((ABS(Q1(3*(JMAX1-1)+1)).LT.1.0D-8).AND.(ABS(Q1(3*(JMAX1-1)+2)).LT.1.0D-8)) THEN

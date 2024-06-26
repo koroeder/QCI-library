@@ -32,7 +32,7 @@ MODULE ADDINGATOM
          INTEGER :: NTOADD, NADDED                          !number to be added and number already added
          INTEGER :: NNREPSAVE, NREPSAVE                     !variables for saving repulsion list
          LOGICAL :: MORETOADD                               !logical switch to stay in main loop
-         REAL(KIND = REAL64) :: INVDTOACTIVE(1:NACTIVE)     !inverse distances of constraints to active atoms
+         REAL(KIND = REAL64) :: INVDTOACTIVE(1:NATOMS)      !inverse distances of constraints to active atoms
          INTEGER :: NMAXCON                                 !current largest number of constraints to active set from any inactive atom
          LOGICAL :: CHOSENACID                              !switch whether we currently adding a residue in its entirety
          INTEGER :: ACID                                    !id of residue currently added in full
@@ -494,9 +494,9 @@ MODULE ADDINGATOM
          
          IF (DEBUG) THEN
             WRITE(*,*) " get_constraints_by_dist> Constraints including new atom by average reference distance:"
-            WRITE(*,'(10I6)') BESTCONDIST(1:MIN(10,NCONNEWATOM))
+            WRITE(*,'(10G12.4)') BESTCONDIST(1:MIN(10,NCONNEWATOM))
             WRITE(*,*) "                    Average distances:"
-            WRITE(*,'(10G12.4)') BESTCONIDX(1:MIN(10,NCONNEWATOM))
+            WRITE(*,'(10I6)') BESTCONIDX(1:MIN(10,NCONNEWATOM))
          END IF
 
          ! Turning on constraints identified
@@ -559,9 +559,9 @@ MODULE ADDINGATOM
 
          IF (DEBUG) THEN
             WRITE(*,*) " get_atoms_by_dist> Closest atoms to new atom by average endpoint distance:"
-            WRITE(*,'(10I6)') BESTDIST(1:MIN(10,NDISTNEWATOM))
+            WRITE(*,'(10G12.4)') BESTDIST(1:1:MIN(10,NDISTNEWATOM))
             WRITE(*,*) "                    Average distances:"
-            WRITE(*,'(10G12.4)') BESTIDX(1:MIN(10,NDISTNEWATOM))
+            WRITE(*,'(10I6)') BESTIDX(1:1:MIN(10,NDISTNEWATOM))
          END IF
       END SUBROUTINE GET_ATOMS_BY_DISTANCE
 
@@ -631,7 +631,6 @@ MODULE ADDINGATOM
          REAL(KIND = REAL64), INTENT(OUT) :: INVDTOACTIVE(1:NATOMS)  !inverse distance
          INTEGER :: I, ATOM1, ATOM2
          REAL(KIND = REAL64) :: INVDIST 
-         INTEGER :: BESTIDX
 
          NBEST = 0
          NCONTOACTIVE(1:NATOMS) = 0
@@ -652,9 +651,10 @@ MODULE ADDINGATOM
                IF (INVDIST.GT.INVDTOACTIVE(ATOM1)) INVDTOACTIVE(ATOM1)=INVDIST               
             END IF
             !update current best
-            IF (NCONTOACTIVE(ATOM1).GT.NBEST) BESTIDX = NCONTOACTIVE(ATOM1)
-            IF (NCONTOACTIVE(ATOM2).GT.NBEST) BESTIDX = NCONTOACTIVE(ATOM2)
+            IF (NCONTOACTIVE(ATOM1).GT.NBEST) NBEST = NCONTOACTIVE(ATOM1)
+            IF (NCONTOACTIVE(ATOM2).GT.NBEST) NBEST = NCONTOACTIVE(ATOM2)
          END DO
+         
       END SUBROUTINE CREATE_NCONTOACTIVE_LIST
 
       SUBROUTINE CHECK_BBLIST()
