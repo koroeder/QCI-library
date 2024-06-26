@@ -32,7 +32,7 @@ MODULE MOD_TERMINATE
          CALL DEALLOC_ADDATOM()
          ! XSTART and XFINAL are special cases, and are allocated outside of a specific ALLOC routine
          ! Hence they need to be deallocated here
-         IF (ALLOCATED(XSTART)) DEALLOCATE(XSTART)
-         IF (ALLOCATED(XFINAL)) DEALLOCATE(XFINAL)
+         !IF (ALLOCATED(XSTART)) DEALLOCATE(XSTART)
+         !IF (ALLOCATED(XFINAL)) DEALLOCATE(XFINAL)
       END SUBROUTINE FINISH_QCI
 END MODULE MOD_TERMINATE

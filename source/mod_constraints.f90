@@ -21,10 +21,8 @@ MODULE QCICONSTRAINTS
          IF (QCIAMBERT) THEN
             ! get constraints
             CALL AMBER_QCI_CONSTRAINTS(NATOMS)
-            ! get backbone information
-            IF (QCIDOBACK.OR.QCIDOBACKALL) THEN
-               CALL GET_BACKBONE(NATOMS)
-            END IF
+            ! we always get backbone information
+            CALL GET_BACKBONE(NATOMS)
             ! set the global number of constraints
             NCONSTRAINT = AMBER_NCONST
             ! allocate the arrays and copy the data from AMBER module
@@ -37,9 +35,7 @@ MODULE QCICONSTRAINTS
             CALL DEALLOC_AMBER_CONSTR()
          ELSE IF (QCIHIRET) THEN
             CALL HIRE_QCI_CONSTRAINTS(NATOMS)
-            IF (QCIDOBACK.OR.QCIDOBACKALL) THEN
-               CALL GET_BACKBONE_HIRE(NATOMS)
-            END IF
+            CALL GET_BACKBONE_HIRE(NATOMS)
             NCONSTRAINT = HIRE_NCONST
             CALL ALLOC_CONSTR()
             CONI(1:NCONSTRAINT) = HIRE_CONI(1:HIRE_NCONST)

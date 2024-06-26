@@ -93,11 +93,18 @@ file(GLOB QCI_LIB_SOURCES ${GIT_ROOT}/source/*.f90
                            ${GIT_ROOT}/source/utils/*.f90
                            ${GIT_ROOT}/source/utils/*.F90)
 
+find_package(BLAS)
+find_package(LAPACK)
+if(LAPACK_FOUND AND BLAS_FOUND)
+   set(lapackblas_libraries ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
+endif()
+
+
 # Make a hire library
 add_library(qcilib ${QCI_LIB_SOURCES})
 set_module_dir(qcilib)
 set_target_properties(qcilib PROPERTIES LINKER_LANGUAGE "Fortran")
-set_target_properties(qcilib PROPERTIES COMPILE_DEFINITIONS "${COMPILE_DEFINITIONS};__HIRE") 
+set_target_properties(qcilib PROPERTIES COMPILE_DEFINITIONS "${COMPILE_DEFINITIONS};__QCI") 
 
 option(PROF_VER "Enable profiling" OFF)
 if(PROF_VER)
@@ -117,5 +124,6 @@ add_executable(QCI main.F90)
 set_target_properties(QCI PROPERTIES LINKER_LANGUAGE "Fortran") 
 set_target_properties(QCI PROPERTIES COMPILE_DEFINITIONS "${COMPILE_DEFINITIONS};__HIRE")
 set_module_depends(QCI qcilib)
+target_link_libraries(QCI ${lapackblas_libraries})
 target_link_libraries(QCI qcilib)
 

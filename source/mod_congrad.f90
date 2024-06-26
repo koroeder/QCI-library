@@ -165,6 +165,7 @@ MODULE CONSTR_E_GRAD
          EMAX = -(HUGE(1.0D0))
          FMAX = -(HUGE(1.0D0))
          FMIN = HUGE(1.0D0)
+         IMAX = -1
          JMAX = -1
          EEE(1:NIMAGES+2)=0.0D0
          GGG(1:(3*NATOMS)*(NIMAGES+2))=0.0D0
@@ -251,6 +252,8 @@ MODULE CONSTR_E_GRAD
          EMAX = -(HUGE(1.0D0))
          FMAX = -(HUGE(1.0D0))
          FMIN = HUGE(1.0D0)
+         IMAX = -1
+         JMAX = -1
 
          !  Constraint energy and forces.
          !
@@ -384,6 +387,8 @@ MODULE CONSTR_E_GRAD
          EEE(1:NIMAGES+2)=0.0D0
          GGG(1:(3*NATOMS)*(NIMAGES+2))=0.0D0         
          EREP = 0.0D0
+         IMAX = -1
+         JMAX = -1
 
          DO J1=2,NIMAGES+1
             ! get coordinates for images
@@ -527,6 +532,8 @@ MODULE CONSTR_E_GRAD
          EEE(1:NIMAGES+2)=0.0D0
          GGG(1:(3*NATOMS)*(NIMAGES+2))=0.0D0         
          EREP = 0.0D0
+         IMAX = -1
+         JMAX = -1
 
          DO J2=1,NNREPULSIVE
             RPLOCAL = NREPCUT(J2)
@@ -630,6 +637,7 @@ MODULE CONSTR_E_GRAD
 
          ESPR = 0.0D0
          EMAX = -(HUGE(1.0D0))
+         IMAX = -1
 
          DO J1=1,NIMAGES+1
             NI1 = (3*NATOMS)*(J1-1)

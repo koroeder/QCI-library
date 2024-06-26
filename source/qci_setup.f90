@@ -194,7 +194,7 @@ MODULE QCISETUP
             READ(VAL,*) IMAGEDENSITY
          ELSE IF (ENTRY.EQ."MAXIMAGESEPARATION") THEN
             READ(VAL,*) IMSEPMAX
-         ELSE IF (ENTRY.EQ."MAXIMAGESEPARATION") THEN
+         ELSE IF (ENTRY.EQ."MINIMAGESEPARATION") THEN
             READ(VAL,*) IMSEPMIN
          ! spring constant
          ELSE IF (ENTRY.EQ."KSPRING") THEN 
@@ -263,7 +263,7 @@ MODULE QCISETUP
             READ(VAL, *) MAXERISE
          
          !QCI resetting
-         ELSE IF (ENTRY.EQ."") THEN
+         ELSE IF (ENTRY.EQ."QCIRESET") THEN
             QCIRESET = .TRUE.
             READ(VAL, *) QCIRESETINT1
          !checking repulsions

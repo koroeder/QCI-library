@@ -17,11 +17,12 @@ MODULE QCIINTERPOLATION
          USE CONSTR_E_GRAD, ONLY: CONGRAD1, CONGRAD2, CONVERGECONTEST, CONVERGEREPTEST, &
                                   FCONMAX, FREPMAX
          USE QCIPERMDIST, ONLY: NPERMGROUP, CHECK_COMMON_CONSTR, UPDATE_ACTIVE_PERMGROUPS, GROUPACTIVE, &
-                                NPERMSIZE
+                                NPERMSIZE, CHECK_PERM_BAND
          USE QCI_CONSTRAINT_KEYS
-         USE CHIRALITY, ONLY: ASSIGNMENT_SR
+         USE CHIRALITY, ONLY: ASSIGNMENT_SR, CHIRALITY_CHECK
          USE ADDINGATOM, ONLY: ADDATOM
-         USE REPULSION, ONLY: NREPULSIVE
+         USE REPULSION, ONLY: NREPULSIVE, CHECKREP
+         USE ADDREMOVE_IMAGES, ONLY: ADD_IMAGE, REMOVE_IMAGE
          IMPLICIT NONE
          INTEGER :: NBEST, NITERDONE, FIRSTATOM, NCONCUTABSINC, NDECREASE, NFAIL, NLASTGOODE
          INTEGER :: J1
@@ -81,9 +82,7 @@ MODULE QCIINTERPOLATION
          NTRIES(CONJ(NBEST))=1
          NREPULSIVE=0
          NCONSTRAINTON=1
-         CONION(1)=CONI(NBEST)
-         CONJON(1)=CONJ(NBEST)
-
+         
          ! add constraints and repulsions for all frozen atoms
          IF (QCIFREEZET) THEN
             CALL ADD_CONSTR_AND_REP_FROZEN_ATOMS(NBEST)
@@ -117,6 +116,8 @@ MODULE QCIINTERPOLATION
          NLASTGOODE = 0
          QCICONVT = .FALSE.
          ADDATOMT = .TRUE.
+         NCONCUTABSINC = 0
+         CONCUTABSINC=.FALSE.
 
          ! now enter main loop and add atom by atom going through congrad routines as we go along
          DO WHILE (NITERDONE.LT.MAXITER)
@@ -158,8 +159,7 @@ MODULE QCIINTERPOLATION
             IF (QCIPERMT.AND.(MOD(NITERDONE-1,QCIPERMCHECKINT).EQ.0)) THEN
                IF (CHECKCHIRAL) THEN
                   WRITE(*,*) " QCIinterp> Checking chirality across band"
-                  CALL CHIRALITY_CHECK() !line 1152
-                  !TODO: need to complete this subroutine - discussion how we replace/fix issues with chirality
+                  CALL CHIRALITY_CHECK(XYZ) 
                END IF
                !update active permutational groups
                WRITE(*,*) " QCIinterp> Updating active permutational groups"

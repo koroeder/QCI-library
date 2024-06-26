@@ -146,6 +146,8 @@ MODULE HELPER_FNCTS
          CHARACTER(*), DIMENSION(NWORDS), INTENT(OUT) :: WORDSOUT
          INTEGER:: J1,START_IND,END_IND,J2
          CHARACTER(25) :: WORD
+
+         ! WRITE(*,*) " read_line> ", LINE
          START_IND=0
          END_IND=0
          J1=1

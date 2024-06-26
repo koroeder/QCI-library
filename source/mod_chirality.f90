@@ -54,6 +54,8 @@ MODULE CHIRALITY
             RETURN
          END IF
 
+         PREV_SR = .FALSE.
+
          DO J1=1,NCHIRAL
             CENTREACTIVE = .TRUE.
             CHIRALCENTRE = CHIR_INFO(J1,1)

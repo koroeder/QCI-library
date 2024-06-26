@@ -22,7 +22,7 @@ MODULE QCI_INTERFACE
       ! The call to setup endpoints only allocates the starting point coordinate arrays and sets NATOMS
       SUBROUTINE PASS_DATA(NATS, XS, XF)
 #ifdef __QCI       
-         USE MOD_INTCOORDS, ONLY: SETUP_ENDPOINTS
+         USE MOD_INTCOORDS, ONLY: SETUP_ENDPOINTS, XSTART, XFINAL
 #endif
          IMPLICIT NONE
          INTEGER, INTENT(IN) :: NATS

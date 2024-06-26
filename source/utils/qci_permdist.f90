@@ -143,7 +143,9 @@ MODULE QCIPERMDIST
             ENDDO
             CLOSE(PERMUNIT)
             MAXNSETS=SIZE(SETS,2)
-
+         ELSE 
+            WRITE(*,*) " init_permallow> Cannot find perm.allow file"
+            STOP
          END IF
       END SUBROUTINE INIT_PERMALLOW
 
@@ -340,6 +342,7 @@ MODULE QCIPERMDIST
          USE QCIKEYS, ONLY: NATOMS, DEBUG, BOXLX, BOXLY, BOXLZ, BULKT, TWOD, RIGID, STOCKT
          USE QCIPREC
          USE INTERPOLATION_KEYS, ONLY: ATOMACTIVE
+         USE QCIMINDIST, ONLY: FIND_ALIGNMENT
          IMPLICIT NONE
          ! input and output variables
          REAL(KIND = REAL64), INTENT(INOUT) :: COORDSA(3*NATOMS), COORDSB(3*NATOMS) ! coordinates for structure A and B
@@ -831,7 +834,7 @@ MODULE QCIPERMDIST
          BESTPERM(1:NATOMS)=ALLPERM(1:NATOMS)
          ! At this point NEWPERM, ALLPERM, SAVEPERM, BESTPERM
          ! are all the same!
-         CALL NEWMINDIST(DUMMYB,XBEST,NATOMS,DISTANCE,BULKT,TWOD,'AX    ',.FALSE.,RIGID,DEBUG,RMAT,DWORST)
+         CALL FIND_ALIGNMENT(NATOMS, DUMMYB, XBEST, DISTANCE, RMAT)
          IF (DEBUG) PRINT '(A,G20.10)',' lopermdist> after overall alignment distance=',DISTANCE
          RMATBEST(1:3,1:3)=RMAT(1:3,1:3)
          
@@ -872,6 +875,8 @@ MODULE QCIPERMDIST
          YVEC(1)=0.0D0; YVEC(2)=1.0D0; YVEC(3)=0.0D0
          ZVEC(1)=0.0D0; ZVEC(2)=0.0D0; ZVEC(3)=1.0D0
 
+         CMX=0.0D0; CMY=0.0D0; CMZ=0.0D0
+
          ! Move centre of mass to the origin.
          DO I=1,NATOMS
             CMX=CMX+Q1(3*(I-1)+1)
@@ -890,6 +895,8 @@ MODULE QCIPERMDIST
          DMAX=-1.0D0
          NORBIT1=1
 
+         JMAX1 = -1
+
          DO J1=1,NATOMS
             DIST(J1)=SQRT(Q1(3*(J1-1)+1)**2+Q1(3*(J1-1)+2)**2+Q1(3*(J1-1)+3)**2)
             IF (ABS(DIST(J1)-DMAX).LT.CUTOFF1) THEN
@@ -903,6 +910,8 @@ MODULE QCIPERMDIST
                JMAX1=J1
             ENDIF
          ENDDO 
+         ! the following debug statement overcomes a runtime bug of uninitialised values - not sure why - likely a code optimisation somewhere
+         IF (DEBUG) WRITE(*,*) " myorient> Atom chosen is ", J1, " with distance ", DMAX
 
          ! For tagged atoms the choice of the first atom matters if it belongs to an orbit of size > 1.
          IF ((ABS(Q1(3*(JMAX1-1)+1)).LT.1.0D-8).AND.(ABS(Q1(3*(JMAX1-1)+2)).LT.1.0D-8)) THEN

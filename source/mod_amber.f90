@@ -137,7 +137,7 @@ MODULE AMBER_CONSTRAINTS
          IMPLICIT NONE
          INTEGER :: I, START, END
          
-         IF (.NOT.ALLOCATED(ATOMS2RES)) DEALLOCATE(ATOMS2RES)
+         IF (ALLOCATED(ATOMS2RES)) DEALLOCATE(ATOMS2RES)
          ALLOCATE(ATOMS2RES(NATOMS))
 
          DO I=1,NRES
@@ -150,7 +150,9 @@ MODULE AMBER_CONSTRAINTS
 
 
       SUBROUTINE AMBER_QCI_DEALLOCATE()
+         USE QCIKEYS, ONLY: ISBBATOM
          IF (ALLOCATED(BACKBONE)) DEALLOCATE(BACKBONE)
+         IF (ALLOCATED(ISBBATOM)) DEALLOCATE(ISBBATOM)
          IF (ALLOCATED(BIOCONSTR)) DEALLOCATE(BIOCONSTR)
          IF (ALLOCATED(BONDS)) DEALLOCATE(BONDS)
          IF (ALLOCATED(ANGLES)) DEALLOCATE(ANGLES)
@@ -171,6 +173,9 @@ MODULE AMBER_CONSTRAINTS
          CHARACTER(LEN=4) :: ATNAME
          INTEGER :: J1
 
+         ALLOCATE(ISBBATOM(NATOMS))
+
+         NDUMMY = 0
          DO J1=1,NATOMS
             ATNAME = ADJUSTL(TRIM(AMBER_NAMES(J1)))
             IF ((ATNAME.EQ.'C').OR.(ATNAME.EQ.'O').OR.(ATNAME.EQ.'N').OR.(ATNAME.EQ.'H').OR.(ATNAME.EQ.'CA') &
@@ -575,7 +580,7 @@ MODULE AMBER_CONSTRAINTS
                      NDUMMY = NDUMMY+1               
                      IF(NDUMMY.GT.NATOMS) EXIT
                   ENDDO
-                  RES_END(NDUMMY-1) = NATOMS
+                  IF(NDUMMY.GT.NATOMS) EXIT
                ENDDO
             ENDIF
 
@@ -586,7 +591,7 @@ MODULE AMBER_CONSTRAINTS
                IF (NLINES*10.LT.NBONDH*3) NLINES=NLINES+1
                ALLOCATE(INDICES(10*NLINES))
                DO J1=1,NLINES
-                  READ(TOPUNIT,*) ENTRY
+                  READ(TOPUNIT,'(A)') ENTRY
                   LINECOUNTER = LINECOUNTER + 1
                   CALL READ_LINE(ENTRY,NWORDS,ENTRIES)
                   DO J2=1,10
@@ -595,8 +600,8 @@ MODULE AMBER_CONSTRAINTS
                END DO
                DO J1=1,NBONDH
                   IDX = (J1-1)*3
-                  BONDS(IDX,1) = INDICES(IDX+1)/3+1
-                  BONDS(IDX,2) = INDICES(IDX+2)/3+1
+                  BONDS(J1,1) = INDICES(IDX+1)/3+1
+                  BONDS(J1,2) = INDICES(IDX+2)/3+1
                END DO
                DEALLOCATE(INDICES)
             END IF
@@ -608,7 +613,7 @@ MODULE AMBER_CONSTRAINTS
                IF (NLINES*10.LT.NBONDA*3) NLINES=NLINES+1
                ALLOCATE(INDICES(10*NLINES))
                DO J1=1,NLINES
-                  READ(TOPUNIT,*) ENTRY
+                  READ(TOPUNIT,'(A)') ENTRY
                   LINECOUNTER = LINECOUNTER + 1
                   CALL READ_LINE(ENTRY,NWORDS,ENTRIES)
                   DO J2=1,10
@@ -617,8 +622,8 @@ MODULE AMBER_CONSTRAINTS
                END DO
                DO J1=1,NBONDA
                   IDX = (J1-1)*3
-                  BONDS(NBONDH+IDX,1) = INDICES(IDX+1)/3+1
-                  BONDS(NBONDH+IDX,2) = INDICES(IDX+2)/3+1
+                  BONDS(NBONDH+J1,1) = INDICES(IDX+1)/3+1
+                  BONDS(NBONDH+J1,2) = INDICES(IDX+2)/3+1
                END DO
                DEALLOCATE(INDICES)
             END IF
@@ -626,11 +631,11 @@ MODULE AMBER_CONSTRAINTS
             IF (ENTRIES(2).EQ. 'ANGLES_INC_HYDROGEN') THEN
                READ(TOPUNIT,*)                             !ignore format identifier after flag
                LINECOUNTER = LINECOUNTER + 1
-               NLINES=(3*NANGH)/10
-               IF (NLINES*10.LT.NANGH*3) NLINES=NLINES+1
+               NLINES=(4*NANGH)/10
+               IF (NLINES*10.LT.NANGH*4) NLINES=NLINES+1
                ALLOCATE(INDICES(10*NLINES))
                DO J1=1,NLINES
-                  READ(TOPUNIT,*) ENTRY
+                  READ(TOPUNIT,'(A)') ENTRY
                   LINECOUNTER = LINECOUNTER + 1
                   CALL READ_LINE(ENTRY,NWORDS,ENTRIES)
                   DO J2=1,10
@@ -639,8 +644,8 @@ MODULE AMBER_CONSTRAINTS
                END DO
                DO J1=1,NANGH
                   IDX = (J1-1)*3
-                  ANGLES(IDX,1) = INDICES(IDX+1)/3+1 ! atom i 
-                  ANGLES(IDX,2) = INDICES(IDX+3)/3+1 ! atom k
+                  ANGLES(J1,1) = INDICES(IDX+1)/3+1 ! atom i 
+                  ANGLES(J1,2) = INDICES(IDX+3)/3+1 ! atom k
                END DO
                DEALLOCATE(INDICES)
             END IF
@@ -648,11 +653,11 @@ MODULE AMBER_CONSTRAINTS
             IF (ENTRIES(2).EQ. 'ANGLES_WITHOUT_HYDROGEN') THEN
                READ(TOPUNIT,*)                             !ignore format identifier after flag
                LINECOUNTER = LINECOUNTER + 1
-               NLINES=(3*NANGH)/10
-               IF (NLINES*10.LT.NANGA*3) NLINES=NLINES+1
+               NLINES=(4*NANGA)/10
+               IF (NLINES*10.LT.NANGA*4) NLINES=NLINES+1
                ALLOCATE(INDICES(10*NLINES))
                DO J1=1,NLINES
-                  READ(TOPUNIT,*) ENTRY
+                  READ(TOPUNIT,'(A)') ENTRY
                   LINECOUNTER = LINECOUNTER + 1
                   CALL READ_LINE(ENTRY,NWORDS,ENTRIES)
                   DO J2=1,10
@@ -661,8 +666,8 @@ MODULE AMBER_CONSTRAINTS
                END DO
                DO J1=1,NANGA
                   IDX = (J1-1)*3
-                  ANGLES(NANGH+IDX,1) = INDICES(IDX+1)/3+1 ! atom i 
-                  ANGLES(NANGH+IDX,2) = INDICES(IDX+3)/3+1 ! atom k
+                  ANGLES(NANGH+J1,1) = INDICES(IDX+1)/3+1 ! atom i 
+                  ANGLES(NANGH+J1,2) = INDICES(IDX+3)/3+1 ! atom k
                END DO
                DEALLOCATE(INDICES)
             END IF

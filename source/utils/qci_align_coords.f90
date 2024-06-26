@@ -92,6 +92,8 @@ MODULE QCIMINDIST
          REAL(KIND = REAL64) :: Q1, Q2, Q3, Q4
          INTEGER :: I, J, JMIN, INFO
 
+         JMIN = -1
+
          ! Analystic method based on quaternions and general angle-axis
          ! See: Kearsley, Acta Cryst. A, 45, 208-210, 1989
          !      Griffiths, Niblett and Wales, JCTC, 13, 4914-1931, 2017
