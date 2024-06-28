@@ -53,7 +53,7 @@ MODULE QCIPERMDIST
    ! minperm variables
    ! Save the largest arrays between iterations to reduce allocations.
    ! cc, kk: Sparse matrix of distances
-   INTEGER, ALLOCATABLE :: CC(:), KK(:)
+   INTEGER(KIND=INT64), ALLOCATABLE :: CC(:), KK(:)
 
    !start and end indices and active groups
    LOGICAL, ALLOCATABLE :: GROUPACTIVE(:)
@@ -225,7 +225,7 @@ MODULE QCIPERMDIST
 
             CALL LOPERMDIST(COORDSB,COORDSA,DISTANCE,DIST2,RMATBEST,PERMGROUPIDX,NMOVEP,PERMP)
    
-            IF (NMOVEP.GT.0)  THEN
+            IF (DEBUG.AND.NMOVEP.GT.0)  THEN
                WRITE(*,*) ' check_perm_band> group ',PERMGROUPIDX,' alignment of images ',SECONDIMAGE,FIRSTIMAGE,' moves=',&
                           NMOVEP, ' permutations, distance =',DISTANCE    
             END IF
@@ -1238,7 +1238,7 @@ MODULE QCIPERMDIST
          DO I=0,N
             FIRST(I+1) = I*M + 1
          ENDDO
-   
+
          IF (M.EQ.N) THEN
             ! compute the full matrix
             DO I=1,N
@@ -1311,6 +1311,7 @@ MODULE QCIPERMDIST
                END DO
             END DO
          ENDIF
+
 
          ! Call bipartite matching routine
          CALL JOVOSAP(N8, SZ8, CC, KK, FIRST, X, Y, U, V, H)
@@ -1418,7 +1419,8 @@ MODULE QCIPERMDIST
          IMPLICIT NONE
          INTEGER, INTENT(IN) :: N ! number of rows and columns
          INTEGER, INTENT(IN) :: SZ
-         INTEGER, INTENT(INOUT) :: CC(SZ), KK(SZ), FIRST(N+1)
+         INTEGER(KIND = INT64), INTENT(INOUT) :: CC(SZ), KK(SZ)
+         INTEGER, INTENT(INOUT) :: FIRST(N+1)
          INTEGER, INTENT(OUT) :: X(N)   ! X = COL ASSIGNED TO ROW
          INTEGER, INTENT(OUT) :: Y(N)   ! Y = ROW ASSIGNED TO COL
          INTEGER, INTENT(OUT) :: U(N)   ! U = DUAL ROW VARIABLE
@@ -1428,7 +1430,7 @@ MODULE QCIPERMDIST
          INTEGER, PARAMETER :: BIGINT = HUGE(1)
          INTEGER :: J, J0, J1, I, I0, K, L, L0, T, T0, CNT
          INTEGER :: TODO(N), FREE(N), MIN, D(N)
-         INTEGER :: V0, VJ
+         INTEGER(KIND = INT64) :: V0, VJ
          LOGICAL :: OK(N)
 
 
@@ -1478,7 +1480,9 @@ MODULE QCIPERMDIST
                DO T=FIRST(I),FIRST(I+1)-1
                   J = KK(T)
                   IF (J.EQ.J1) CYCLE
-                  IF (CC(T)-V(J).LT.MIN) MIN=CC(T)-V(J)
+                  IF (CC(T)-V(J).LT.MIN) THEN 
+                     MIN=CC(T)-V(J)
+                  END IF
                ENDDO
                V(J1)=V(J1)-MIN
             END IF

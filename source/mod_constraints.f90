@@ -66,6 +66,7 @@ MODULE QCICONSTRAINTS
          END IF
          !finally, get list of constraints and maximum number of constraints per atom
          CALL GET_NCON_PERATOM()
+         CONDISTREFLOCAL(1:NCONSTRAINT)=CONDISTREF(1:NCONSTRAINT)
       END SUBROUTINE CREATE_CONSTRAINTS
 
       SUBROUTINE GET_GEOMCONSTRAINTS()

@@ -16,7 +16,7 @@ MODULE ADDREMOVE_IMAGES
          INTEGER, INTENT(IN) :: IDXMAX
          REAL(KIND=REAL64), INTENT(OUT) :: ETOTAL, RMS
          REAL(KIND=REAL64), ALLOCATABLE :: TEMPXYZ(:), TEMPSTEP(:,:), TEMPGDIF(:,:)
-         INTEGER :: OFFSET1, OFFSET2, OFFSET3, J1, NIMAGEDUMMY
+         INTEGER :: OFFSET1, OFFSET2, OFFSET3, J1, NIMAGEDUMMY, NIMGPREV
 
          !allocate temporary arrays to save current values
          ALLOCATE(TEMPXYZ(3*NATOMS*(NIMAGES+2)))
@@ -25,6 +25,7 @@ MODULE ADDREMOVE_IMAGES
          !save XYZ coordinates
          TEMPXYZ = XYZ
          !increase number of images by 1
+         NIMGPREV = NIMAGES
          NIMAGES = NIMAGES+1
          !reallocate the interpolation coordinates
          !allocate calls deallocate first
@@ -43,28 +44,29 @@ MODULE ADDREMOVE_IMAGES
          !reallocate all associated variables now
          CALL ALLOC_STEPTAKING()
          !write search step and gdif back into the correct variables
-         !here we need to be more careful, as no endpoints are included and IDXMAX can be 0!
-         !debug printing
-         WRITE(*,*) "addImage> Nimages: ", NIMAGES, "New image: ", IDXMAX
-         WRITE(*,*) "addImage> OFFSET1: 3*NATOMS*(IDXMAX-1) ", OFFSET1
-         WRITE(*,*) "addImage> OFFSET2: 3*NATOMS*IDXMAX     ", OFFSET2
-         WRITE(*,*) "addImage> OFFSET3: 3*NATOMS*(IDXMAX+1) ", OFFSET3
 
          DO J1=1,MUPDATE
-            IF (IDXMAX.GT.1) THEN
-               SEARCHSTEP(J1,1:OFFSET1)=TEMPSTEP(J1,1:OFFSET1)
-               GDIF(J1,1:OFFSET1)=TEMPGDIF(J1,1:OFFSET1)
+            !new version of setting up SEARCHSTEP and GDIF
+            ! if IDMAX is 1, then we have to add the new image to the start
+            IF (IDXMAX.EQ.1) THEN
+               SEARCHSTEP(J1,1:3*NATOMS) = TEMPSTEP(J1,1:3*NATOMS)
+               SEARCHSTEP(J1,3*NATOMS+1:3*NATOMS*NIMAGES) = TEMPSTEP(J1,1:3*NATOMS*NIMGPREV)
+               GDIF(J1,1:3*NATOMS) = TEMPGDIF(J1,1:3*NATOMS)
+               GDIF(J1,3*NATOMS+1:3*NATOMS*NIMAGES) = TEMPGDIF(J1,1:3*NATOMS*NIMGPREV)
+            ! if IDMAX is bigger equal to NIMAGES, the new image is the final image
+            ELSE IF (IDXMAX.EQ.NIMAGES) THEN
+               SEARCHSTEP(J1,1:3*NATOMS*NIMGPREV) = TEMPSTEP(J1,1:3*NATOMS*NIMGPREV)
+               SEARCHSTEP(J1,3*NATOMS*NIMGPREV+1:3*NATOMS*NIMAGES) = TEMPSTEP(J1,3*NATOMS*(NIMGPREV-1)+1:3*NATOMS*NIMGPREV)
+               GDIF(J1,1:3*NATOMS*NIMGPREV) = TEMPGDIF(J1,1:3*NATOMS*NIMGPREV)
+               GDIF(J1,3*NATOMS*NIMGPREV+1:3*NATOMS*NIMAGES) = TEMPGDIF(J1,3*NATOMS*(NIMGPREV-1)+1:3*NATOMS*NIMGPREV)
+            ELSE
+               SEARCHSTEP(J1,1:OFFSET2) = TEMPSTEP(J1,1:OFFSET2)
+               SEARCHSTEP(J1,OFFSET2+1:OFFSET3) = TEMPSTEP(J1,OFFSET1+1:OFFSET2)
+               SEARCHSTEP(J1,OFFSET3+1:3*NATOMS*NIMAGES) = TEMPSTEP(J1,OFFSET2+1:3*NATOMS*NIMGPREV)
+               GDIF(J1,1:OFFSET2) = TEMPGDIF(J1,1:OFFSET2)
+               GDIF(J1,OFFSET2+1:OFFSET3) = TEMPGDIF(J1,OFFSET1+1:OFFSET2)
+               GDIF(J1,OFFSET3+1:3*NATOMS*NIMAGES) = TEMPGDIF(J1,OFFSET2+1:3*NATOMS*NIMGPREV)
             END IF
-            IF (IDXMAX.LT.NIMAGES) THEN
-               SEARCHSTEP(J1,OFFSET2+1:3*NATOMS*NIMAGES) = TEMPSTEP(J1,OFFSET1+1:3*NATOMS*(NIMAGES-1))
-               GDIF(J1,OFFSET2+1:3*NATOMS*NIMAGES) = TEMPGDIF(J1,OFFSET1+1:3*NATOMS*(NIMAGES-1))
-            END IF
-            NIMAGEDUMMY = MIN(IDXMAX,NIMAGES-1)
-            WRITE(*,*) NIMAGEDUMMY
-            WRITE(*,*) "searchstep new indices: ", J1,OFFSET1+1,OFFSET2,J1,3*NATOMS*NIMAGEDUMMY+1,3*NATOMS*(NIMAGEDUMMY+1)
-            WRITE(*,*) "shapes: SEARCHSTEP - ", SHAPE(SEARCHSTEP), " TEMPSTEP - ", SHAPE(TEMPSTEP)
-            SEARCHSTEP(J1,OFFSET1+1:OFFSET2) = TEMPSTEP(J1,3*NATOMS*NIMAGEDUMMY+1:3*NATOMS*(NIMAGEDUMMY+1))
-            GDIF(J1,OFFSET1+1:OFFSET2) = TEMPGDIF(J1,3*NATOMS*NIMAGEDUMMY+1:3*NATOMS*(NIMAGEDUMMY+1))
          END DO
 
          ! before we continue check repulsion neighbour list

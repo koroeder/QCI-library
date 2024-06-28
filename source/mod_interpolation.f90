@@ -184,11 +184,11 @@ MODULE QCIINTERPOLATION
             ! spring constant dynamic adjustment
             IF (QCIADJUSTKT.AND.MOD(NITERDONE,QCIADJUSTKFRQ).EQ.0) THEN
                IF (QCIAVDEV.GT.QCIADJUSTKTOL) THEN
-                  WRITE(*,*) " QCIinterp> Lowering spring constant from ", KINT, " to ", MIN(KINT*QCIADJUSTKFRAC,QCIKINTMAX)
-                  KINT=MIN(KINT*QCIADJUSTKFRAC,QCIKINTMAX)
-               ELSE IF (QCIAVDEV.LT.QCIADJUSTKTOL) THEN
+                  WRITE(*,*) " QCIinterp> Lowering spring constant from ", KINT, " to ", MAX(KINT/QCIADJUSTKFRAC,QCIKINTMIN)
                   KINT=MAX(KINT/QCIADJUSTKFRAC,QCIKINTMIN)
-                  WRITE(*,*) " QCIinterp> Increasing spring constant from ", KINT, " to ", MAX(KINT*QCIADJUSTKFRAC,QCIKINTMAX)
+               ELSE IF (QCIAVDEV.LT.QCIADJUSTKTOL) THEN
+                  KINT=MIN(KINT*QCIADJUSTKFRAC,QCIKINTMAX)
+                  WRITE(*,*) " QCIinterp> Increasing spring constant from ", KINT, " to ", MIN(KINT*QCIADJUSTKFRAC,QCIKINTMAX)
                END IF
             END IF
 
@@ -410,8 +410,8 @@ MODULE QCIINTERPOLATION
          SUME = SUME/NIMAGES
          SUME2 = SUME2/(NIMAGES-1)
          SIGMAE = SQRT(MAX(SUME2-SUME**2,1.0D-100))
-         WRITE(*,*) " get_interp_stat> The highest image ", JMAX, " with energy ", MAXE, " is ", ABS(MAXE-SUME)/SIGMAE, " sigma from the mean"
-         WRITE(*,*) "                  The average energy per image is ", SUME, " with variance of ", SUME2
+         WRITE(*,'(A,I6,A,F15.5,A,F15.5,A)') " get_interp_stat> The highest image ", JMAX, " with energy ", MAXE, " is ", ABS(MAXE-SUME)/SIGMAE, " sigma from the mean"
+         WRITE(*,'(A,F15.5,A,F15.5)') "                  The average energy per image is ", SUME, " with variance of ", SUME2
          WRITE(*,*)
 
       END SUBROUTINE GET_STATISTIC_INTERP
@@ -455,9 +455,9 @@ MODULE QCIINTERPOLATION
                JMIN = J1
             END IF
          END DO
-         WRITE(*,*) " get_image_separation> The largest distance between images is ", DMAX
-         WRITE(*,*) "                       The smallest distance between images is ", DMIN
-         WRITE(*,*) "                       The largest distance by atom is for atom,",JAMAX_ATOM," between images", JAMAX_IMG," and ", JAMAX_IMG+1
+         WRITE(*,'(A,F15.5)') " get_image_separation> The largest distance between images is ", DMAX
+         WRITE(*,'(A,F15.5)') "                       The smallest distance between images is ", DMIN
+         WRITE(*,'(A,I6,A,I4,A,I4)') "                       The largest distance by atom is for atom ",JAMAX_ATOM," between images", JAMAX_IMG," and ", JAMAX_IMG+1
       END SUBROUTINE GET_IMAGE_SEPARATION
 
 

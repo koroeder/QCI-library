@@ -65,7 +65,6 @@ MODULE ADDINGATOM
          !Set variable for tracking whether we completed adding atoms
          MORETOADD = .TRUE.
          DO WHILE (MORETOADD)
-            WRITE(*,*) "NADDED: ", NADDED, "NTOADD: ", NTOADD
             !get list of atoms by number of constraints to current active atoms
             CALL CREATE_NCONTOACTIVE_LIST(INVDTOACTIVE,NMAXCON)
             !find the next atom to be added
@@ -79,8 +78,8 @@ MODULE ADDINGATOM
                END IF
             END IF
             
-            WRITE(*,*) " addatom> Adding atom ", NEXTATOM, ", which has ", NCONTOACT, " constraints to active set out of maximum ", NMAXCON
-            WRITE(*,*) "          Shortest distance constraint to active set is: ", SHORTESTCON
+            WRITE(*,'(A,I6,A,I4,A,I4)') "  addatom> Adding atom ", NEXTATOM, ", which has ", NCONTOACT, " constraints to active set out of maximum ", NMAXCON
+            WRITE(*,'(A,F8.4)') "           Shortest distance constraint to active set is: ", SHORTESTCON
 
             ! The interpolation for the new atom relies on a local axis system formed by three atoms.
             ! We look for a sorted list, according to how well the end point distace is preserved.
@@ -456,7 +455,7 @@ MODULE ADDINGATOM
 
       SUBROUTINE UPDATE_CONSTRAINTS(NEWATOM,NCONNEWATOM,BESTCONDIST,BESTCONIDX)
          USE QCIKEYS, ONLY: NATOMS, DEBUG
-         USE INTERPOLATION_KEYS, ONLY: CONACTIVE, ATOMACTIVE
+         USE INTERPOLATION_KEYS, ONLY: CONACTIVE, ATOMACTIVE, NCONSTRAINTON
          USE QCI_CONSTRAINT_KEYS, ONLY: NCONSTRAINT, CONI, CONJ, CONDISTREF, MAXCONUSE
          USE HELPER_FNCTS, ONLY: DISTANCE_TWOATOMS
          USE MOD_INTCOORDS, ONLY: XSTART, XFINAL
@@ -507,6 +506,7 @@ MODULE ADDINGATOM
                ATOM2 = CONJ(J2)
                IF (((ATOM1.EQ.NEWATOM).AND.(ATOM2.EQ.BESTCONIDX(J1))).OR.((ATOM2.EQ.NEWATOM).AND.(ATOM1.EQ.BESTCONIDX(J1)))) THEN
                   CONACTIVE(J2) = .TRUE.
+                  NCONSTRAINTON = NCONSTRAINTON + 1
                   IF (DEBUG) THEN
                      WRITE(*,'(A,I6,A,2I6)') ' addatom> Turning on constraint ',J2,' for atoms ', ATOM1, ATOM2
                   END IF
