@@ -141,6 +141,7 @@ MODULE CHIRALITY
 
 
       SUBROUTINE FIND_CHIRAL_CENTRES()
+         USE QCIKEYS, ONLY: ATOMS2RES
          USE COMPARELIST
          USE AMBER_CONSTRAINTS, ONLY: AMBER_NAMES, RESTYPE
          IMPLICIT NONE
@@ -163,7 +164,7 @@ MODULE CHIRALITY
          !remove any centre from the list with more than one Hydrogen attached
          CALL DISCOUNT_H()
          !now check all possible centres
-         NCHIRAL=0
+         NCHIRAL=0      
          DO J1=1,NATOMS
             IF (POSSIBLE_CC(J1)) THEN
                CHIRALT = .FALSE.   
@@ -297,7 +298,7 @@ MODULE CHIRALITY
                   ! in RNA we have one issue - for the C3' C2' and C4' 
                   ! can only be resolved with an additional list
                   ! in other nucleic acids we can, so if the atom name is C3', we need one more step
-                  ELSE IF ((AMBER_NAMES(J1).EQ."C3'").AND.(RESTYPE(J1).EQ."RNA")) THEN
+                  ELSE IF ((AMBER_NAMES(J1).EQ."C3'").AND.(RESTYPE(ATOMS2RES(J1)).EQ."RNA")) THEN
                      C3AT1 = DUMMY_ATS(2)
                      IF (AMBER_NAMES(C3AT1).EQ."C2'") THEN
                         FINALPRIO(3) = FINALPRIO(3) + 1
@@ -330,6 +331,7 @@ MODULE CHIRALITY
             CHIR_INFO(J1,4) = DUMMY_CHIR_INFO(J1,4)
             CHIR_INFO(J1,5) = DUMMY_CHIR_INFO(J1,5)
          ENDDO
+         WRITE(*,*) " find_chiral_centres> Completed chiral centre detection, number of chiral centres: ", NCHIRAL
          RETURN    
        END SUBROUTINE FIND_CHIRAL_CENTRES
 
@@ -502,16 +504,18 @@ MODULE CHIRALITY
          BONDEDELS(1:NATOMS,1:6) = -1    
          DO J1=1,NBOND
             ATOMID1 = BONDS(J1,1)
-            ATOMID2 = BONDS(J1,2)  
+            ATOMID2 = BONDS(J1,2)
             NBONDED(ATOMID1) = NBONDED(ATOMID1) + 1 
             NBONDED(ATOMID2) = NBONDED(ATOMID2) + 1        
             BONDEDATS(ATOMID1,NBONDED(ATOMID1)) = ATOMID2
             BONDEDELS(ATOMID1,NBONDED(ATOMID1)) = ELEMENT(ATOMID2)        
             BONDEDATS(ATOMID2,NBONDED(ATOMID2)) = ATOMID1  
-            BONDEDELS(ATOMID2,NBONDED(ATOMID2)) = ELEMENT(ATOMID1)          
-         ENDDO    
+            BONDEDELS(ATOMID2,NBONDED(ATOMID2)) = ELEMENT(ATOMID1)     
+         ENDDO   
          DO J1=1,NATOMS
-            IF (NBONDED(J1).EQ.4) POSSIBLE_CC(J1) = .TRUE.
+            IF (NBONDED(J1).EQ.4) THEN
+               POSSIBLE_CC(J1) = .TRUE.
+            END IF
          ENDDO
          RETURN
       END SUBROUTINE NBONDED_ATOMS 

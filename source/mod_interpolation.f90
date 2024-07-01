@@ -157,7 +157,7 @@ MODULE QCIINTERPOLATION
             ! Checking the permutational alignment. Maintain a list of the permutable groups where all
             ! members are active. See if we have any new complete groups. MUST update NDUMMY
             ! counter to step through permutable atom list.
-            IF (QCIPERMT.AND.(MOD(NITERDONE-1,QCIPERMCHECKINT).EQ.0)) THEN
+            IF (QCIPERMT.AND.(MOD(NITERDONE,QCIPERMCHECKINT).EQ.0)) THEN
                IF (CHECKCHIRAL) THEN
                   WRITE(*,*) " QCIinterp> Checking chirality across band"
                   CALL CHIRALITY_CHECK(XYZ) 
@@ -204,8 +204,6 @@ MODULE QCIINTERPOLATION
             GTMP(1:DIMS)=0.0D0
             ! the variables needed for step taking are either module variables in this module or saved in mod_intcoords
             CALL MAKESTEP(NITERUSE,NPT,POINT)
-
-            WRITE(*,*) "shape of g and gtmp: ", SHAPE(G), SHAPE(GTMP)
 
             IF ((DOT_PRODUCT(G,GTMP)/MAX(1.0-100,SQRT(DOT_PRODUCT(G,G))*SQRT(DOT_PRODUCT(GTMP,GTMP)))).GT.0.0D0) THEN
                IF (DEBUG) WRITE(*,*) ' QCIinterp - Search direction has positive projection onto gradient - reversing step'

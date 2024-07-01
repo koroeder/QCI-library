@@ -579,6 +579,7 @@ MODULE AMBER_CONSTRAINTS
                      ELEMENT(NDUMMY) = INTDUM
                      NDUMMY = NDUMMY+1               
                      IF(NDUMMY.GT.NATOMS) EXIT
+                     J2=J2+1
                   ENDDO
                   IF(NDUMMY.GT.NATOMS) EXIT
                ENDDO
