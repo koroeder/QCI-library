@@ -114,6 +114,7 @@ MODULE QCIINTERPOLATION
 
          NITERDONE = 0
          NITERUSE = 1
+         NPT = 0
          NLASTGOODE = 0
          QCICONVT = .FALSE.
          ADDATOMT = .TRUE.
@@ -168,13 +169,16 @@ MODULE QCIINTERPOLATION
 
                ! Checking all active groups across the band - do we have the best alignement?
                FIRSTATOM = 1
-               WRITE(*,*) " QCIinterp> Checking permutational alignment across the band"
+               WRITE(*,*) " QCIinterp> Checking permutational alignment across the band, NPERMGROUPS: ", NPERMGROUP
                DO J1=1,NPERMGROUP
                   IF (GROUPACTIVE(J1)) THEN
+                     WRITE(*,*) "check for permutational group: ", J1
                      !check permutational consistency forward
                      CALL CHECK_PERM_BAND(J1, FIRSTATOM, .FALSE.)
+                     WRITE(*,*) "completed forwards pass"
                      !check permutational consistency in reverse
                      CALL CHECK_PERM_BAND(J1, FIRSTATOM, .TRUE.)
+                     WRITE(*,*) "completed backwards pass"
                   END IF
                   FIRSTATOM = FIRSTATOM + NPERMSIZE(J1)
                END DO
@@ -210,6 +214,7 @@ MODULE QCIINTERPOLATION
                GTMP(1:DIMS)=-GTMP(1:DIMS)
                SEARCHSTEP(POINT,1:DIMS)=GTMP(1:DIMS)
             END IF
+            STOP
             GTMP(1:DIMS)=G(1:DIMS)
             ! Take the minimum scale factor for all images for LBFGS step to avoid discontinuities
             STPMIN = 1.0D0
@@ -437,6 +442,7 @@ MODULE QCIINTERPOLATION
                IF (ATOMACTIVE(J2)) THEN
                   CALL DISTANCE_ATOM_DIFF_IMAGES(NATOMS, X1, X2, J2, DISTATOM)
                   DISTTOTAL = DISTTOTAL + DISTATOM
+                  ! WRITE(*,*) "images", J1, J1+1, "atom ", J2, " distance: ", DISTATOM 
                   IF (DISTATOM.GT.ADMAX) THEN
                      ADMAX = DISTATOM
                      JAMAX_ATOM = J2

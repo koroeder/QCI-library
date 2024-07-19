@@ -30,9 +30,10 @@ MODULE CONSTR_E_GRAD
          INTEGER :: J1, J2
 
          ! initiate some variables
-         EEE(1:NIMAGES+2)=0.0D0
-         GGG(1:(3*NATOMS)*(NIMAGES+2))=0.0D0
+         EEE(1:NIMAGES+2)=0.0D0; EEEC(1:NIMAGES+2)=0.0D0; EEER(1:NIMAGES+2)=0.0D0; EEES(1:NIMAGES+2)=0.0D0
+         GGG(1:(3*NATOMS)*(NIMAGES+2))=0.0D0; GGGC(1:(3*NATOMS)*(NIMAGES+2))=0.0D0; GGGR(1:(3*NATOMS)*(NIMAGES+2))=0.0D0; GGGS(1:(3*NATOMS)*(NIMAGES+2))=0.0D0
          ECON = 0.0D0; EREP = 0.0D0; ESPR = 0.0D0
+
 
          ! QUERY: what is INTCONSTRAINTDEL? seems like a scaling for the potential
          IF (.NOT.(INTCONSTRAINTDEL.EQ.0.0D0)) THEN

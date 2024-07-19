@@ -94,7 +94,7 @@ MODULE CHIRALITY
                   PREVIMAGE = 3*NATOMS*(J3-2)
                   DO J4=RES_START(ACID),RES_END(ACID)
                      IF (.NOT.ATOMACTIVE(J4)) CYCLE
-                     WRITE(*,*) " chirality_check> Changing active atom ", J4, " in image ", J3
+                     ! WRITE(*,*) " chirality_check> Changing active atom ", J4, " in image ", J3
                      NCHANGE=NCHANGE+1
                      CHANGEAT(NCHANGE)=J4
                      OFFSET = 3*(NCHANGE-1)

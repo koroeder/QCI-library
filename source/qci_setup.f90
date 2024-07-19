@@ -77,7 +77,7 @@ MODULE QCISETUP
 
          !QUERY: will lopermdist actually change coordinates or do we need a wrapper to do so?
          CALL LOPERMDIST(XFINAL,XSTART,E2E_DIST,DIST2,RMATBEST,0,NMOVE,NEWPERM)
-
+         WRITE(*,*) " align_endpoints> Distance between endpoints is ", E2E_DIST
 
       END SUBROUTINE ALIGN_ENDPOINTS
 

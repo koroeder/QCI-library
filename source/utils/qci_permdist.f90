@@ -218,6 +218,7 @@ MODULE QCIPERMDIST
                FIRSTIMAGE = J1 + 2
             END IF 
             SECONDIMAGE = J1+1
+            !WRITE(*,*) "Checking images ", FIRSTIMAGE, SECONDIMAGE
             !coordinates for image 1
             COORDSB(1:3*NATOMS) = XYZ((3*NATOMS*(FIRSTIMAGE-1)+1):3*NATOMS*FIRSTIMAGE)
             !coordinates for image 2
@@ -231,12 +232,13 @@ MODULE QCIPERMDIST
             END IF
 
             !swap atoms if we found a better permutational alignment
-            IF ((NMOVEP.GT.0).AND.PBETTER) THEN 
+            IF ((NMOVEP.GT.0).AND.PBETTER) THEN
+               WRITE(*,*) " Moving ", NMOVEP, " atoms in image ", SECONDIMAGE
                COORDSA(1:3*NATOMS) = XYZ((3*NATOMS*(SECONDIMAGE-1)+1):3*NATOMS*SECONDIMAGE) 
                DO J2=1,NPERMSIZE(PERMGROUPIDX)
                   IDX = PERMGROUP(FIRSTATOM+J2-1)
                   IF (PERMP(IDX).NE.IDX) THEN
-                     WRITE(*,*) ' check_perm_band> image ',SECONDIMAGE,' move atom ',PERMP(IDX),' to position ',IDX
+                     !WRITE(*,*) ' check_perm_band> image ',SECONDIMAGE,' move atom ',PERMP(IDX),' to position ',IDX
                      COORDSA(3*(IDX-1)+1)=XYZ(3*NATOMS*(SECONDIMAGE-1)+3*(PERMP(IDX)-1)+1)
                      COORDSA(3*(IDX-1)+2)=XYZ(3*NATOMS*(SECONDIMAGE-1)+3*(PERMP(IDX)-1)+2)
                      COORDSA(3*(IDX-1)+3)=XYZ(3*NATOMS*(SECONDIMAGE-1)+3*(PERMP(IDX)-1)+3)
@@ -245,6 +247,7 @@ MODULE QCIPERMDIST
                XYZ((3*NATOMS*(SECONDIMAGE-1)+1):3*NATOMS*SECONDIMAGE) = COORDSA(1:3*NATOMS)
             ENDIF
          END DO
+         !WRITE(*,*) "Completed perm band check"
       END SUBROUTINE CHECK_PERM_BAND
 
       SUBROUTINE CHECK_COMMON_CONSTR()
