@@ -109,7 +109,6 @@ MODULE ADDINGATOM
                IF (QCITRILATERATION) THEN
                   CALL TRILATERATE_ATOMS(NEXTATOM,BESTCONIDX,BESTCONDIST)
                END IF
-               !TODO: add the routines and vairables below into use namespaces
                ! before we continue check repulsion neighbour list
                CALL CHECKREP(XYZ,NNREPSAVE,NREPSAVE+1)
                ! call congrad routine
@@ -131,7 +130,6 @@ MODULE ADDINGATOM
                IF (QCITRILATERATION) THEN
                   CALL TRILATERATE_ATOMS(NEXTATOM,BESTIDX,BESTDIST)
                END IF
-               !TODO: add the routines and vairables below into use namespaces
                ! before we continue check repulsion neighbour list
                !TODO: check checkrep here and in the original version match up
                CALL CHECKREP(XYZ,NNREPSAVE,NREPSAVE+1)
@@ -158,7 +156,7 @@ MODULE ADDINGATOM
                   !there is always at least one constraint!
                   CONONEOFFSET = 3*(BESTCONIDX(1)-1)
                   STARTWEIGHT = FRAC*(NIMAGES+1-J1)/(NIMAGES+1) 
-                  ENDWEIGHT = J1/(NIMAGES+1) 
+                  ENDWEIGHT = 1.0D0*J1/(NIMAGES+1) !need to keep this 1.0D0* in here to convert the type correctly
                   !X coordinate
                   XYZ(THISIMAGE+NEWATOMOFFSET+1) = XYZ(THISIMAGE+CONONEOFFSET+1) + STARTWEIGHT*(XYZ(NEWATOMOFFSET+1)-XYZ(CONONEOFFSET+1)) + &
                                                    ENDWEIGHT*(XYZ(ENDPOINT+NEWATOMOFFSET+1)-XYZ(ENDPOINT+CONONEOFFSET+1))
@@ -362,7 +360,7 @@ MODULE ADDINGATOM
          DO J1=2,NIMAGES+1
             !get B1,B2,B3 for current image
             CALL GET_LOCAL_AXIS(IDX1,IDX2,IDX3,J1,B1,B2,B3)
-            IMAGEOFFSET = (J1-1)*3*NIMAGES
+            IMAGEOFFSET = (J1-1)*3*NATOMS
             !position of reference atom 1
             POS1(1:3) = XYZ((IMAGEOFFSET+3*(IDX1-1)+1):(IMAGEOFFSET+3*(IDX1-1)+3))
             !place new atom usig fractional coordinates from start image
@@ -381,7 +379,7 @@ MODULE ADDINGATOM
          REAL(KIND=REAL64) :: VEC1(3), VEC2(3), VEC3(3), NORM, DOT12
          INTEGER :: IMAGEOFFSET
 
-         IMAGEOFFSET = (IMAGE-1)*3*NIMAGES
+         IMAGEOFFSET = (IMAGE-1)*3*NATOMS
          ! VEC1 is pointing from IDX1 to IDX2
          VEC1(1:3) = XYZ((IMAGEOFFSET+3*(IDX2-1)+1):((IMAGEOFFSET+3*(IDX2-1)+3))) - XYZ((IMAGEOFFSET+3*(IDX1-1)+1):((IMAGEOFFSET+3*(IDX1-1)+3))) 
          !VEC2 is pointing from IDX1 to IDX3
