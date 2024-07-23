@@ -1,1 +1,6 @@
 *.mod
+build
+*.xyz
+output
+*.log
+QCI
