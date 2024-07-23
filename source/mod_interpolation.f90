@@ -4,7 +4,7 @@ MODULE QCIINTERPOLATION
    USE QCIPREC
    IMPLICIT NONE
    LOGICAL :: QCICOMPLETE
-   
+
    CONTAINS
       SUBROUTINE RUN_QCI_INTERPOLATION()
          USE QCIKEYS, ONLY: QCIREADGUESS, QCIFREEZET, MAXITER, MAXGRADCOMP, MAXCONE, &
@@ -41,13 +41,21 @@ MODULE QCIINTERPOLATION
          REAL(KIND = REAL64), PARAMETER :: INCREASETOL = 1.1D0   
          REAL(KIND = REAL64), PARAMETER :: STPREDUCTION = 10.0D0
          INTEGER :: NITERUSE, POINT, NPT ! variables needed for lbfgs steps
+         REAL(KIND = REAL64) :: RHO1(MUPDATE), ALPHA(MUPDATE)
          REAL(KIND = REAL64) :: STPMIN ! minimum step-size
          REAL(KIND = REAL64) :: CURRMAXSEP, CURRMINSEP ! current minimum and maximum image separation
          INTEGER :: IDXMIN, IDXMAX ! id for minimum and maximum distance images
 
+         LOGICAL :: CHIRCHECK !debugging variable
+
+
+         CHIRCHECK = .FALSE.
+
          !initiate variables for the interpolation, including image density set nimage
          CALL ALLOC_INTERPOLATION_VARS()
          CALL ALLOC_STEPTAKING()
+         !RHO1 = 1.0D0
+         !ALPHA = 1.0D0
          CALL INITIALISE_INTERPOLATION_VARS()
          ! allocate the coordinate, energy and gradient variables for the band and
          ! initiate the interpolation band
@@ -163,9 +171,14 @@ MODULE QCIINTERPOLATION
                   WRITE(*,*) " QCIinterp> Checking chirality across band"
                   CALL CHIRALITY_CHECK(XYZ) 
                END IF
+               WRITE(*,*) "check images after chirality check"
+               CALL GET_IMAGE_SEPARATION(CURRMINSEP,CURRMAXSEP,IDXMIN,IDXMAX)
+
                !update active permutational groups
                WRITE(*,*) " QCIinterp> Updating active permutational groups"
                CALL UPDATE_ACTIVE_PERMGROUPS()
+               WRITE(*,*) "check images after updating permutational groups"
+               CALL GET_IMAGE_SEPARATION(CURRMINSEP,CURRMAXSEP,IDXMIN,IDXMAX)
 
                ! Checking all active groups across the band - do we have the best alignement?
                FIRSTATOM = 1
@@ -182,6 +195,9 @@ MODULE QCIINTERPOLATION
                   END IF
                   FIRSTATOM = FIRSTATOM + NPERMSIZE(J1)
                END DO
+               WRITE(*,*) "check images after updating permutational check"
+               CALL GET_IMAGE_SEPARATION(CURRMINSEP,CURRMAXSEP,IDXMIN,IDXMAX)
+               CHIRCHECK=.TRUE.
             END IF
             !end of permutational checks of band
 
@@ -203,18 +219,27 @@ MODULE QCIINTERPOLATION
                !scale gradient if necessary
                IF (MAXGRADCOMP.GT.0.0D0) CALL SCALEGRAD(DIMS,G,RMS,MAXGRADCOMP)
                NLASTGOODE=NITERDONE
+               IF (CHIRCHECK) THEN
+                  WRITE(*,*) "check images after adding atom"
+                  CALL GET_IMAGE_SEPARATION(CURRMINSEP,CURRMAXSEP,IDXMIN,IDXMAX)
+               END IF
             END IF
 
             GTMP(1:DIMS)=0.0D0
             ! the variables needed for step taking are either module variables in this module or saved in mod_intcoords
-            CALL MAKESTEP(NITERUSE,NPT,POINT)
+            CALL MAKESTEP(NITERUSE,NPT,POINT,RHO1,ALPHA)
+
+            IF (CHIRCHECK) THEN
+               WRITE(*,*) "check images after make step"
+               CALL GET_IMAGE_SEPARATION(CURRMINSEP,CURRMAXSEP,IDXMIN,IDXMAX)
+            END IF
 
             IF ((DOT_PRODUCT(G,GTMP)/MAX(1.0-100,SQRT(DOT_PRODUCT(G,G))*SQRT(DOT_PRODUCT(GTMP,GTMP)))).GT.0.0D0) THEN
                IF (DEBUG) WRITE(*,*) ' QCIinterp - Search direction has positive projection onto gradient - reversing step'
                GTMP(1:DIMS)=-GTMP(1:DIMS)
                SEARCHSTEP(POINT,1:DIMS)=GTMP(1:DIMS)
             END IF
-            STOP
+
             GTMP(1:DIMS)=G(1:DIMS)
             ! Take the minimum scale factor for all images for LBFGS step to avoid discontinuities
             STPMIN = 1.0D0
@@ -230,9 +255,26 @@ MODULE QCIINTERPOLATION
 
             ACCEPTEDSTEP = .FALSE.
             NDECREASE = 0
+
+            IF (CHIRCHECK) THEN
+               WRITE(*,*) "check images after applying search step"
+               CALL GET_IMAGE_SEPARATION(CURRMINSEP,CURRMAXSEP,IDXMIN,IDXMAX)
+            END IF
+
             DO WHILE(.NOT.ACCEPTEDSTEP)
+
+
                !apply our step to our coordinates
                X(1:DIMS) = X(1:DIMS) + STP(1:DIMS)*SEARCHSTEP(POINT,1:DIMS)
+
+               IF (CHIRCHECK) THEN
+                  WRITE(*,*) "STP: ", STP
+                  WRITE(*,*) "SEARCHSTEP: ", SEARCHSTEP
+                  WRITE(*,*) "X: ", X
+                  WRITE(*,*) "check images after updating coordinates"
+                  CALL GET_IMAGE_SEPARATION(CURRMINSEP,CURRMAXSEP,IDXMIN,IDXMAX)
+                  STOP
+               END IF
 
                !adding or removing images if required
                IF (MOD(NITERDONE,QCIIMAGECHECK).EQ.0) THEN
@@ -392,6 +434,7 @@ MODULE QCIINTERPOLATION
             THISE = EEE(I)
             SUME = SUME + THISE
             SUME2 = SUME2 + THISE**2
+            !WRITE(*,*) "Image: ", I, " energy: ", THISE
             IF (THISE.GT.MAXE) THEN
                MAXE = THISE
                JMAX = I
@@ -407,14 +450,15 @@ MODULE QCIINTERPOLATION
             IF (THISRMS.GT.MAXRMS) THEN
                MAXRMS = THISRMS
             END IF
+            !WRITE(*,*) "Image: ", I, " rms: ", THISRMS
          END DO
 
          MAXRMS = SQRT(MAXRMS/(3*NACTIVE))
          SUME = SUME/NIMAGES
          SUME2 = SUME2/(NIMAGES-1)
          SIGMAE = SQRT(MAX(SUME2-SUME**2,1.0D-100))
-         WRITE(*,'(A,I6,A,F15.5,A,F15.5,A)') " get_interp_stat> The highest image ", JMAX, " with energy ", MAXE, " is ", ABS(MAXE-SUME)/SIGMAE, " sigma from the mean"
-         WRITE(*,'(A,F15.5,A,F15.5)') "                  The average energy per image is ", SUME, " with variance of ", SUME2
+         WRITE(*,'(A,I6,A,F20.5,A,F20.5,A)') " get_interp_stat> The highest image ", JMAX, " with energy ", MAXE, " is ", ABS(MAXE-SUME)/SIGMAE, " sigma from the mean"
+         WRITE(*,'(A,F20.5,A,F20.5)') "                  The average energy per image is ", SUME, " with variance of ", SUME2
          WRITE(*,*)
 
       END SUBROUTINE GET_STATISTIC_INTERP
@@ -449,7 +493,8 @@ MODULE QCIINTERPOLATION
                      JAMAX_IMG = J1
                   END IF
                END IF
-            END DO
+            END DO 
+            WRITE(*,*) "Images ", J1, " and ", J1+1, " - separation: ", DISTTOTAL          
             IF (DISTTOTAL.GT.DMAX) THEN
                DMAX = DISTTOTAL
                JMAX = J1
@@ -523,16 +568,16 @@ MODULE QCIINTERPOLATION
          END IF
       END SUBROUTINE CHECK_FOR_COLDFUSION
 
-      SUBROUTINE MAKESTEP(NITERDONE,NPT,POINT)
+      SUBROUTINE MAKESTEP(NITERDONE,NPT,POINT, RHO1, ALPHA)
          USE QCIKEYS, ONLY: MUPDATE, DGUESS, NATOMS, NIMAGES
          USE MOD_INTCOORDS, ONLY: G, DIMS
          IMPLICIT NONE         
          INTEGER, INTENT(IN) :: NITERDONE
          INTEGER, INTENT(IN) :: NPT
          INTEGER, INTENT(OUT) :: POINT
+         REAL(KIND = REAL64), INTENT(INOUT) :: RHO1(MUPDATE), ALPHA(MUPDATE)
          REAL(KIND = REAL64) :: GNORM
          REAL(KIND = REAL64) :: YS, YY, YR, SQ, BETA
-         REAL(KIND = REAL64) :: RHO1(MUPDATE), ALPHA(MUPDATE)
          INTEGER :: BOUND, CP, I
 
          !if it is the first step, we use a cautious guess
