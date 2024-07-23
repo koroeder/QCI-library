@@ -11,6 +11,7 @@ MODULE CONSTR_E_GRAD
    REAL(KIND=REAL64) :: FCONTEST, FREPTEST
    REAL(KIND=REAL64) :: EMAXSPR
    REAL(KIND=REAL64) :: FCONMAX, FREPMAX                 ! maximum gradient
+   INTEGER :: CALLN = 0
    CONTAINS
 
       SUBROUTINE CONGRAD1(ETOTAL, XYZ, GGG, EEE, RMS)
@@ -28,6 +29,8 @@ MODULE CONSTR_E_GRAD
          REAL(KIND = REAL64) :: EEES(NIMAGES+2), GGGS(3*NATOMS*(NIMAGES+2))
 
          INTEGER :: J1, J2
+
+         CALLN = CALLN + 1
 
          ! initiate some variables
          EEE(1:NIMAGES+2)=0.0D0; EEEC(1:NIMAGES+2)=0.0D0; EEER(1:NIMAGES+2)=0.0D0; EEES(1:NIMAGES+2)=0.0D0
@@ -171,7 +174,6 @@ MODULE CONSTR_E_GRAD
          EEE(1:NIMAGES+2)=0.0D0
          GGG(1:(3*NATOMS)*(NIMAGES+2))=0.0D0
          ECON = 0.0D0
-
          DO J2=1,NCONSTRAINT
             ! only active constraints contribute
             IF (.NOT.CONACTIVE(J2)) CYCLE

@@ -141,6 +141,11 @@ MODULE QCIMINDIST
          ENDIF
          ! This is the Euclidean distance!
          DIST=SQRT(MINV)
+         IF (JMIN.EQ.-1) THEN
+            WRITE(*,*) "QMAT: ", QMAT
+            WRITE(*,*) "MINV: ", MINV, " DIST: ", DIST
+            WRITE(*,*) "DIAG: ", DIAG
+         END IF
          ! Get the rotational matrix
          Q1=QMAT(1,JMIN); Q2=QMAT(2,JMIN); Q3=QMAT(3,JMIN); Q4=QMAT(4,JMIN)
          RMAT(1,1)=Q1**2+Q2**2-Q3**2-Q4**2
