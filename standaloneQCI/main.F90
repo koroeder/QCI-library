@@ -53,4 +53,5 @@ PROGRAM QCI_STANDALONE
    !potentially do something here
    !...
    CALL QCI_TERMINATE()
+   DEALLOCATE(XS,XF,XYZ)
 END PROGRAM QCI_STANDALONE
