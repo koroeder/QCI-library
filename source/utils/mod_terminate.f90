@@ -16,6 +16,7 @@ MODULE MOD_TERMINATE
          USE REPULSION, ONLY: DEALLOC_REP_VARS
          USE ADDINGATOM, ONLY: DEALLOC_ADDATOM
          USE MOD_INTCOORDS, ONLY: XSTART, XFINAL
+         USE QCIKEYS, ONLY: DEALLOC_QCIKEYS
 
          IMPLICIT NONE
          CALL DEALLOC_INTERPOLATION_VARS()
@@ -30,6 +31,7 @@ MODULE MOD_TERMINATE
          CALL DEALLOC_QCI_LINEAR()
          CALL DEALLOC_REP_VARS()
          CALL DEALLOC_ADDATOM()
+         CALL DEALLOC_QCIKEYS()
          ! XSTART and XFINAL are special cases, and are allocated outside of a specific ALLOC routine
          ! Hence they need to be deallocated here
          !IF (ALLOCATED(XSTART)) DEALLOCATE(XSTART)

@@ -5,12 +5,25 @@ MODULE HELPER_FNCTS
    CONTAINS
 
       !> Euclidean norm of a vector
-      PURE FUNCTION EUC_NORM(V)
+      FUNCTION EUC_NORM(V)
          REAL(KIND = REAL64) :: EUC_NORM
          REAL(KIND = REAL64), INTENT(IN) :: V(3)
          
-         EUC_NORM = DSQRT(DOT_PRODUCT(V,V))
+         EUC_NORM = DSQRT(DOTP(3,V,V))
       END FUNCTION EUC_NORM
+
+      !TODO: remove DOT_PRODUCR and replace with this
+      FUNCTION DOTP(NSIZE,V1,V2)
+         REAL(KIND = REAL64) :: DOTP
+         INTEGER, INTENT(IN) :: NSIZE
+         REAL(KIND = REAL64), INTENT(IN) :: V1(NSIZE), V2(NSIZE)
+         INTEGER :: I
+         
+         DOTP = 0.0D0
+         DO I=1,NSIZE
+            DOTP = DOTP + V1(I)*V2(I)
+         END DO
+      END FUNCTION DOTP
 
       !> subroutine to get norm and normed vector
       SUBROUTINE NORM_VEC(V,VN,NORM)
@@ -50,7 +63,7 @@ MODULE HELPER_FNCTS
 
          ! calculate angle according to formula (Blondel and Karplus, 1996):
          ! phi = atan2( ([b1 x b2] x [b2 x b3]) . (b2/|b2|), [b1 x b2] . [b2 x b3] )
-         DIH = ATAN2(DOT_PRODUCT(X,B2NORM), DOT_PRODUCT(B1xB2,B2xB3))
+         DIH = ATAN2(DOTP(3,X,B2NORM), DOTP(3,B1xB2,B2xB3))
       END FUNCTION DIHEDRAL
     
       SUBROUTINE DISTANCE_SIMPLE(X1, X2, DIST)

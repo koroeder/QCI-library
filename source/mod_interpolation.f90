@@ -23,6 +23,7 @@ MODULE QCIINTERPOLATION
          USE ADDINGATOM, ONLY: ADDATOM
          USE REPULSION, ONLY: NREPULSIVE, CHECKREP
          USE ADDREMOVE_IMAGES, ONLY: ADD_IMAGE, REMOVE_IMAGE
+         USE HELPER_FNCTS, ONLY: DOTP
          IMPLICIT NONE
          INTEGER :: NBEST, NITERDONE, FIRSTATOM, NCONCUTABSINC, NDECREASE, NFAIL, NLASTGOODE
          INTEGER :: J1
@@ -45,11 +46,6 @@ MODULE QCIINTERPOLATION
          REAL(KIND = REAL64) :: STPMIN ! minimum step-size
          REAL(KIND = REAL64) :: CURRMAXSEP, CURRMINSEP ! current minimum and maximum image separation
          INTEGER :: IDXMIN, IDXMAX ! id for minimum and maximum distance images
-
-         LOGICAL :: CHIRCHECK !debugging variable
-
-
-         CHIRCHECK = .FALSE.
 
          !initiate variables for the interpolation, including image density set nimage
          CALL ALLOC_INTERPOLATION_VARS()
@@ -171,33 +167,23 @@ MODULE QCIINTERPOLATION
                   WRITE(*,*) " QCIinterp> Checking chirality across band"
                   CALL CHIRALITY_CHECK(XYZ) 
                END IF
-               WRITE(*,*) "check images after chirality check"
-               CALL GET_IMAGE_SEPARATION(CURRMINSEP,CURRMAXSEP,IDXMIN,IDXMAX)
 
                !update active permutational groups
                WRITE(*,*) " QCIinterp> Updating active permutational groups"
                CALL UPDATE_ACTIVE_PERMGROUPS()
-               WRITE(*,*) "check images after updating permutational groups"
-               CALL GET_IMAGE_SEPARATION(CURRMINSEP,CURRMAXSEP,IDXMIN,IDXMAX)
 
                ! Checking all active groups across the band - do we have the best alignement?
                FIRSTATOM = 1
                WRITE(*,*) " QCIinterp> Checking permutational alignment across the band, NPERMGROUPS: ", NPERMGROUP
                DO J1=1,NPERMGROUP
                   IF (GROUPACTIVE(J1)) THEN
-                     WRITE(*,*) "check for permutational group: ", J1
                      !check permutational consistency forward
                      CALL CHECK_PERM_BAND(J1, FIRSTATOM, .FALSE.)
-                     WRITE(*,*) "completed forwards pass"
                      !check permutational consistency in reverse
                      CALL CHECK_PERM_BAND(J1, FIRSTATOM, .TRUE.)
-                     WRITE(*,*) "completed backwards pass"
                   END IF
                   FIRSTATOM = FIRSTATOM + NPERMSIZE(J1)
                END DO
-               WRITE(*,*) "check images after updating permutational check"
-               CALL GET_IMAGE_SEPARATION(CURRMINSEP,CURRMAXSEP,IDXMIN,IDXMAX)
-               CHIRCHECK=.TRUE.
             END IF
             !end of permutational checks of band
 
@@ -219,22 +205,13 @@ MODULE QCIINTERPOLATION
                !scale gradient if necessary
                IF (MAXGRADCOMP.GT.0.0D0) CALL SCALEGRAD(DIMS,G,RMS,MAXGRADCOMP)
                NLASTGOODE=NITERDONE
-               IF (CHIRCHECK) THEN
-                  WRITE(*,*) "check images after adding atom"
-                  CALL GET_IMAGE_SEPARATION(CURRMINSEP,CURRMAXSEP,IDXMIN,IDXMAX)
-               END IF
             END IF
 
             GTMP(1:DIMS)=0.0D0
             ! the variables needed for step taking are either module variables in this module or saved in mod_intcoords
-            CALL MAKESTEP(NITERUSE,NPT,POINT,RHO1,ALPHA)
+            CALL MAKESTEP(NITERUSE,NPT,POINT,RHO1,ALPHA)          
 
-            IF (CHIRCHECK) THEN
-               WRITE(*,*) "check images after make step"
-               CALL GET_IMAGE_SEPARATION(CURRMINSEP,CURRMAXSEP,IDXMIN,IDXMAX)
-            END IF
-
-            IF ((DOT_PRODUCT(G,GTMP)/MAX(1.0-100,SQRT(DOT_PRODUCT(G,G))*SQRT(DOT_PRODUCT(GTMP,GTMP)))).GT.0.0D0) THEN
+            IF ((DOTP(DIMS,G,GTMP)/MAX(1.0-100,SQRT(DOTP(DIMS,G,G))*SQRT(DOTP(DIMS,GTMP,GTMP)))).GT.0.0D0) THEN
                IF (DEBUG) WRITE(*,*) ' QCIinterp - Search direction has positive projection onto gradient - reversing step'
                GTMP(1:DIMS)=-GTMP(1:DIMS)
                SEARCHSTEP(POINT,1:DIMS)=GTMP(1:DIMS)
@@ -244,7 +221,7 @@ MODULE QCIINTERPOLATION
             ! Take the minimum scale factor for all images for LBFGS step to avoid discontinuities
             STPMIN = 1.0D0
             DO J1=1,NIMAGES
-               STEPIMAGE(J1) = SQRT(DOT_PRODUCT(SEARCHSTEP(POINT,(3*NATOMS)*(J1-1)+1:(3*NATOMS)*J1), &
+               STEPIMAGE(J1) = SQRT(DOTP(3*NATOMS,SEARCHSTEP(POINT,(3*NATOMS)*(J1-1)+1:(3*NATOMS)*J1), &
                                                 SEARCHSTEP(POINT,(3*NATOMS)*(J1-1)+1:(3*NATOMS)*J1)))
                IF (STEPIMAGE(J1).GT.MAXQCIBFGS) THEN
                   STP((3*NATOMS)*(J1-1)+1:(3*NATOMS)*J1) = MAXQCIBFGS/STEPIMAGE(J1)
@@ -255,26 +232,10 @@ MODULE QCIINTERPOLATION
 
             ACCEPTEDSTEP = .FALSE.
             NDECREASE = 0
-
-            IF (CHIRCHECK) THEN
-               WRITE(*,*) "check images after applying search step"
-               CALL GET_IMAGE_SEPARATION(CURRMINSEP,CURRMAXSEP,IDXMIN,IDXMAX)
-            END IF
-
+            
             DO WHILE(.NOT.ACCEPTEDSTEP)
-
-
                !apply our step to our coordinates
                X(1:DIMS) = X(1:DIMS) + STP(1:DIMS)*SEARCHSTEP(POINT,1:DIMS)
-
-               IF (CHIRCHECK) THEN
-                  WRITE(*,*) "STP: ", STP
-                  WRITE(*,*) "SEARCHSTEP: ", SEARCHSTEP
-                  WRITE(*,*) "X: ", X
-                  WRITE(*,*) "check images after updating coordinates"
-                  CALL GET_IMAGE_SEPARATION(CURRMINSEP,CURRMAXSEP,IDXMIN,IDXMAX)
-                  STOP
-               END IF
 
                !adding or removing images if required
                IF (MOD(NITERDONE,QCIIMAGECHECK).EQ.0) THEN
@@ -376,8 +337,9 @@ MODULE QCIINTERPOLATION
 
             IF (DUMPQCIXYZ.AND.(MOD(NITERDONE,DUMPQCIXYZFRQS).EQ.0)) THEN
                WRITE(ITERSTRING,'(I6)') NITERDONE 
-               CALL WRITE_BAND(XYZFILE//"."//ADJUSTL(TRIM(ITERSTRING)))
-               CALL WRITE_PROFILE(EEEFILE//"."//ADJUSTL(TRIM(ITERSTRING)),EEE)
+               CALL WRITE_BAND(ADJUSTL(TRIM(XYZFILE))//"."//ADJUSTL(TRIM(ITERSTRING)))
+               CALL WRITE_ACTIVE_BAND(ADJUSTL(TRIM(XYZFILE))//".active."//ADJUSTL(TRIM(ITERSTRING)))
+               CALL WRITE_PROFILE(ADJUSTL(TRIM(EEEFILE))//"."//ADJUSTL(TRIM(ITERSTRING)),EEE)
             END IF
 
          END DO
@@ -396,6 +358,7 @@ MODULE QCIINTERPOLATION
             QCICOMPLETE = .FALSE.                     
          END IF
          CALL WRITE_BAND(XYZFILE)
+         CALL WRITE_ACTIVE_BAND(ADJUSTL(TRIM(XYZFILE))//".active")
          CALL WRITE_PROFILE(EEEFILE,EEE)
          WRITE(*,*) " QCIinterp> Leaving interpolation"
       END SUBROUTINE RUN_QCI_INTERPOLATION
@@ -569,6 +532,7 @@ MODULE QCIINTERPOLATION
       END SUBROUTINE CHECK_FOR_COLDFUSION
 
       SUBROUTINE MAKESTEP(NITERDONE,NPT,POINT, RHO1, ALPHA)
+         USE HELPER_FNCTS, ONLY: DOTP
          USE QCIKEYS, ONLY: MUPDATE, DGUESS, NATOMS, NIMAGES
          USE MOD_INTCOORDS, ONLY: G, DIMS
          IMPLICIT NONE         
@@ -586,7 +550,7 @@ MODULE QCIINTERPOLATION
             DIAG(1:DIMS) = DGUESS
             SEARCHSTEP(0,1:DIMS) = -DGUESS*G(1:DIMS)
             GTMP(1:DIMS) = SEARCHSTEP(0,1:DIMS)
-            GNORM =  MAX(SQRT(DOT_PRODUCT(G(1:DIMS),G(1:DIMS))),1.0D-100)
+            GNORM =  MAX(SQRT(DOTP(DIMS,G(1:DIMS),G(1:DIMS))),1.0D-100)
             STP(1:DIMS) = MIN(1.0D0/GNORM, GNORM)
             RETURN
          END IF
@@ -596,11 +560,11 @@ MODULE QCIINTERPOLATION
          ELSE
             BOUND = NITERDONE - 1
          END IF
-         YS=DOT_PRODUCT(GDIF(NPT/DIMS,:),SEARCHSTEP(NPT/DIMS,:))
+         YS=DOTP(DIMS,GDIF(NPT/DIMS,:),SEARCHSTEP(NPT/DIMS,:))
          IF (YS==0.0D0) YS=1.0D0
 
          ! Update estimate of diagonal inverse Hessian elements.
-         YY=DOT_PRODUCT(GDIF(NPT/DIMS,:),GDIF(NPT/DIMS,:))
+         YY=DOTP(DIMS,GDIF(NPT/DIMS,:),GDIF(NPT/DIMS,:))
          IF (YY==0.0D0) YY=1.0D0
          DIAG(1) = YS/YY
 
@@ -618,7 +582,7 @@ MODULE QCIINTERPOLATION
          DO I=1,BOUND
             CP = CP - 1
             IF (CP.EQ.-1) CP = MUPDATE-1
-            SQ = DOT_PRODUCT(SEARCHSTEP(CP,1:DIMS),GTMP(1:DIMS))
+            SQ = DOTP(DIMS,SEARCHSTEP(CP,1:DIMS),GTMP(1:DIMS))
             ALPHA(CP+1) = RHO1(CP+1) * SQ
             GTMP(1:DIMS) = -ALPHA(CP+1)*GDIF(CP,1:DIMS) + GTMP(1:DIMS)
          END DO
@@ -626,7 +590,7 @@ MODULE QCIINTERPOLATION
          GTMP(1:DIMS)=DIAG(1)*GTMP(1:DIMS)
 
          DO I=1,BOUND
-            YR = DOT_PRODUCT(GDIF(CP,1:DIMS),GTMP)
+            YR = DOTP(DIMS,GDIF(CP,1:DIMS),GTMP)
             BETA= RHO1(CP+1)*YR
             BETA= ALPHA(CP+1)-BETA
             GTMP(1:DIMS) = BETA*SEARCHSTEP(CP,1:DIMS) + GTMP(1:DIMS)

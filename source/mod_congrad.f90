@@ -232,7 +232,7 @@ MODULE CONSTR_E_GRAD
          USE QCIKEYS, ONLY: NIMAGES, NATOMS, INTMINFAC, CHECKCONINT, INTCONSTRAINTDEL
          USE QCI_CONSTRAINT_KEYS, ONLY: NCONSTRAINT, CONI, CONJ, CONDISTREFLOCAL
          USE INTERPOLATION_KEYS, ONLY: CONACTIVE
-         USE HELPER_FNCTS, ONLY: DISTANCE_SIMPLE
+         USE HELPER_FNCTS, ONLY: DISTANCE_SIMPLE, DOTP
          IMPLICIT NONE
          REAL(KIND = REAL64), INTENT(IN) :: XYZ(3*NATOMS*(NIMAGES+2))   ! input coordinates
          REAL(KIND = REAL64), INTENT(OUT) :: GGG(3*NATOMS*(NIMAGES+2))  ! gradient for each atom in each image
@@ -285,7 +285,7 @@ MODULE CONSTR_E_GRAD
                DSQ1=G1(1)**2 + G1(2)**2 + G1(3)**2
                ! squared distance between atoms in image 2 (theta = 0)
                DSQ2=G2(1)**2 + G2(2)**2 + G2(3)**2
-               DP_G12 = DOT_PRODUCT(G1,G2)
+               DP_G12 = DOTP(3,G1,G2)
                DINTMIN = DSQ1+DSQ2-2.0D0*DP_G12
 
                ! Convert derivatives of distance^2 to derivative of distance.
@@ -361,7 +361,7 @@ MODULE CONSTR_E_GRAD
       SUBROUTINE GET_REPULSION_E(XYZ,GGG,EEE,EREP)
          USE QCIKEYS, ONLY: NIMAGES, NATOMS, INTMINFAC, QCIINTREPMINSEP
          USE REPULSION, ONLY: NNREPULSIVE, NREPI, NREPJ, NREPCUT
-         USE HELPER_FNCTS, ONLY: DISTANCE_SIMPLE
+         USE HELPER_FNCTS, ONLY: DISTANCE_SIMPLE, DOTP
          IMPLICIT NONE
          REAL(KIND = REAL64), INTENT(IN) :: XYZ(3*NATOMS*(NIMAGES+2))   ! input coordinates
          REAL(KIND = REAL64), INTENT(OUT) :: GGG(3*NATOMS*(NIMAGES+2))  ! gradient for each atom in each image
@@ -421,7 +421,7 @@ MODULE CONSTR_E_GRAD
                IF (ABS(NREPI(J2)-NREPJ(J2)).LT.QCIINTREPMINSEP) THEN
                   DINTMIN = 0.0D0
                ELSE 
-                  DP_G12 = DOT_PRODUCT(G1,G2)
+                  DP_G12 = DOTP(3,G1,G2)
                   DINTMIN = DSQ1+DSQ2-2.0D0*DP_G12
                END IF
 
@@ -506,7 +506,7 @@ MODULE CONSTR_E_GRAD
       SUBROUTINE GET_REPULSION_E2(XYZ,GGG,EEE,EREP)
          USE QCIKEYS, ONLY: NIMAGES, NATOMS, INTMINFAC, QCICONSTRREP
          USE REPULSION, ONLY: NNREPULSIVE, NREPI, NREPJ, NREPCUT
-         USE HELPER_FNCTS, ONLY: DISTANCE_SIMPLE
+         USE HELPER_FNCTS, ONLY: DISTANCE_SIMPLE, DOTP
          IMPLICIT NONE
          REAL(KIND = REAL64), INTENT(IN) :: XYZ(3*NATOMS*(NIMAGES+2))   ! input coordinates
          REAL(KIND = REAL64), INTENT(OUT) :: GGG(3*NATOMS*(NIMAGES+2))  ! gradient for each atom in each image
@@ -560,7 +560,7 @@ MODULE CONSTR_E_GRAD
                ! don't look for an internal minimum if both repulsions outside cutoff
                IF ((DSQ1.GT.DCUT).AND.(DSQ2.GT.DCUT)) CYCLE 
                !QUERY: in the other repulsion routine we use an additional cutoff with QCIINTREPMINSEP - why not here?
-               DP_G12 = DOT_PRODUCT(G1,G2)
+               DP_G12 = DOTP(3,G1,G2)
                DINTMIN = DSQ1+DSQ2-2.0D0*DP_G12
 
                ! Convert derivatives of distance^2 to derivative of distance.
@@ -664,6 +664,7 @@ MODULE CONSTR_E_GRAD
             ! get gradient
             DUMMY=KINT/KINTSCALED
             DO J2=1,NATOMS
+               SPGRAD = 0.0D0
                IF ((.NOT.QCISPRINGACTIVET).OR.ATOMACTIVE(J2)) THEN 
                   SPGRAD(1:3)=DUMMY*(XYZ(NI1+3*(J2-1)+1:NI1+3*(J2-1)+3)-XYZ(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3))
                   GGG(NI1+3*(J2-1)+1:NI1+3*(J2-1)+3)=GGG(NI1+3*(J2-1)+1:NI1+3*(J2-1)+3)+SPGRAD(1:3)

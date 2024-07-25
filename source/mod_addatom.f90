@@ -327,6 +327,7 @@ MODULE ADDINGATOM
       END SUBROUTINE TRILATERATION
 
       SUBROUTINE PLACE_ATOM(NEWATOM,CONIDXLIST)
+         USE HELPER_FNCTS, ONLY: DOTP
          USE QCIKEYS, ONLY: NATOMS, DEBUG, NIMAGES
          USE MOD_INTCOORDS, ONLY: XYZ
          IMPLICIT NONE
@@ -352,9 +353,9 @@ MODULE ADDINGATOM
          VEC(1:3) = XYZ((3*(NEWATOM-1)+1):((3*(NEWATOM-1)+3))) - XYZ((3*(IDX1-1)+1):((3*(IDX1-1)+3)))
          CALL GET_LOCAL_AXIS(IDX1,IDX2,IDX3,1,B1,B2,B3)
          !get relative coordinates of NEWATOM in B1,B2,B3 axis system
-         C1 = DOT_PRODUCT(VEC,B1)
-         C2 = DOT_PRODUCT(VEC,B2)
-         C3 = DOT_PRODUCT(VEC,B3)
+         C1 = DOTP(3,VEC,B1)
+         C2 = DOTP(3,VEC,B2)
+         C3 = DOTP(3,VEC,B3)
 
          !iterate over images and place NEWATOM
          DO J1=2,NIMAGES+1

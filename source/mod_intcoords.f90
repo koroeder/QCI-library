@@ -134,9 +134,10 @@ MODULE MOD_INTCOORDS
       END SUBROUTINE READGUESS
 
       SUBROUTINE WRITE_BAND(FNAME)
+         USE QCIKEYS, ONLY: NAMES
          USE QCIFILEHANDLER, ONLY: GETUNIT
          IMPLICIT NONE
-         CHARACTER(25), INTENT(IN) :: FNAME
+         CHARACTER(*), INTENT(IN) :: FNAME
          INTEGER :: LUNIT
          INTEGER :: J2, J3
 
@@ -144,19 +145,44 @@ MODULE MOD_INTCOORDS
          OPEN(UNIT=LUNIT,FILE=FNAME,STATUS='replace')
          DO J2=1,NIMAGES+2
             WRITE(LUNIT,'(I6)') NATOMS
+            WRITE(LUNIT,'(A)') "Mol"
             DO J3=1,NATOMS
-                  WRITE(LUNIT,'(A5,1X,3F20.10)') 'LA   ', XYZ((J2-1)*3*NATOMS+3*(J3-1)+1),  &
+                  WRITE(LUNIT,'(A5,1X,3F20.10)') NAMES(J3) , XYZ((J2-1)*3*NATOMS+3*(J3-1)+1),  &
                                XYZ((J2-1)*3*NATOMS+3*(J3-1)+2), XYZ((J2-1)*3*NATOMS+3*(J3-1)+3)
             ENDDO
          ENDDO
          CLOSE(LUNIT)
       END SUBROUTINE WRITE_BAND
 
+      SUBROUTINE WRITE_ACTIVE_BAND(FNAME)
+         USE INTERPOLATION_KEYS, ONLY: NACTIVE, ATOMACTIVE
+         USE QCIKEYS, ONLY: NAMES
+         USE QCIFILEHANDLER, ONLY: GETUNIT
+         IMPLICIT NONE
+         CHARACTER(*), INTENT(IN) :: FNAME
+         INTEGER :: LUNIT
+         INTEGER :: J2, J3
+         WRITE(*,*) "In write_active_band, writing to: ", FNAME
+         LUNIT=GETUNIT()
+         OPEN(UNIT=LUNIT,FILE=FNAME,STATUS='replace')
+         DO J2=1,NIMAGES+2
+            WRITE(LUNIT,'(I6)') NACTIVE
+            WRITE(LUNIT,'(A)') "Mol"
+            DO J3=1,NATOMS
+               IF (ATOMACTIVE(J3)) THEN
+                  WRITE(LUNIT,'(A5,1X,3F20.10)') NAMES(J3) , XYZ((J2-1)*3*NATOMS+3*(J3-1)+1),  &
+                            XYZ((J2-1)*3*NATOMS+3*(J3-1)+2), XYZ((J2-1)*3*NATOMS+3*(J3-1)+3)
+               END IF
+            ENDDO
+         ENDDO
+         CLOSE(LUNIT)
+      END SUBROUTINE WRITE_ACTIVE_BAND      
+
       SUBROUTINE WRITE_PROFILE(FNAME, E)
          USE QCIFILEHANDLER, ONLY: GETUNIT
          USE QCIKEYS, ONLY: NIMAGES, DEBUG
          IMPLICIT NONE
-         CHARACTER(25), INTENT(IN) :: FNAME
+         CHARACTER(*), INTENT(IN) :: FNAME
          REAL(KIND = REAL64), INTENT(IN) :: E(NIMAGES+2)
          INTEGER :: LUNIT
          INTEGER :: I

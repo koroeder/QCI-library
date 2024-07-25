@@ -31,7 +31,40 @@ MODULE QCISETUP
          CALL ALLOC_REP_VARS(NREPCURR)
          ! get chiral information for AMBER
          IF (QCIAMBERT) CALL FIND_CHIRAL_CENTRES()
+         ! set up atom names for output
+         CALL SET_ELEMENTS()
       END SUBROUTINE QCI_INIT
+
+      SUBROUTINE SET_ELEMENTS()
+         USE QCIKEYS, ONLY: NAMES, NATOMS, ALLOC_QCIKEYS
+         USE AMBER_CONSTRAINTS, ONLY: ELEMENT
+         IMPLICIT NONE
+         
+         INTEGER :: LUNIT
+         INTEGER :: J1, J2, J3
+
+         CALL ALLOC_QCIKEYS()
+
+         NAMES(1:NATOMS) = 'LA   '
+
+         IF (ALLOCATED(ELEMENT)) THEN
+            DO J1=1,NATOMS
+               IF (ELEMENT(J1).EQ.1) THEN
+                  NAMES(J1) = 'H    '
+               ELSE IF (ELEMENT(J1).EQ.6) THEN
+                  NAMES(J1) = 'C    '
+               ELSE IF (ELEMENT(J1).EQ.7) THEN
+                  NAMES(J1) = 'N    '
+               ELSE IF (ELEMENT(J1).EQ.8) THEN
+                  NAMES(J1) = 'O    '
+               ELSE IF (ELEMENT(J1).EQ.15) THEN
+                  NAMES(J1) = 'P    '
+               ELSE IF (ELEMENT(J1).EQ.16) THEN
+                  NAMES(J1) = 'S    '                 
+               END IF
+            END DO
+         END IF
+      END SUBROUTINE SET_ELEMENTS
 
       SUBROUTINE PARSE_SETTINGS(PARAMETERFILE)
          USE QCIFILEHANDLER, ONLY: GETUNIT
