@@ -11,7 +11,7 @@ MODULE QCICONSTRAINTS
          USE SBM_CONSTRAINTS, ONLY: SBMMODEL_QCI_CONSTRAINTS, DEALLOC_SBM_CONST, SBM_NCONST, &
                                     SBM_CONI, SBM_CONJ, SBM_CONDISTREF, SBM_CONCUT
          USE AMBER_CONSTRAINTS, ONLY: AMBER_QCI_CONSTRAINTS, DEALLOC_AMBER_CONSTR, GET_BACKBONE, AMBER_NCONST, &
-                                      AMBER_CONI, AMBER_CONJ, AMBER_CONDISTREF, AMBER_CONCUT
+                                      AMBER_CONI, AMBER_CONJ, AMBER_CONDISTREF, AMBER_CONCUT, GET_ATOM_GROUPS
          USE HIRE_CONSTRAINTS, ONLY: HIRE_QCI_CONSTRAINTS, DEALLOC_HIRE_CONSTR, GET_BACKBONE_HIRE, HIRE_NCONST, &
                                      HIRE_CONI, HIRE_CONJ, HIRE_CONDISTREF, HIRE_CONCUT
          IMPLICIT NONE
@@ -23,6 +23,8 @@ MODULE QCICONSTRAINTS
             CALL AMBER_QCI_CONSTRAINTS(NATOMS)
             ! we always get backbone information
             CALL GET_BACKBONE(NATOMS)
+            ! get placing groups
+            CALL GET_ATOM_GROUPS()
             ! set the global number of constraints
             NCONSTRAINT = AMBER_NCONST
             ! allocate the arrays and copy the data from AMBER module
@@ -57,7 +59,7 @@ MODULE QCICONSTRAINTS
             CALL GET_GEOMCONSTRAINTS()
          END IF
         
-         ! check percolation 
+         ! check for duplicates and for percolation 
          CALL CHECK_DUPLICATES()
          CALL CHECK_PERCOLATION(NATOMS, PERCT)
          IF (.NOT.PERCT) THEN
@@ -142,8 +144,9 @@ MODULE QCICONSTRAINTS
       END SUBROUTINE DEALLOC_CONSTR    
 
       SUBROUTINE CHECK_DUPLICATES()
+         USE QCIKEYS, ONLY: DEBUG
          IMPLICIT NONE
-         INTEGER :: NEWNCONST
+         INTEGER :: NEWNCONST, OLDNCONSTR
          INTEGER :: NDUPL
          INTEGER :: NEWCONI(NCONSTRAINT)
          INTEGER :: NEWCONJ(NCONSTRAINT)
@@ -155,7 +158,8 @@ MODULE QCICONSTRAINTS
 
          NDUPL = 0
          NEWNCONST = 0
-
+         OLDNCONSTR = NCONSTRAINT
+         WRITE(*,*) " check_duplicates> Filtering all constraints for duplicates"
          DO J1=1,NCONSTRAINT
             I = CONI(J1)
             J = CONJ(J1)
@@ -164,6 +168,7 @@ MODULE QCICONSTRAINTS
                IF (((NEWCONI(J2).EQ.I).AND.(NEWCONJ(J2).EQ.J)).OR. &
                    ((NEWCONI(J2).EQ.J).AND.(NEWCONJ(J2).EQ.I))) THEN
                   DUPLICATE = .TRUE.
+                  IF (DEBUG) WRITE(*,*) "Duplicate located: ", J1, I, J, " matches: ", J2, NEWCONI(J2), NEWCONJ(J2)
                   NDUPL = NDUPL + 1
                   IF (((NEWCONDISTREF(J2)-CONDISTREF(J1)).GT.TOL).OR.((NEWCONCUT(J2)-CONCUT(J1)).GT.TOL)) THEN
                      WRITE(*,*) " WARNING> Duplicate has different constraints:"
@@ -204,6 +209,7 @@ MODULE QCICONSTRAINTS
             CONCUT(1:NCONSTRAINT) = NEWCONCUT(1:NEWNCONST)
          END IF
 
+         WRITE(*,*) " check_duplicates> Found ", NDUPL, " duplicated constraints, ", NCONSTRAINT, " out of ", OLDNCONSTR, " constraints remaining"
       END SUBROUTINE CHECK_DUPLICATES
 
       SUBROUTINE CHECK_PERCOLATION(NATOMS, PERCT)

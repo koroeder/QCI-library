@@ -14,7 +14,8 @@ MODULE CHIRALITY
    INTEGER, DIMENSION(:,:), ALLOCATABLE, SAVE :: BONDEDATS   !atoms bonded by atomid (up to 6)
    INTEGER, DIMENSION(:,:), ALLOCATABLE, SAVE :: BONDEDELS   !atoms bonded by element (up to 6) 
    LOGICAL, ALLOCATABLE, SAVE :: POSSIBLE_CC(:)              !potential chiral centres
-   INTEGER, ALLOCATABLE, SAVE :: POSSIBLE_IDS(:,:)           !ids of bonded atoms      
+   INTEGER, ALLOCATABLE, SAVE :: POSSIBLE_IDS(:,:)           !ids of bonded atoms   
+   
 
    CONTAINS
       SUBROUTINE DEALLOC_CHIR_INTERNALS()
@@ -28,6 +29,147 @@ MODULE CHIRALITY
          IF (ALLOCATED(POSSIBLE_IDS)) DEALLOCATE(POSSIBLE_IDS)  
          IF (ALLOCATED(CSP2)) DEALLOCATE(CSP2)
       END SUBROUTINE DEALLOC_CHIR_INTERNALS
+
+      SUBROUTINE GET_ACTIVE_CHIRAL_CENTRES(NACTCHIRAL,ACTIVE_CENTRES)
+         USE INTERPOLATION_KEYS, ONLY: ATOMACTIVE
+         USE QCIKEYS, ONLY: NATOMS
+         INTEGER, INTENT(OUT) :: NACTCHIRAL
+         LOGICAL, INTENT(OUT) :: ACTIVE_CENTRES(NCHIRAL)
+         LOGICAL :: ACTIVE
+         INTEGER :: J1, J2
+
+         ACTIVE_CENTRES(1:NCHIRAL) = .FALSE.
+         NACTCHIRAL = 0
+
+         DO J1=1,NCHIRAL
+            ACTIVE = .TRUE.
+            DO J2=1,5
+               IF (.NOT.ATOMACTIVE(CHIR_INFO(J1,J2))) ACTIVE = .FALSE.
+            END DO
+            IF (ACTIVE) THEN
+               ACTIVE_CENTRES(J1) = .TRUE.
+               NACTCHIRAL = NACTCHIRAL + 1
+            END IF
+         END DO
+      END SUBROUTINE GET_ACTIVE_CHIRAL_CENTRES
+
+      SUBROUTINE CHECK_SINGLE_CHIRAL_CENTRE(CHIRALGROUP,XYZ)
+         USE INTERPOLATION_KEYS, ONLY: ATOMACTIVE
+         USE QCIKEYS, ONLY: NATOMS, DEBUG, NIMAGES, ATOMS2RES
+         USE AMBER_CONSTRAINTS, ONLY: NBOND, BONDS, ELEMENT
+         INTEGER, INTENT(IN) :: CHIRALGROUP
+         REAL(KIND = REAL64), INTENT(INOUT) :: XYZ((3*NATOMS)*(NIMAGES+2))
+         INTEGER :: CHIRALCENTRE
+         INTEGER :: J1, J2, J3, IDX1, IDX2
+         REAL(KIND = REAL64) :: NEIGHBOUR_COORDS(12), CENTRE_COORDS(3)
+         REAL(KIND = REAL64) :: COORDSA(3*NATOMS), COORDSB(3*NATOMS)
+         INTEGER :: ATOMID
+         INTEGER :: NCHANGE, CHANGEAT(NATOMS), THISIMAGE, PREVIMAGE, OFFSET, OFFSET2
+         LOGICAL :: CENTREACTIVE
+         LOGICAL :: THIS_SR, PREV_SR
+         INTEGER :: NCONSTPERATOM(4), SORTED_IDX(4), SORTED_NB(4), SORTED_ELS(4), NB, EL
+         INTEGER :: SWITCH1, SWITCH2
+
+         !we set the number initially to -1 to discount the bond to the chiral centre
+         NCONSTPERATOM(1:4) = -1
+         !get the number of bonds to active atoms for the four connected atoms
+         DO J1=1,NBOND
+            IDX1 = BONDS(J1,1)
+            IDX2 = BONDS(J1,2)
+            IF (ATOMACTIVE(IDX1).AND.ATOMACTIVE(IDX2)) THEN
+               DO J2=1,4
+                  ATOMID = CHIR_INFO(CHIRALGROUP,J2+1)
+                  IF ((IDX1.EQ.ATOMID).OR.(IDX2.EQ.ATOMID)) THEN
+                     NCONSTPERATOM(J2) = NCONSTPERATOM(J2) + 1
+                  END IF
+               END DO
+            END IF
+         END DO
+
+         !get a priority list based on (1) number of bonds (the lower the better) and (2) the element
+         SORTED_IDX(1:4) = -1
+         SORTED_NB(1:4) = 100
+         SORTED_ELS(1:4) = 100
+
+         DO J1=1,4
+            IDX1 = CHIR_INFO(CHIRALGROUP,J1+1)
+            NB = NCONSTPERATOM(J1)
+            EL = ELEMENT(IDX1)
+            DO J2=1,4
+               IF ((NB.LT.SORTED_NB(J2)).OR.((NB.EQ.SORTED_NB(J2)).AND.(EL.LT.SORTED_ELS(J2)))) THEN
+                  DO J3=4,J2+1,-1
+                     SORTED_NB(J3)=SORTED_NB(J3-1)
+                     SORTED_ELS(J3)=SORTED_ELS(J3-1)
+                     SORTED_IDX(J3)=SORTED_IDX(J3-1)
+                  END DO
+                  SORTED_NB(J2) = NB
+                  SORTED_ELS(J2) = EL
+                  SORTED_IDX(J2) = IDX1
+                  EXIT
+               END IF
+            END DO
+         END DO
+         SWITCH1 = SORTED_IDX(1)
+         SWITCH2 = SORTED_IDX(2)
+
+         CHIRALCENTRE = CHIR_INFO(CHIRALGROUP,1)
+         WRITE(*,*) " check_single_centre> Checking chirality for atom ", CHIRALCENTRE
+         WRITE(*,*) " check_single_centre> Atoms attached: ", SORTED_IDX
+         WRITE(*,*) " check_single_centre> Bonds to active atoms: ", SORTED_NB
+         WRITE(*,*) " check_single_centre> Elements: ", SORTED_ELS
+         PREV_SR = .FALSE.
+         !apply the actual check            
+         DO J1=1,NIMAGES+2
+            CENTRE_COORDS(1) = XYZ(3*NATOMS*(J1-1)+3*CHIRALCENTRE-2)
+            CENTRE_COORDS(2) = XYZ(3*NATOMS*(J1-1)+3*CHIRALCENTRE-1)
+            CENTRE_COORDS(3) = XYZ(3*NATOMS*(J1-1)+3*CHIRALCENTRE)
+
+            DO J2=1,4
+               ATOMID = CHIR_INFO(CHIRALGROUP,J2+1)
+               NEIGHBOUR_COORDS(3*J2-2) = XYZ(3*NATOMS*(J1-1)+3*ATOMID-2)
+               NEIGHBOUR_COORDS(3*J2-1) = XYZ(3*NATOMS*(J1-1)+3*ATOMID-1)
+               NEIGHBOUR_COORDS(3*J2)   = XYZ(3*NATOMS*(J1-1)+3*ATOMID)
+            END DO
+
+            ! if this is the first image (i.e. the starting point), set SR for the current group
+            IF (J1.EQ.1) THEN
+               PREV_SR = ASSIGNMENT_SR(NEIGHBOUR_COORDS,CENTRE_COORDS)
+               CYCLE
+            END IF
+            ! S/R assignment for current image
+            THIS_SR = ASSIGNMENT_SR(NEIGHBOUR_COORDS,CENTRE_COORDS)
+            IF (THIS_SR.NEQV.PREV_SR) THEN
+               WRITE(*,*) " check_single_centre> Atom ", CHIRALCENTRE, " image ", J1, " chirality changed"
+               WRITE(*,*) " check_single_centre> Attempting to switch atom pair: ", SWITCH1, SWITCH2
+               CALL SWITCH_PAIR(CHIRALCENTRE,SWITCH1,SWITCH2,XYZ(3*NATOMS*(J1-1)+1:3*NATOMS*J1))                  
+            END IF
+         END DO
+      END SUBROUTINE CHECK_SINGLE_CHIRAL_CENTRE
+
+      SUBROUTINE SWITCH_PAIR(CENTRE,IDX1,IDX2,COORDS)
+         USE QCIKEYS, ONLY: NATOMS
+         USE HELPER_FNCTS, ONLY: NORM_VEC
+         INTEGER, INTENT(IN) :: CENTRE
+         INTEGER, INTENT(IN) :: IDX1, IDX2
+         REAL(KIND = REAL64), INTENT(INOUT) :: COORDS(3*NATOMS)
+         REAL(KIND = REAL64) :: C(3), AT1(3), AT2(3)
+         REAL(KIND = REAL64) :: LEN1, LEN2, VEC1(3), VEC2(3), N1(3), N2(3)
+
+         !atom positions
+         C(1:3) = COORDS(3*(CENTRE-1)+1:3*(CENTRE-1)+3)
+         AT1(1:3) = COORDS(3*(IDX1-1)+1:3*(IDX1-1)+3)
+         AT2(1:3) = COORDS(3*(IDX2-1)+1:3*(IDX2-1)+3)
+         !position vectors
+         VEC1(1:3) = AT1(1:3) - C(1:3)
+         VEC2(1:3) = AT2(1:3) - C(1:3)
+         !get normalised vectors
+         CALL NORM_VEC(VEC1,N1,LEN1)
+         CALL NORM_VEC(VEC2,N2,LEN2)
+         !now switch their positions
+         !for atom1 we place it at the distance of C to atom1 along n2, and vice versa for atom2
+         COORDS(3*(IDX1-1)+1:3*(IDX1-1)+3) = C(1:3) + LEN1*N2(1:3)
+         COORDS(3*(IDX2-1)+1:3*(IDX2-1)+3) = C(1:3) + LEN2*N1(1:3)
+      END SUBROUTINE SWITCH_PAIR
 
       SUBROUTINE CHIRALITY_CHECK(XYZ)
          USE INTERPOLATION_KEYS, ONLY: ATOMACTIVE

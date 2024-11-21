@@ -1,0 +1,5 @@
+source leaprc.RNA.OL3
+mol = loadpdb input.pdb
+saveamberparm mol coords.prmtop.old coords.inpcrd
+savepdb mol conf.pdb
+quit

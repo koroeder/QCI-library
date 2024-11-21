@@ -4,7 +4,7 @@ MODULE QCI_LINEAR
    ! number of atoms for QCIlinear
    INTEGER :: NQCILINEAR = 0
    ! cutoff for QCIlinear treatment
-   REAL(KIND=REAL64) :: LINEARCUT = 0.5D0
+   REAL(KIND=REAL64) :: LINEARCUT = 0.05D0
    ! list of linear atoms
    INTEGER, ALLOCATABLE :: LINEARATOMS(:)
    ! file name linear atoms
@@ -56,6 +56,7 @@ MODULE QCI_LINEAR
                INLINLIST(J1) = .TRUE.
             END IF
          END DO
+         WRITE(*,*) " linear list: ", LINEARATOMS(1:DUMMY)
       END SUBROUTINE GET_LINEAR_ATOMS
    
       SUBROUTINE ALLOC_QCI_LINEAR()

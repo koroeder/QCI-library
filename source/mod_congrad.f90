@@ -14,6 +14,23 @@ MODULE CONSTR_E_GRAD
    INTEGER :: CALLN = 0
    CONTAINS
 
+      SUBROUTINE CONGRAD(ETOTAL, XYZ, GGG, EEE, RMS)
+         USE QCIKEYS, ONLY: NIMAGES, NATOMS, CHECKCONINT
+         REAL(KIND = REAL64), INTENT(IN) :: XYZ(3*NATOMS*(NIMAGES+2))   ! input coordinates
+         REAL(KIND = REAL64), INTENT(OUT) :: GGG(3*NATOMS*(NIMAGES+2))  ! gradient for each atom in each image
+         REAL(KIND = REAL64), INTENT(OUT) :: EEE(NIMAGES+2)             ! energy for each image
+         REAL(KIND = REAL64), INTENT(OUT) :: ETOTAL                    ! overall energy
+         REAL(KIND = REAL64), INTENT(OUT) :: RMS                       ! total force
+
+         ! call correct congrad routine
+         IF (CHECKCONINT) THEN
+            CALL CONGRAD2(ETOTAL, XYZ, GGG, EEE, RMS)
+         ELSE
+            CALL CONGRAD1(ETOTAL, XYZ, GGG, EEE, RMS)
+         END IF
+      END SUBROUTINE CONGRAD
+
+
       SUBROUTINE CONGRAD1(ETOTAL, XYZ, GGG, EEE, RMS)
          USE QCIKEYS, ONLY: NIMAGES, NATOMS, QCICONSTRREP, KINT, QCIFREEZET, QCIFROZEN, INTCONSTRAINTDEL
          IMPLICIT NONE
@@ -52,7 +69,6 @@ MODULE CONSTR_E_GRAD
          ! add all contributions
          EEE = EEEC + EEER + EEES
          GGG = GGGC + GGGR + GGGS
-
          ! freeze atoms that should be frozen
          IF (QCIFREEZET) THEN
             DO J1=2,NIMAGES+1
@@ -79,6 +95,8 @@ MODULE CONSTR_E_GRAD
          END DO
          RMS = SQRT(RMS/(3*NATOMS*NIMAGES))
          ETOTAL = SUM(EEE(2:NIMAGES+1))
+         WRITE(*,*) "E total: ", ETOTAL, "RMS: ", RMS, " E rep: ", SUM(EEER), " E constr: ", SUM(EEEC), " E spring: ", SUM(EEES)
+         WRITE(*,*) "FCONTEST: ", FCONTEST, " FREPTEST: ", FREPTEST
       END SUBROUTINE CONGRAD1
 
 
@@ -179,6 +197,7 @@ MODULE CONSTR_E_GRAD
             IF (.NOT.CONACTIVE(J2)) CYCLE
             ! get constraint cut off for this contraint
             CALL GET_CCLOCAL(J2,CCLOCAL)
+            !!!!!Debugging WRITE(*,*) " Constraint: ", J2, " reference: ", CONDISTREFLOCAL(J2), " cut: ", CCLOCAL
             ! go through all images
             DO J1=2,NIMAGES+1
                NI1=(3*NATOMS)*(J1-1)+3*(CONI(J2)-1)
@@ -201,6 +220,7 @@ MODULE CONSTR_E_GRAD
                   DUMMY = (DUMMY2-CCLOCAL2)**2/(2.0D0*CCLOCAL2**2)
                   EEE(J1) = EEE(J1) + DUMMY
                   ECON = ECON + DUMMY
+                  !!!!!!debugging WRITE(*,*) " For image ", J1, " dist: ", DIST, " dummy: ", DIST - CONDISTREFLOCAL(J2), " energy: ", DUMMY 
                   ! save largest contribution to ECON
                   IF (DUMMY.GT.EMAX) THEN
                      IMAX = J1
@@ -223,9 +243,9 @@ MODULE CONSTR_E_GRAD
          MAXCONIMAGE = JMAX
          MAXCONSTR = IMAX
 
-         ! IF (JMAX.GT.0) THEN
-            ! WRITE(*,*) ' congrad> Highest constraint for image ',IMAX, ', con ',JMAX, ', atoms ',CONI(JMAX),CONJ(JMAX),' value=',EMAX
-         ! ENDIF
+         IF (JMAX.GT.0) THEN
+            WRITE(*,*) ' congrad> Highest constraint for image ',IMAX, ', con ',JMAX, ', atoms ',CONI(JMAX),CONJ(JMAX),' value=',EMAX
+         ENDIF
       END SUBROUTINE GET_CONSTRAINT_E_NOINTERNAL
 
       SUBROUTINE GET_CONSTRAINT_E(XYZ,GGG,EEE,ECON)
@@ -240,7 +260,7 @@ MODULE CONSTR_E_GRAD
          INTEGER :: J1, J2       
          INTEGER :: NI1, NI2, NJ1, NJ2                                 ! indices for atom I and J in images 1 and 2
          REAL(KIND = REAL64) :: G1(3), G2(3), DSQ1, DSQ2, DINTMIN, DP_G12 ! dummy variables
-         REAL(KIND = REAL64) :: CONGRAD(3), DUMMY
+         REAL(KIND = REAL64) :: CONSTGRAD(3), DUMMY
          REAL(KIND = REAL64) :: CCLOCAL
          LOGICAL :: NOINT                                            ! do we hae an internal minimum
          REAL(KIND = REAL64) :: DINT, DSQI, G1INT(3), G2INT(3)       ! information for internal minimum contribution
@@ -306,7 +326,7 @@ MODULE CONSTR_E_GRAD
                ! these are the constraint energies as in get_constraint_e_nointernal
                DUMMY = D2-CONDISTREFLOCAL(J2)
                IF ((ABS(DUMMY).GT.CCLOCAL).AND.(J1.LT.NIMAGES+2)) THEN  
-                  CONGRAD(1:3)=2*INTCONSTRAINTDEL*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G2(1:3)
+                  CONSTGRAD(1:3)=2*INTCONSTRAINTDEL*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G2(1:3)
                   DUMMY=INTCONSTRAINTDEL*(DUMMY**2-CCLOCAL**2)**2/(2.0D0*CCLOCAL**2)
                   IF (DUMMY.GT.EMAX) THEN
                      IMAX=J1
@@ -315,18 +335,18 @@ MODULE CONSTR_E_GRAD
                   ENDIF
                   EEE(J1)=EEE(J1)+DUMMY
                   ECON=ECON+DUMMY
-                  GGG(NI2+1:NI2+3)=GGG(NI2+1:NI2+3)+CONGRAD(1:3)
-                  GGG(NJ2+1:NJ2+3)=GGG(NJ2+1:NJ2+3)-CONGRAD(1:3)
+                  GGG(NI2+1:NI2+3)=GGG(NI2+1:NI2+3)+CONSTGRAD(1:3)
+                  GGG(NJ2+1:NJ2+3)=GGG(NJ2+1:NJ2+3)-CONSTGRAD(1:3)
                END IF
                ! Don't add energy contributions to EEE(2) from D1, since the gradients are non-zero only for image 1.
                ! terms for image J1-1 - non-zero derivatives only for J1-1. D1 is the distance for image J1-1.
                ! here we have the internal extremum contribution
                IF (CHECKCONINT.AND.(.NOT.NOINT).AND.(ABS(DINT-CONDISTREFLOCAL(J2)).GT.CCLOCAL)) THEN
                   DUMMY=DINT-CONDISTREFLOCAL(J2)  
-                  CONGRAD(1:3)=2*INTMINFAC*INTCONSTRAINTDEL*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G1INT(1:3)
-                  GGG(NI1+1:NI1+3)=GGG(NI1+1:NI1+3)+CONGRAD(1:3)
-                  GGG(NJ1+1:NJ1+3)=GGG(NJ1+1:NJ1+3)-CONGRAD(1:3)
-                  CONGRAD(1:3)=2*INTMINFAC*INTCONSTRAINTDEL*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G2INT(1:3)
+                  CONSTGRAD(1:3)=2*INTMINFAC*INTCONSTRAINTDEL*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G1INT(1:3)
+                  GGG(NI1+1:NI1+3)=GGG(NI1+1:NI1+3)+CONSTGRAD(1:3)
+                  GGG(NJ1+1:NJ1+3)=GGG(NJ1+1:NJ1+3)-CONSTGRAD(1:3)
+                  CONSTGRAD(1:3)=2*INTMINFAC*INTCONSTRAINTDEL*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G2INT(1:3)
                   DUMMY=INTMINFAC*INTCONSTRAINTDEL*(DUMMY**2-CCLOCAL**2)**2/(2.0D0*CCLOCAL**2)
                   ECON=ECON+DUMMY
                   IF (DUMMY.GT.EMAX) THEN
@@ -342,8 +362,8 @@ MODULE CONSTR_E_GRAD
                   ELSE IF (J1.EQ.NIMAGES+2) THEN
                      EEE(J1-1)=EEE(J1-1)+DUMMY
                   ENDIF
-                  GGG(NI2+1:NI2+3)=GGG(NI2+1:NI2+3)+CONGRAD(1:3)
-                  GGG(NJ2+1:NJ2+3)=GGG(NJ2+1:NJ2+3)-CONGRAD(1:3)
+                  GGG(NI2+1:NI2+3)=GGG(NI2+1:NI2+3)+CONSTGRAD(1:3)
+                  GGG(NJ2+1:NJ2+3)=GGG(NJ2+1:NJ2+3)-CONSTGRAD(1:3)
                ENDIF
             END DO
          END DO
@@ -353,9 +373,9 @@ MODULE CONSTR_E_GRAD
          MAXCONIMAGE = JMAX
          MAXCONSTR = IMAX
 
-         ! IF (JMAX.GT.0) THEN
-            ! WRITE(*,*) ' congrad> Highest constraint for image ',IMAX, ', con ',JMAX, ', atoms ',CONI(JMAX),CONJ(JMAX),' value=',EMAX
-         ! ENDIF
+         IF (JMAX.GT.0) THEN
+            WRITE(*,*) ' congrad> Highest constraint for image ',IMAX, ', con ',JMAX, ', atoms ',CONI(JMAX),CONJ(JMAX),' value=',EMAX
+         ENDIF
       END SUBROUTINE GET_CONSTRAINT_E
 
       SUBROUTINE GET_REPULSION_E(XYZ,GGG,EEE,EREP)

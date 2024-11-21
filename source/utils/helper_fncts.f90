@@ -12,14 +12,15 @@ MODULE HELPER_FNCTS
          EUC_NORM = DSQRT(DOTP(3,V,V))
       END FUNCTION EUC_NORM
 
-      !TODO: remove DOT_PRODUCR and replace with this
+      !> Function to calculate dot product for any dimension of vector
       FUNCTION DOTP(NSIZE,V1,V2)
-         REAL(KIND = REAL64) :: DOTP
-         INTEGER, INTENT(IN) :: NSIZE
-         REAL(KIND = REAL64), INTENT(IN) :: V1(NSIZE), V2(NSIZE)
-         INTEGER :: I
+         REAL(KIND = REAL64) :: DOTP     ! dot product
+         INTEGER, INTENT(IN) :: NSIZE    ! input size for vectors
+         REAL(KIND = REAL64), INTENT(IN) :: V1(NSIZE), V2(NSIZE) !the vectors to be used
+         INTEGER :: I !iteration variable
          
          DOTP = 0.0D0
+         !use element-wise addition by iterating from 1 to NSIZE
          DO I=1,NSIZE
             DOTP = DOTP + V1(I)*V2(I)
          END DO
@@ -44,6 +45,14 @@ MODULE HELPER_FNCTS
          A(3) = V1(1) * V2(2) - V1(2) * V2(1)
 
       END FUNCTION CROSS_PROD
+
+      !Gram-Schmidt projection for vector V1 using V2
+      FUNCTION GS_PROJECTION(V1,V2) RESULT(U)
+         REAL(KIND = REAL64) :: V1(3), V2(3), U(3)
+
+         U(1:3) = DOTP(3,V1,V2)/DOTP(3,V2,V2)*V2(1:3)
+      END FUNCTION GS_PROJECTION
+
 
       REAL(KIND = REAL64) FUNCTION DIHEDRAL(COORDS) RESULT(DIH)
          REAL(KIND = REAL64) :: COORDS(12)

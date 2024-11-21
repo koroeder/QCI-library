@@ -18,6 +18,15 @@ MODULE AMBER_CONSTRAINTS
    INTEGER :: NBIOCONSTR = 0 ! biological constraints - cis-trans and planarity
    INTEGER, ALLOCATABLE :: RES_START(:), RES_END(:)
    CHARACTER(LEN=4), ALLOCATABLE :: AMBER_NAMES(:), RESNAMES(:), RESTYPE(:)
+   !groups for atom placements
+   INTEGER, ALLOCATABLE :: GROUPLOOKUP(:)       ! which group this atom is in
+   LOGICAL, ALLOCATABLE :: INGROUP(:)           ! is this atom part of a group?
+   INTEGER :: NPLACINGGROUPS = 0                ! number of groups used to place atoms together
+   INTEGER, ALLOCATABLE :: SIZEPLACINGGROUPS(:) ! size of each placing group
+   INTEGER, ALLOCATABLE :: PLACINGGROUPS(:,:)   ! members of each group
+   INTEGER :: CURRENT_GROUP                     ! current to be added
+   LOGICAL, ALLOCATABLE :: GROUPS_ADDED(:)      ! which groups have been added
+   LOGICAL :: CURRENTLY_ADDING_GROUP = .FALSE.  ! are we actively adding a group?
 
    CONTAINS
       ! from AMBER
@@ -162,7 +171,77 @@ MODULE AMBER_CONSTRAINTS
          IF (ALLOCATED(AMBER_NAMES)) DEALLOCATE(AMBER_NAMES)
          IF (ALLOCATED(ELEMENT)) DEALLOCATE(ELEMENT)
          IF (ALLOCATED(RESTYPE)) DEALLOCATE(RESTYPE)
+         IF (ALLOCATED(GROUPLOOKUP)) DEALLOCATE(GROUPLOOKUP)
+         IF (ALLOCATED(INGROUP)) DEALLOCATE(INGROUP)
+         IF (ALLOCATED(SIZEPLACINGGROUPS)) DEALLOCATE(SIZEPLACINGGROUPS)
+         IF (ALLOCATED(PLACINGGROUPS)) DEALLOCATE(PLACINGGROUPS)
       END SUBROUTINE AMBER_QCI_DEALLOCATE
+
+      SUBROUTINE GET_ATOM_GROUPS()
+         USE QCIKEYS, ONLY: NATOMS, ATOMS2RES, QCIUSEGROUPS
+         IMPLICIT NONE         
+         INTEGER, PARAMETER :: MAXGROUPSIZE = 14 !RNA or DNA sugar, AA groups are smaller
+         INTEGER :: J1, CURRENT, RESID, PREV_RESID
+         LOGICAL :: ADDED
+         CHARACTER(4) :: ATNAME
+
+
+         DO J1=1,NRES
+            IF (RESTYPE(J1).EQ."AA".OR.RESTYPE(J1).EQ."RNA".OR.RESTYPE(J1).EQ."DNA") THEN
+               NPLACINGGROUPS = NPLACINGGROUPS + 1
+            END IF
+         END DO
+         WRITE(*,*) " get_atom_groups> Identified ", NPLACINGGROUPS, " groups of atoms to be placed consecutively"
+         ALLOCATE(GROUPLOOKUP(NATOMS), INGROUP(NATOMS), GROUPS_ADDED(NPLACINGGROUPS))
+         ALLOCATE(SIZEPLACINGGROUPS(NPLACINGGROUPS),PLACINGGROUPS(NPLACINGGROUPS,MAXGROUPSIZE)) 
+
+         QCIUSEGROUPS = .TRUE.
+
+         INGROUP(1:NATOMS) = .FALSE.
+         GROUPLOOKUP(1:NATOMS) = -1
+         SIZEPLACINGGROUPS(1:NPLACINGGROUPS) = 0
+         PLACINGGROUPS(1:NPLACINGGROUPS,1:MAXGROUPSIZE) = -1
+         CURRENT = 1
+         PREV_RESID = 0
+         ADDED = .FALSE.
+         DO J1=1,NATOMS
+            RESID = ATOMS2RES(J1)
+            ! if we have a new residue we need to go to a new group number, as long as we added something in the previous round.
+            IF (RESID.NE.PREV_RESID) THEN
+               IF (ADDED) CURRENT = CURRENT + 1
+               PREV_RESID = RESID
+               ADDED = .FALSE.
+            END IF
+            ATNAME = ADJUSTL(TRIM(AMBER_NAMES(J1)))
+            IF ((ATNAME.EQ.'C').OR.(ATNAME.EQ.'O').OR.(ATNAME.EQ.'N').OR.(ATNAME.EQ.'H').OR.(ATNAME.EQ.'CA') &
+            .OR.(ATNAME.EQ.'HA').OR.(ATNAME.EQ.'CB').OR.(ATNAME.EQ."C5'").OR.(ATNAME.EQ."C4'").OR.(ATNAME.EQ."H4'") &
+            .OR.(ATNAME.EQ."O4'").OR.(ATNAME.EQ."C3'").OR.(ATNAME.EQ."H3'").OR.(ATNAME.EQ."C2'").OR.(ATNAME.EQ."O3'") &
+            .OR.(ATNAME.EQ."O2'").OR.(ATNAME.EQ."H2'").OR.(ATNAME.EQ."H2''").OR.(ATNAME.EQ."H3''")) THEN
+               INGROUP(J1) = .TRUE.
+               GROUPLOOKUP(J1) = CURRENT
+               ADDED=.TRUE.
+               SIZEPLACINGGROUPS(CURRENT) = SIZEPLACINGGROUPS(CURRENT) + 1
+               PLACINGGROUPS(CURRENT,SIZEPLACINGGROUPS(CURRENT)) = J1
+            END IF
+         END DO      
+         CURRENT_GROUP = 0
+         GROUPS_ADDED(1:NPLACINGGROUPS) = .FALSE.    
+         CURRENTLY_ADDING_GROUP = .FALSE.
+      END SUBROUTINE GET_ATOM_GROUPS
+
+      FUNCTION CHECK_IN_GROUP(IDX) RESULT(INCURRENT)
+         LOGICAL :: INCURRENT
+         INTEGER, INTENT(IN) :: IDX
+         INTEGER :: J1
+
+         INCURRENT = .FALSE.
+         DO J1=1,SIZEPLACINGGROUPS(CURRENT_GROUP)
+            IF (IDX.EQ.PLACINGGROUPS(CURRENT_GROUP,J1)) THEN
+               INCURRENT = .TRUE.
+               RETURN
+            END IF
+         END DO
+      END FUNCTION CHECK_IN_GROUP
 
       SUBROUTINE GET_BACKBONE(NATOMS)
          USE QCIKEYS, ONLY: NBACKBONE, ISBBATOM
@@ -402,7 +481,7 @@ MODULE AMBER_CONSTRAINTS
          CALL ADD_CONSTRAINT("H2''","O3' ",RESID)
          CALL ADD_CONSTRAINT("H3' ","C5' ",RESID)
          CALL ADD_CONSTRAINT("H3' ","H2' ",RESID)
-         CALL ADD_CONSTRAINT("O3''","H4' ",RESID)
+         CALL ADD_CONSTRAINT("O3' ","H4' ",RESID)
 
       END SUBROUTINE GET_NA_CONSTR
 
@@ -413,7 +492,8 @@ MODULE AMBER_CONSTRAINTS
 
          CALL GET_ATOMID(ATNAME1,RESID,ID1)
          CALL GET_ATOMID(ATNAME2,RESID,ID2)
-         IF ((ID1.GT.0).AND.(ID2.GT.0)) THEN
+         IF (((ID1.GT.0).AND.(ID2.GT.0)).AND.(ID1.NE.ID2)) THEN
+            WRITE(*,*) " Add constraint ", ATNAME1, " and ", ATNAME2, " in residue ", RESID, " | Atom IDs: ", ID1, ID2
             NBIOCONSTR = NBIOCONSTR + 1
             BIOCONSTR(NBIOCONSTR,1) = ID1
             BIOCONSTR(NBIOCONSTR,2) = ID2
@@ -644,7 +724,7 @@ MODULE AMBER_CONSTRAINTS
                   END DO
                END DO
                DO J1=1,NANGH
-                  IDX = (J1-1)*3
+                  IDX = (J1-1)*4
                   ANGLES(J1,1) = INDICES(IDX+1)/3+1 ! atom i 
                   ANGLES(J1,2) = INDICES(IDX+3)/3+1 ! atom k
                END DO
@@ -666,7 +746,7 @@ MODULE AMBER_CONSTRAINTS
                   END DO
                END DO
                DO J1=1,NANGA
-                  IDX = (J1-1)*3
+                  IDX = (J1-1)*4
                   ANGLES(NANGH+J1,1) = INDICES(IDX+1)/3+1 ! atom i 
                   ANGLES(NANGH+J1,2) = INDICES(IDX+3)/3+1 ! atom k
                END DO

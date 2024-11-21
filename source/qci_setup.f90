@@ -112,6 +112,12 @@ MODULE QCISETUP
          CALL LOPERMDIST(XFINAL,XSTART,E2E_DIST,DIST2,RMATBEST,0,NMOVE,NEWPERM)
          WRITE(*,*) " align_endpoints> Distance between endpoints is ", E2E_DIST
 
+         OPEN(UNIT=55,FILE="start.aligned")
+         WRITE(55,'(3F20.7)') XSTART
+         CLOSE(55)
+         OPEN(UNIT=55,FILE="finish.aligned")
+         WRITE(55,'(3F20.7)') XFINAL
+         CLOSE(55)         
       END SUBROUTINE ALIGN_ENDPOINTS
 
       SUBROUTINE SETKEYS(ENTRY, VAL)

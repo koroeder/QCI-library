@@ -76,6 +76,10 @@ MODULE MOD_INTCOORDS
             ! we want to collect the change in atom positions between the endpoints
             CALL DISTANCE_ATOM_DIFF_IMAGES(NATOMS, XSTART, XFINAL, CONI(J1), D1)
             CALL DISTANCE_ATOM_DIFF_IMAGES(NATOMS, XSTART, XFINAL, CONJ(J1), D2)
+            WRITE(*,*) D1, D2
+            CALL DISTANCE_ATOM_DIFF_IMAGES(NATOMS, XYZ(1:3*NATOMS), XYZ(3*NATOMS*(NIMAGES+1)+1:3*NATOMS*(NIMAGES+2)), CONI(J1), D1)
+            CALL DISTANCE_ATOM_DIFF_IMAGES(NATOMS, XYZ(1:3*NATOMS), XYZ(3*NATOMS*(NIMAGES+1)+1:3*NATOMS*(NIMAGES+2)), CONJ(J1), D2)
+            WRITE(*,*) D1, D2
             DF = D1 + D2
             IF (DF.LT.CURRSMALLEST) THEN
                CURRSMALLEST = DF
@@ -130,6 +134,7 @@ MODULE MOD_INTCOORDS
                READ(XUNIT,*) SDUMMY,XYZ(3*NATOMS*(J2-1)+3*(J1-1)+1),XYZ(3*NATOMS*(J2-1)+3*(J1-1)+2),XYZ(3*NATOMS*(J2-1)+3*(J1-1)+3)
             END DO
          END DO
+         CLOSE(XUNIT)
          IF (DEBUG) CALL WRITE_BAND(XYZFILE)
       END SUBROUTINE READGUESS
 
@@ -162,7 +167,7 @@ MODULE MOD_INTCOORDS
          CHARACTER(*), INTENT(IN) :: FNAME
          INTEGER :: LUNIT
          INTEGER :: J2, J3
-         WRITE(*,*) "In write_active_band, writing to: ", FNAME
+
          LUNIT=GETUNIT()
          OPEN(UNIT=LUNIT,FILE=FNAME,STATUS='replace')
          DO J2=1,NIMAGES+2

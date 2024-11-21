@@ -110,6 +110,9 @@ MODULE QCIKEYS
    !checking chirality
    LOGICAL :: CHECKCHIRAL = .FALSE.
 
+   !using groups of atoms in AMBER
+   LOGICAL :: QCIUSEGROUPS = .FALSE.
+
    INTEGER :: DUMPQCIXYZFRQS = 100
    LOGICAL :: DUMPQCIXYZ = .FALSE.
 
