@@ -95,8 +95,8 @@ MODULE CONSTR_E_GRAD
          END DO
          RMS = SQRT(RMS/(3*NATOMS*NIMAGES))
          ETOTAL = SUM(EEE(2:NIMAGES+1))
-         WRITE(*,*) "E total: ", ETOTAL, "RMS: ", RMS, " E rep: ", SUM(EEER), " E constr: ", SUM(EEEC), " E spring: ", SUM(EEES)
-         WRITE(*,*) "FCONTEST: ", FCONTEST, " FREPTEST: ", FREPTEST
+         WRITE(*,*) " congrad> E total: ", ETOTAL, "RMS: ", RMS, " E rep: ", SUM(EEER), " E constr: ", SUM(EEEC)
+         WRITE(*,*) " congrad> FCONTEST: ", FCONTEST, " FREPTEST: ", FREPTEST
       END SUBROUTINE CONGRAD1
 
 

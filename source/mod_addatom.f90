@@ -642,10 +642,10 @@ MODULE ADDINGATOM
          CALL NORM_VEC(VEC2-GS_PROJECTION(VEC2,VEC1),B2,NORM)
          !The final base vector is the orthogonal component of VEC3 to VEC1 and VEC2
          IF (VOL.GT.VOLCUT) THEN
-            WRITE(*,*) "local_axis> Local volume indicates this is not a planer set of axis, using Gram-Schmidt projection"
+            !WRITE(*,*) "local_axis> Local volume indicates this is not a planer set of axis, using Gram-Schmidt projection"
             CALL NORM_VEC(VEC3-GS_PROJECTION(VEC3,VEC1)-GS_PROJECTION(VEC3,VEC2),B3,NORM)
          ELSE
-            WRITE(*,*) "local_axis> Local volume indicates this is a planer set of axis, using normal vector"
+            !WRITE(*,*) "local_axis> Local volume indicates this is a planer set of axis, using normal vector"
             CALL NORM_VEC(CROSS_PROD(B1,B2),B3,NORM)
          END IF
       END SUBROUTINE GET_LOCAL_AXIS2     
@@ -759,7 +759,7 @@ MODULE ADDINGATOM
                REPI(NREPULSIVE)=J1
                REPJ(NREPULSIVE)=NEWATOM
                REPCUT(NREPULSIVE)=DMIN
-               WRITE(*,*) " new repulsion: ",NREPULSIVE, " repi: ", REPI(NREPULSIVE), " repj: ", REPJ(NREPULSIVE), " repcut: ", REPCUT(NREPULSIVE)
+               !WRITE(*,*) " new repulsion: ",NREPULSIVE, " repi: ", REPI(NREPULSIVE), " repj: ", REPJ(NREPULSIVE), " repcut: ", REPCUT(NREPULSIVE)
             END IF
          END DO
          WRITE(*,*) " Update_repulsion> After update: ", NREPULSIVE

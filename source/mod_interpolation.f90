@@ -524,7 +524,7 @@ MODULE QCIINTERPOLATION
                   END IF
                END IF
             END DO 
-            WRITE(*,*) "Images ", J1, " and ", J1+1, " - separation: ", DISTTOTAL          
+            !WRITE(*,*) "Images ", J1, " and ", J1+1, " - separation: ", DISTTOTAL          
             IF (DISTTOTAL.GT.DMAX) THEN
                DMAX = DISTTOTAL
                JMAX = J1

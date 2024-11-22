@@ -14,11 +14,7 @@ MODULE QCIMINDIST
          REAL(KIND = REAL64) :: CXA(3), CXB(3), RMAT(3,3)
          REAL(KIND = REAL64) :: DIST, R0(3), R1
          INTEGER :: I, J, K
-
-         WRITE(*,*) "XA"
-         WRITE(*,*) XA
-         WRITE(*,*) "XB"
-         WRITE(*,*) XB         
+  
          RA(1:3*NSIZE) = XA(1:3*NSIZE)
          RB(1:3*NSIZE) = XB(1:3*NSIZE)
          !centre RA
@@ -48,16 +44,6 @@ MODULE QCIMINDIST
          CALL MOVE_COORDS(NSIZE,RB,-CXB)
          ! write coordinates back to XB to be returned
          XB(1:3*NSIZE) = RB(1:3*NSIZE)
-
-         WRITE(*,*) "RA"
-         WRITE(*,*) RA
-         WRITE(*,*) "RB"
-         WRITE(*,*) RB 
-
-         WRITE(*,*) "XA"
-         WRITE(*,*) XA
-         WRITE(*,*) "XB"
-         WRITE(*,*) XB 
       END SUBROUTINE ALIGNXBTOA
 
       SUBROUTINE FIND_ORIGIN(NATOMS,X,CX)
