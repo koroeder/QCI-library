@@ -105,6 +105,7 @@ add_library(qcilib ${QCI_LIB_SOURCES})
 set_module_dir(qcilib)
 set_target_properties(qcilib PROPERTIES LINKER_LANGUAGE "Fortran")
 set_target_properties(qcilib PROPERTIES COMPILE_DEFINITIONS "${COMPILE_DEFINITIONS};__QCI") 
+target_link_libraries(qcilib ${lapackblas_libraries})
 
 option(PROF_VER "Enable profiling" OFF)
 if(PROF_VER)

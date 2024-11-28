@@ -175,10 +175,11 @@ MODULE CHIRALITY
          COORDS(3*(IDX2-1)+1:3*(IDX2-1)+3) = C(1:3) + LEN2*N1(1:3)
       END SUBROUTINE SWITCH_PAIR
 
-      SUBROUTINE SWITCH_SMALL_GROUPS(CENTRE,IMAGE)
-         USE QCIKEYS, ONLY: NATOMS
+      SUBROUTINE SWITCH_SMALL_GROUPS(XYZ,CENTRE,IMAGE)
+         USE QCIKEYS, ONLY: NATOMS, NIMAGES
          USE INTERPOLATION_KEYS, ONLY: ATOMACTIVE
-         USE HELPER_FNCTS, ONLY: NORM_VEC, CROSS_PROD, DOTP
+         USE HELPER_FNCTS, ONLY: NORM_VEC, CROSS_PROD, DOTP, EUC_NORM
+         REAL(KIND = REAL64), INTENT(INOUT) :: XYZ((3*NATOMS)*(NIMAGES+2))
          INTEGER, INTENT(IN) :: CENTRE, IMAGE
          INTEGER :: CHIRALCENTRE
          INTEGER :: ATOMS1(NSWAPCUT), ATOMS2(NSWAPCUT)
@@ -186,7 +187,7 @@ MODULE CHIRALITY
          REAL(KIND = REAL64) :: N1(3), N2(3), LEN1, LEN2, ROTAX(3)
          REAL(KIND = REAL64) :: COSTH, SINTH, ANGLE, RX, RY, RZ, DP
          REAL(KIND = REAL64) :: ATOMX(3)
-         INTEGER :: ATID
+         INTEGER :: ATID, J1
 
          CHIRALCENTRE = CHIR_INFO(J1,1)
          ATOMS1(1:NSWAPCUT) = SWAPGROUPS(CENTRE,1,1:NSWAPCUT)
@@ -327,7 +328,7 @@ MODULE CHIRALITY
                   WRITE(*,*) " chirality_check> Atom ", CHIRALCENTRE, " image ", J3, " chirality changed"
                   IF (POTENTIAL_SWAPT(J1)) THEN
                      WRITE(*,*) "                  Located a swappable pair - fixing chirality by switching small groups."
-                     CALL SWITCH_SMALL_GROUPS(J1,J3)
+                     CALL SWITCH_SMALL_GROUPS(XYZ,J1,J3)
                   ELSE
                      WRITE(*,*) "                  Not a swappable pair - Using previous image coordinates."
                      ACID = ATOMS2RES(CHIRALCENTRE)
@@ -583,7 +584,7 @@ MODULE CHIRALITY
       SUBROUTINE FIND_SWAPPABLE_GROUPS()
          INTEGER :: J1, J2
          INTEGER :: GROUPSIZE(4)
-         INTEGER :: GROUPSIZE(4,NSWAPCUT)
+         INTEGER :: GROUPIDS(4,NSWAPCUT)
          INTEGER :: NSMALL, SMALLEST1, SMALLEST2, S1ID, S2ID, NSWAPPABLE
 
          ! allocate the potential swap variables
@@ -596,7 +597,7 @@ MODULE CHIRALITY
             CALL GET_ATTACHED_SIZE(J1,GROUPSIZE,GROUPIDS)
             NSMALL = 0
             DO J2=1,4
-               IF (GROUPSIZE.LE.NSWAPCUT) NSMALL=NSMALL+1
+               IF (GROUPSIZE(J2).LE.NSWAPCUT) NSMALL=NSMALL+1
             END DO
             IF (NSMALL.GE.2) THEN
                POTENTIAL_SWAPT(J1) = .TRUE.
@@ -624,10 +625,10 @@ MODULE CHIRALITY
       END SUBROUTINE FIND_SWAPPABLE_GROUPS
 
       SUBROUTINE GET_ATTACHED_SIZE(CENTRE,GROUPSIZE,GROUPIDS)
-         INTEGER, INTENT(IN) :: J1
+         INTEGER, INTENT(IN) :: CENTRE
          INTEGER, INTENT(OUT) :: GROUPSIZE(4)
          INTEGER, INTENT(OUT) :: GROUPIDS(4,NSWAPCUT)
-         INTEGER :: ATID, J1, J2, J3
+         INTEGER :: ATID, ATID2, J1, J2, J3
          INTEGER :: TOTAL_BONDED
 
          GROUPSIZE(1:4) = 0
