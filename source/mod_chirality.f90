@@ -15,7 +15,9 @@ MODULE CHIRALITY
    INTEGER, DIMENSION(:,:), ALLOCATABLE, SAVE :: BONDEDELS   !atoms bonded by element (up to 6) 
    LOGICAL, ALLOCATABLE, SAVE :: POSSIBLE_CC(:)              !potential chiral centres
    INTEGER, ALLOCATABLE, SAVE :: POSSIBLE_IDS(:,:)           !ids of bonded atoms   
-   
+   LOGICAL, ALLOCATABLE :: POTENTIAL_SWAPT(:)                ! Can we use a swap of atoms to change the chirality later?
+   INTEGER, PARAMETER :: NSWAPCUT = 4                        ! Cut off for largest swap size - currently this is capped at methyl group size.  
+   INTEGER, ALLOCATABLE :: SWAPGROUPS(:,:,:)                   ! Atom ids to be swapped (dim1: chiral centre, dim2: groups, dim3: atoms to be swapped)
 
    CONTAINS
       SUBROUTINE DEALLOC_CHIR_INTERNALS()
@@ -28,6 +30,8 @@ MODULE CHIRALITY
          IF (ALLOCATED(POSSIBLE_CC)) DEALLOCATE(POSSIBLE_CC) 
          IF (ALLOCATED(POSSIBLE_IDS)) DEALLOCATE(POSSIBLE_IDS)  
          IF (ALLOCATED(CSP2)) DEALLOCATE(CSP2)
+         IF (ALLOCATED(POTENTIAL_SWAPT)) DEALLOCATE(POTENTIAL_SWAPT)
+         IF (ALLOCATED(SWAPGROUPS)) DEALLOCATE(SWAPGROUPS)
       END SUBROUTINE DEALLOC_CHIR_INTERNALS
 
       SUBROUTINE GET_ACTIVE_CHIRAL_CENTRES(NACTCHIRAL,ACTIVE_CENTRES)
@@ -171,6 +175,99 @@ MODULE CHIRALITY
          COORDS(3*(IDX2-1)+1:3*(IDX2-1)+3) = C(1:3) + LEN2*N1(1:3)
       END SUBROUTINE SWITCH_PAIR
 
+      SUBROUTINE SWITCH_SMALL_GROUPS(CENTRE,IMAGE)
+         USE QCIKEYS, ONLY: NATOMS
+         USE INTERPOLATION_KEYS, ONLY: ATOMACTIVE
+         USE HELPER_FNCTS, ONLY: NORM_VEC, CROSS_PROD, DOTP
+         INTEGER, INTENT(IN) :: CENTRE, IMAGE
+         INTEGER :: CHIRALCENTRE
+         INTEGER :: ATOMS1(NSWAPCUT), ATOMS2(NSWAPCUT)
+         REAL(KIND = REAL64) :: C(3), AT1(3), AT2(3), VEC1(3), VEC2(3)
+         REAL(KIND = REAL64) :: N1(3), N2(3), LEN1, LEN2, ROTAX(3)
+         REAL(KIND = REAL64) :: COSTH, SINTH, ANGLE, RX, RY, RZ, DP
+         REAL(KIND = REAL64) :: ATOMX(3)
+         INTEGER :: ATID
+
+         CHIRALCENTRE = CHIR_INFO(J1,1)
+         ATOMS1(1:NSWAPCUT) = SWAPGROUPS(CENTRE,1,1:NSWAPCUT)
+         ATOMS2(1:NSWAPCUT) = SWAPGROUPS(CENTRE,2,1:NSWAPCUT)
+         
+         !get centre coordinates
+         C(1) = XYZ(3*NATOMS*(IMAGE-1)+3*CHIRALCENTRE-2)
+         C(2) = XYZ(3*NATOMS*(IMAGE-1)+3*CHIRALCENTRE-1)
+         C(3) = XYZ(3*NATOMS*(IMAGE-1)+3*CHIRALCENTRE)
+
+         !get bonded atoms
+         AT1(1) = XYZ(3*NATOMS*(IMAGE-1)+3*ATOMS1(1)-2)
+         AT1(2) = XYZ(3*NATOMS*(IMAGE-1)+3*ATOMS1(1)-1)
+         AT1(3) = XYZ(3*NATOMS*(IMAGE-1)+3*ATOMS1(1))
+         AT2(1) = XYZ(3*NATOMS*(IMAGE-1)+3*ATOMS2(1)-2)
+         AT2(2) = XYZ(3*NATOMS*(IMAGE-1)+3*ATOMS2(1)-1)
+         AT2(3) = XYZ(3*NATOMS*(IMAGE-1)+3*ATOMS2(1))
+         
+         !position vectors
+         VEC1(1:3) = AT1(1:3) - C(1:3)
+         VEC2(1:3) = AT2(1:3) - C(1:3)  
+
+         !get normalised vectors
+         CALL NORM_VEC(VEC1,N1,LEN1)
+         CALL NORM_VEC(VEC2,N2,LEN2)
+
+         !get perpendicular axis for rotation
+         ROTAX = CROSS_PROD(N1,N2)
+         RX = ROTAX(1); RY = ROTAX(2); RZ = ROTAX(3)
+         !get the rotation angle N1->N2
+         COSTH = DOTP(3,N1,N2)
+         SINTH = EUC_NORM(ROTAX)
+         ANGLE = ATAN2(SINTH,COSTH)
+
+         DO J1=1,NSWAPCUT
+            ATID = ATOMS1(J1)
+            IF (ATID.NE.-1) THEN
+               !coordinates for atoms
+               ATOMX(1) = XYZ(3*NATOMS*(IMAGE-1)+3*ATID-2)
+               ATOMX(2) = XYZ(3*NATOMS*(IMAGE-1)+3*ATID-1)
+               ATOMX(3) = XYZ(3*NATOMS*(IMAGE-1)+3*ATID)
+               ! recentering using chiral centre as reference
+               ATOMX(1:3) = ATOMX(1:3) - C(1:3)
+               ! apply rotation
+               DP = DOTP(3,ATOMX,ROTAX)
+               ATOMX(1) = RX*DP*(1.0D0-COSTH) + ATOMX(1)*COSTH + (-RZ*ATOMX(2) + RY*ATOMX(3))*SINTH
+               ATOMX(2) = RX*DP*(1.0D0-COSTH) + ATOMX(2)*COSTH + ( RZ*ATOMX(1) - RX*ATOMX(3))*SINTH
+               ATOMX(3) = RX*DP*(1.0D0-COSTH) + ATOMX(3)*COSTH + (-RY*ATOMX(1) + RX*ATOMX(2))*SINTH
+               !write new coordinates back to XYZ array
+               XYZ(3*NATOMS*(IMAGE-1)+3*ATID-2) =  ATOMX(1) + C(1)
+               XYZ(3*NATOMS*(IMAGE-1)+3*ATID-1) =  ATOMX(2) + C(2)
+               XYZ(3*NATOMS*(IMAGE-1)+3*ATID) =  ATOMX(3) + C(3)
+            END IF
+         END DO
+
+         !get the rotation angle N2->N1
+         COSTH = DCOS(-ANGLE)
+         SINTH = DSIN(-ANGLE)
+         DO J1=1,NSWAPCUT
+            ATID = ATOMS2(J1)
+            IF (ATID.NE.-1) THEN
+               !coordinates for atoms
+               ATOMX(1) = XYZ(3*NATOMS*(IMAGE-1)+3*ATID-2)
+               ATOMX(2) = XYZ(3*NATOMS*(IMAGE-1)+3*ATID-1)
+               ATOMX(3) = XYZ(3*NATOMS*(IMAGE-1)+3*ATID)
+               ! recentering using chiral centre as reference
+               ATOMX(1:3) = ATOMX(1:3) - C(1:3)
+               ! apply rotation
+               DP = DOTP(3,ATOMX,ROTAX)
+               ATOMX(1) = RX*DP*(1.0D0-COSTH) + ATOMX(1)*COSTH + (-RZ*ATOMX(2) + RY*ATOMX(3))*SINTH
+               ATOMX(2) = RX*DP*(1.0D0-COSTH) + ATOMX(2)*COSTH + ( RZ*ATOMX(1) - RX*ATOMX(3))*SINTH
+               ATOMX(3) = RX*DP*(1.0D0-COSTH) + ATOMX(3)*COSTH + (-RY*ATOMX(1) + RX*ATOMX(2))*SINTH
+               !write new coordinates back to XYZ array
+               XYZ(3*NATOMS*(IMAGE-1)+3*ATID-2) =  ATOMX(1) + C(1)
+               XYZ(3*NATOMS*(IMAGE-1)+3*ATID-1) =  ATOMX(2) + C(2)
+               XYZ(3*NATOMS*(IMAGE-1)+3*ATID) =  ATOMX(3) + C(3)
+            END IF
+         END DO
+      END SUBROUTINE SWITCH_SMALL_GROUPS
+
+
       SUBROUTINE CHIRALITY_CHECK(XYZ)
          USE INTERPOLATION_KEYS, ONLY: ATOMACTIVE
          USE QCIKEYS, ONLY: NATOMS, DEBUG, NIMAGES, ATOMS2RES
@@ -228,30 +325,35 @@ MODULE CHIRALITY
                THIS_SR = ASSIGNMENT_SR(NEIGHBOUR_COORDS,CENTRE_COORDS)
                IF (THIS_SR.NEQV.PREV_SR) THEN
                   WRITE(*,*) " chirality_check> Atom ", CHIRALCENTRE, " image ", J3, " chirality changed"
-                  WRITE(*,*) "                  Using previous image coordinates."
-                  ACID = ATOMS2RES(CHIRALCENTRE)
-                  NCHANGE = 0
-                  CHANGEAT(1:NATOMS) = -1
-                  THISIMAGE = 3*NATOMS*(J3-1)
-                  PREVIMAGE = 3*NATOMS*(J3-2)
-                  DO J4=RES_START(ACID),RES_END(ACID)
-                     IF (.NOT.ATOMACTIVE(J4)) CYCLE
-                     ! WRITE(*,*) " chirality_check> Changing active atom ", J4, " in image ", J3
-                     NCHANGE=NCHANGE+1
-                     CHANGEAT(NCHANGE)=J4
-                     OFFSET = 3*(NCHANGE-1)
-                     OFFSET2 = 3*(J4-1)
-                     COORDSA(OFFSET+1:OFFSET+3)=XYZ(THISIMAGE+OFFSET2+1:THISIMAGE+OFFSET2+3)
-                     COORDSB(OFFSET+1:OFFSET+3)=XYZ(PREVIMAGE+OFFSET2+1:PREVIMAGE+OFFSET2+3)
-                  END DO
+                  IF (POTENTIAL_SWAPT(J1)) THEN
+                     WRITE(*,*) "                  Located a swappable pair - fixing chirality by switching small groups."
+                     CALL SWITCH_SMALL_GROUPS(J1,J3)
+                  ELSE
+                     WRITE(*,*) "                  Not a swappable pair - Using previous image coordinates."
+                     ACID = ATOMS2RES(CHIRALCENTRE)
+                     NCHANGE = 0
+                     CHANGEAT(1:NATOMS) = -1
+                     THISIMAGE = 3*NATOMS*(J3-1)
+                     PREVIMAGE = 3*NATOMS*(J3-2)
+                     DO J4=RES_START(ACID),RES_END(ACID)
+                        IF (.NOT.ATOMACTIVE(J4)) CYCLE
+                        ! WRITE(*,*) " chirality_check> Changing active atom ", J4, " in image ", J3
+                        NCHANGE=NCHANGE+1
+                        CHANGEAT(NCHANGE)=J4
+                        OFFSET = 3*(NCHANGE-1)
+                        OFFSET2 = 3*(J4-1)
+                        COORDSA(OFFSET+1:OFFSET+3)=XYZ(THISIMAGE+OFFSET2+1:THISIMAGE+OFFSET2+3)
+                        COORDSB(OFFSET+1:OFFSET+3)=XYZ(PREVIMAGE+OFFSET2+1:PREVIMAGE+OFFSET2+3)
+                     END DO
 
-                  ! Align the replacement atoms with the original atoms as far as possible
-                  CALL ALIGNXBTOA(COORDSA, COORDSB, NCHANGE)
-                  DO J4=1,NCHANGE
-                     OFFSET = 3*(CHANGEAT(J4)-1)
-                     OFFSET2 = 3*(J4-1)
-                     XYZ(THISIMAGE+OFFSET+1:THISIMAGE+OFFSET+3)=COORDSB(OFFSET2+1:OFFSET2+3)  
-                  ENDDO
+                     ! Align the replacement atoms with the original atoms as far as possible
+                     CALL ALIGNXBTOA(COORDSA, COORDSB, NCHANGE)
+                     DO J4=1,NCHANGE
+                        OFFSET = 3*(CHANGEAT(J4)-1)
+                        OFFSET2 = 3*(J4-1)
+                        XYZ(THISIMAGE+OFFSET+1:THISIMAGE+OFFSET+3)=COORDSB(OFFSET2+1:OFFSET2+3)  
+                     ENDDO
+                  END IF
 
                END IF
             END DO
@@ -474,8 +576,90 @@ MODULE CHIRALITY
             CHIR_INFO(J1,5) = DUMMY_CHIR_INFO(J1,5)
          ENDDO
          WRITE(*,*) " find_chiral_centres> Completed chiral centre detection, number of chiral centres: ", NCHIRAL
+         CALL FIND_SWAPPABLE_GROUPS()
          RETURN    
-       END SUBROUTINE FIND_CHIRAL_CENTRES
+      END SUBROUTINE FIND_CHIRAL_CENTRES
+
+      SUBROUTINE FIND_SWAPPABLE_GROUPS()
+         INTEGER :: J1, J2
+         INTEGER :: GROUPSIZE(4)
+         INTEGER :: GROUPSIZE(4,NSWAPCUT)
+         INTEGER :: NSMALL, SMALLEST1, SMALLEST2, S1ID, S2ID, NSWAPPABLE
+
+         ! allocate the potential swap variables
+         ALLOCATE(POTENTIAL_SWAPT(NCHIRAL),SWAPGROUPS(NCHIRAL,2,NSWAPCUT))
+
+         NSWAPPABLE = 0
+         POTENTIAL_SWAPT(1:NCHIRAL) = .FALSE.
+
+         DO J1=1,NCHIRAL
+            CALL GET_ATTACHED_SIZE(J1,GROUPSIZE,GROUPIDS)
+            NSMALL = 0
+            DO J2=1,4
+               IF (GROUPSIZE.LE.NSWAPCUT) NSMALL=NSMALL+1
+            END DO
+            IF (NSMALL.GE.2) THEN
+               POTENTIAL_SWAPT(J1) = .TRUE.
+               NSWAPPABLE = NSWAPPABLE + 1
+               SMALLEST1 = NSWAPCUT + 1
+               SMALLEST2= NSWAPCUT + 1
+               S1ID = 0
+               S2ID = 0
+               DO J2=1,4
+                  IF (GROUPSIZE(J2).LT.SMALLEST1) THEN
+                     SMALLEST2 = SMALLEST1
+                     S2ID = S1ID
+                     SMALLEST1 = GROUPSIZE(J2)
+                     S1ID = J2 
+                  ELSE IF (GROUPSIZE(J2).LT.SMALLEST2) THEN
+                     SMALLEST2 = GROUPSIZE(J2)
+                     S2ID = J2 
+                  END IF
+               END DO
+               SWAPGROUPS(J1,1,1:NSWAPCUT) = GROUPIDS(S1ID,1:NSWAPCUT)
+               SWAPGROUPS(J1,2,1:NSWAPCUT) = GROUPIDS(S2ID,1:NSWAPCUT)
+            END IF
+         END DO
+         WRITE(*,*) " find_swappable_groups> Found ", NSWAPPABLE, " chiral centres with at least two bonded groups smaller than NSWAPCUT=",NSWAPCUT
+      END SUBROUTINE FIND_SWAPPABLE_GROUPS
+
+      SUBROUTINE GET_ATTACHED_SIZE(CENTRE,GROUPSIZE,GROUPIDS)
+         INTEGER, INTENT(IN) :: J1
+         INTEGER, INTENT(OUT) :: GROUPSIZE(4)
+         INTEGER, INTENT(OUT) :: GROUPIDS(4,NSWAPCUT)
+         INTEGER :: ATID, J1, J2, J3
+         INTEGER :: TOTAL_BONDED
+
+         GROUPSIZE(1:4) = 0
+         GROUPIDS(1:4,1:NSWAPCUT) = -1
+         DO J1=1,4
+            ATID = CHIR_INFO(CENTRE,J1+1)
+            ! check if it is a hydrogen (There is no other atom here, as we already preselected chiral centres)
+            IF (NBONDED(ATID).EQ.1) THEN
+               GROUPSIZE(J1) = 1
+               GROUPIDS(J1,1) = ATID
+            ! otherwise, we need to actually find the group size
+            ELSE
+               TOTAL_BONDED = 1
+               ! iterate over all the atoms bonded to the current atom under consideration
+               ! we add the number of atoms bonded
+               ! for H, we get +1, i.e. accounting for the atom
+               ! for anything else, we get 2+, accounting for the atom+other bonded atoms
+               DO J2=1,NBONDED(ATID)
+                  ATID2 = BONDEDATS(ATID,J2)
+                  TOTAL_BONDED = TOTAL_BONDED + NBONDED(ATID2)
+               END DO
+               !note this test only works for small NSWAPCUT sizes!!!
+               GROUPSIZE(J1) = TOTAL_BONDED
+               IF (TOTAL_BONDED.LE.NSWAPCUT) THEN
+                  GROUPIDS(J1,1) = ATID
+                  DO J3=2,TOTAL_BONDED
+                     GROUPIDS(J1,J3) = BONDEDATS(ATID,J3)  
+                  END DO
+               END IF
+            END IF
+         END DO
+      END SUBROUTINE GET_ATTACHED_SIZE
 
       SUBROUTINE SORT_BONDEDATS()
          IMPLICIT NONE
