@@ -575,8 +575,10 @@ MODULE CHIRALITY
             CHIR_INFO(J1,3) = DUMMY_CHIR_INFO(J1,3)
             CHIR_INFO(J1,4) = DUMMY_CHIR_INFO(J1,4)
             CHIR_INFO(J1,5) = DUMMY_CHIR_INFO(J1,5)
+            WRITE(*,*) "Centre: ", J1, " atom id: ", CHIR_INFO(J1,1), " atoms attached: ", CHIR_INFO(J1,2:5)
          ENDDO
          WRITE(*,*) " find_chiral_centres> Completed chiral centre detection, number of chiral centres: ", NCHIRAL
+         
          CALL FIND_SWAPPABLE_GROUPS()
          RETURN    
       END SUBROUTINE FIND_CHIRAL_CENTRES
@@ -592,7 +594,6 @@ MODULE CHIRALITY
 
          NSWAPPABLE = 0
          POTENTIAL_SWAPT(1:NCHIRAL) = .FALSE.
-
          DO J1=1,NCHIRAL
             CALL GET_ATTACHED_SIZE(J1,GROUPSIZE,GROUPIDS)
             NSMALL = 0
@@ -650,6 +651,8 @@ MODULE CHIRALITY
                   ATID2 = BONDEDATS(ATID,J2)
                   TOTAL_BONDED = TOTAL_BONDED + NBONDED(ATID2)
                END DO
+               !we are counting the chiral centre here as well, so we subtract the number of bonds from the chiral centre to correct for this 
+               TOTAL_BONDED = TOTAL_BONDED - 4
                !note this test only works for small NSWAPCUT sizes!!!
                GROUPSIZE(J1) = TOTAL_BONDED
                IF (TOTAL_BONDED.LE.NSWAPCUT) THEN
