@@ -21,7 +21,7 @@ MODULE QCIINTERPOLATION
          USE QCI_CONSTRAINT_KEYS
          USE CHIRALITY, ONLY: ASSIGNMENT_SR, CHIRALITY_CHECK
          USE ADDINGATOM, ONLY: ADDATOM
-         USE REPULSION, ONLY: NREPULSIVE, CHECKREP
+         USE REPULSION, ONLY: NREPULSIVE, CHECKREP, REPI, REPJ
          USE ADDREMOVE_IMAGES, ONLY: ADD_IMAGE, REMOVE_IMAGE
          USE HELPER_FNCTS, ONLY: DOTP
          IMPLICIT NONE
@@ -46,6 +46,8 @@ MODULE QCIINTERPOLATION
          REAL(KIND = REAL64) :: STPMIN ! minimum step-size
          REAL(KIND = REAL64) :: CURRMAXSEP, CURRMINSEP ! current minimum and maximum image separation
          INTEGER :: IDXMIN, IDXMAX ! id for minimum and maximum distance images
+         !!DEGBUG
+         INTEGER :: UNITCONSTR
 
          !initiate variables for the interpolation, including image density set nimage
          CALL ALLOC_INTERPOLATION_VARS()
@@ -86,13 +88,12 @@ MODULE QCIINTERPOLATION
          NTRIES(CONI(NBEST))=1
          NTRIES(CONJ(NBEST))=1
          NREPULSIVE=0
-         NCONSTRAINTON=1
+         NCONSTRAINTON=0
          
          ! add constraints and repulsions for all frozen atoms
-         IF (QCIFREEZET) THEN
-            CALL ADD_CONSTR_AND_REP_FROZEN_ATOMS(NBEST)
-         END IF
-
+         !IF (QCIFREEZET) THEN
+         CALL ADD_CONSTR_AND_REP_FROZEN_ATOMS(NBEST)
+         !END IF
          ! before we continue check repulsion neighbour list
          CALL CHECKREP(XYZ,0,1)
 
@@ -275,6 +276,20 @@ MODULE QCIINTERPOLATION
                   NITERUSE=NITERUSE+1
                END DO
                !!!! End of energy minimisation after adding an atom
+               !!! DEBUG WORK
+               IF (NACTIVE.EQ.NATOMS) THEN
+                  UNITCONSTR = 1023
+                  OPEN(UNITCONSTR,FILE="overview_constraints.dat",STATUS='UNKNOWN')
+                  DO J1=1,NCONSTRAINT
+                     WRITE(UNITCONSTR,'(I6,2I8)') J1, CONI(J1), CONJ(J1)
+                  END DO
+                  CLOSE(UNITCONSTR)
+                  OPEN(UNITCONSTR,FILE="overview_repulsions.dat",STATUS='UNKNOWN')
+                  DO J1=1,NREPULSIVE
+                     WRITE(UNITCONSTR,'(I6,2I8)') J1, REPI(J1), REPJ(J1)
+                  END DO
+                  CLOSE(UNITCONSTR)
+               END IF 
             END IF
 
             GTMP(1:DIMS)=0.0D0
