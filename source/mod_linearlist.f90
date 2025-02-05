@@ -13,10 +13,12 @@ MODULE QCI_LINEAR
    CONTAINS
 
       SUBROUTINE GET_LINEAR_ATOMS()
-         USE QCIKEYS, ONLY: NATOMS, INLINLIST
+         USE QCIKEYS, ONLY: NATOMS, INLINLIST, LINEARBBT, ISBBATOM, QCIAMBERT, QCIHIRET
          USE QCIFILEHANDLER, ONLY: FILE_LENGTH, GETUNIT        
          USE MOD_INTCOORDS, ONLY: XSTART, XFINAL
          USE HELPER_FNCTS, ONLY: DISTANCE_ATOM_DIFF_IMAGES
+         USE AMBER_CONSTRAINTS, ONLY: AMBERBB => BACKBONE
+         USE HIRE_CONSTRAINTS, ONLY: HIREBB => BACKBONE
          INTEGER :: NDUMMY, DUMMY
          INTEGER :: LINEART(NATOMS)
          REAL(KIND=REAL64) :: DIST
@@ -36,6 +38,16 @@ MODULE QCI_LINEAR
                LINEART(DUMMY) = 1
             END DO
             CLOSE(LINUNIT)
+         END IF
+
+         IF (LINEARBBT) THEN
+            IF (QCIAMBERT.OR.QCIHIRET) THEN
+               DO J1=1,NATOMS
+                  IF (ISBBATOM(J1)) LINEART(J1) = 1
+               END DO
+            ELSE
+               WRITE(*,*) "WARNING: Linear backbone interpolation set, but neither AMBER not HiRE are used"
+            END IF
          END IF
 
          DO J1=1,NATOMS

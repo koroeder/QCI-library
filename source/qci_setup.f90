@@ -2,7 +2,7 @@ MODULE QCISETUP
    USE QCIPREC
    CONTAINS
       SUBROUTINE QCI_INIT(PARAMETERFILE, ALIGNT)
-         USE QCIKEYS, ONLY: NATOMS, QCIAMBERT, QCIFREEZET, USEIMAGEDENSITY
+         USE QCIKEYS, ONLY: NATOMS, QCIAMBERT, QCIFREEZET, USEIMAGEDENSITY, QCIPERMT
          USE QCICONSTRAINTS, ONLY: CREATE_CONSTRAINTS
          USE QCIPERMDIST, ONLY: INIT_PERMALLOW
          USE MOD_FREEZE, ONLY: GET_FROZEN_ATOMS
@@ -16,15 +16,15 @@ MODULE QCISETUP
          ! parse settings
          CALL PARSE_SETTINGS(PARAMETERFILE)
          ! starting permutational setup perm.allow
-         CALL INIT_PERMALLOW(NATOMS)
+         IF (QCIPERMT) CALL INIT_PERMALLOW(NATOMS)
          ! align endpoints
          IF (ALIGNT.OR.USEIMAGEDENSITY) CALL ALIGN_ENDPOINTS()
-         ! get atoms for linear interpolation
-         CALL GET_LINEAR_ATOMS()
          ! get frozen atoms setup
          IF (QCIFREEZET) CALL GET_FROZEN_ATOMS()
          ! get constraints
          CALL CREATE_CONSTRAINTS()
+         ! get atoms for linear interpolation
+         CALL GET_LINEAR_ATOMS()
          ! setting up repulsions
          ! we use NATOMS as initial size here for the number of repulsions
          NREPCURR = NATOMS
@@ -102,22 +102,28 @@ MODULE QCISETUP
 
       SUBROUTINE ALIGN_ENDPOINTS()
          USE QCIPERMDIST, ONLY: LOPERMDIST
-         USE QCIKEYS, ONLY : NATOMS, E2E_DIST
+         USE QCIMINDIST, ONLY: ALIGNXBTOA
+         USE QCIKEYS, ONLY : NATOMS, E2E_DIST, QCIPERMT, DEBUG
          USE MOD_INTCOORDS, ONLY: XSTART, XFINAL
          IMPLICIT NONE
          REAL(KIND=REAL64) :: DIST2, RMATBEST(3,3)
          INTEGER :: NMOVE, NEWPERM(NATOMS)
 
          !QUERY: will lopermdist actually change coordinates or do we need a wrapper to do so?
-         CALL LOPERMDIST(XFINAL,XSTART,E2E_DIST,DIST2,RMATBEST,0,NMOVE,NEWPERM)
-         WRITE(*,*) " align_endpoints> Distance between endpoints is ", E2E_DIST
-
-         OPEN(UNIT=55,FILE="start.aligned")
-         WRITE(55,'(3F20.7)') XSTART
-         CLOSE(55)
-         OPEN(UNIT=55,FILE="finish.aligned")
-         WRITE(55,'(3F20.7)') XFINAL
-         CLOSE(55)         
+         IF (QCIPERMT) THEN
+            CALL LOPERMDIST(XFINAL,XSTART,E2E_DIST,DIST2,RMATBEST,0,NMOVE,NEWPERM)
+            WRITE(*,*) " align_endpoints> Distance between endpoints is ", E2E_DIST
+         ELSE
+            CALL ALIGNXBTOA(XSTART, XFINAL, NATOMS)
+         END IF
+         IF (DEBUG) THEN
+            OPEN(UNIT=55,FILE="start.aligned")
+            WRITE(55,'(3F20.7)') XSTART
+            CLOSE(55)
+            OPEN(UNIT=55,FILE="finish.aligned")
+            WRITE(55,'(3F20.7)') XFINAL
+            CLOSE(55)         
+         END IF
       END SUBROUTINE ALIGN_ENDPOINTS
 
       SUBROUTINE SETKEYS(ENTRY, VAL)
@@ -198,6 +204,8 @@ MODULE QCISETUP
             LINEARFILE = VAL
          ELSE IF (ENTRY.EQ."LINEARCUTOFF") THEN
             READ(VAL, *) LINEARCUT
+         ELSE IF (ENTRY.EQ."LINEARBB") THEN
+            LINEARBBT = .TRUE.           
          !reading a guess for the band
          ELSE IF (ENTRY.EQ."QCIREADGUESS") THEN
             QCIREADGUESS = .TRUE.   
