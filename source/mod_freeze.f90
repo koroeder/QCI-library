@@ -29,6 +29,7 @@ MODULE MOD_FREEZE
             IF ((DIST.LT.FREEZETOL2).OR.FREEZE(J1)) THEN
                NQCIFROZEN  = NQCIFROZEN + 1
                QCIFROZEN(J1) = .TRUE.
+               WRITE(*,*) " Freezing atom ", J1
                ! make sure we keep all forced ones later
                IF (FREEZE(J1)) THEN
                   DIST = -DIST
@@ -54,6 +55,7 @@ MODULE MOD_FREEZE
             END DO
             NQCIFROZEN = MAX(0,NATOMS-NMINUNFROZEN)
          END IF
+         WRITE(*,*) "NFROZEN: ", NQCIFROZEN
       END SUBROUTINE GET_FROZEN_ATOMS
 
       SUBROUTINE READ_FROZEN_ATOMS()
@@ -101,7 +103,7 @@ MODULE MOD_FREEZE
          NJ = CONJ(NBEST)
          DO I=1,NCONSTRAINT
             ! we are only interested in active constraints
-            IF (.NOT.CONACTIVE(I)) CYCLE
+            IF (CONACTIVE(I)) CYCLE
             IF (((CONI(I).EQ.NI).OR.(CONI(I).EQ.NJ)).AND.(ATOMACTIVE(CONJ(I))).OR. &
                 ((CONJ(I).EQ.NI).OR.(CONJ(I).EQ.NJ)).AND.(ATOMACTIVE(CONI(I)))) THEN
                CONACTIVE(I) = .TRUE.

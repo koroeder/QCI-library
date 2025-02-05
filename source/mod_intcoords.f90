@@ -76,10 +76,6 @@ MODULE MOD_INTCOORDS
             ! we want to collect the change in atom positions between the endpoints
             CALL DISTANCE_ATOM_DIFF_IMAGES(NATOMS, XSTART, XFINAL, CONI(J1), D1)
             CALL DISTANCE_ATOM_DIFF_IMAGES(NATOMS, XSTART, XFINAL, CONJ(J1), D2)
-            WRITE(*,*) D1, D2
-            CALL DISTANCE_ATOM_DIFF_IMAGES(NATOMS, XYZ(1:3*NATOMS), XYZ(3*NATOMS*(NIMAGES+1)+1:3*NATOMS*(NIMAGES+2)), CONI(J1), D1)
-            CALL DISTANCE_ATOM_DIFF_IMAGES(NATOMS, XYZ(1:3*NATOMS), XYZ(3*NATOMS*(NIMAGES+1)+1:3*NATOMS*(NIMAGES+2)), CONJ(J1), D2)
-            WRITE(*,*) D1, D2
             DF = D1 + D2
             IF (DF.LT.CURRSMALLEST) THEN
                CURRSMALLEST = DF

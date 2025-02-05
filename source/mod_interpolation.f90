@@ -58,7 +58,6 @@ MODULE QCIINTERPOLATION
          ! allocate the coordinate, energy and gradient variables for the band and
          ! initiate the interpolation band
          CALL INITIATE_INTERPOLATION_BAND()
-
          !initialise step taking variables
 
          ! are we reading in a guess?
