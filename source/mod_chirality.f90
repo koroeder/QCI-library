@@ -4,6 +4,9 @@ MODULE CHIRALITY
    USE AMBER_CONSTRAINTS, ONLY: NRES, NBOND, BONDS, RESNAMES, RES_START, RES_END, AMBER_NAMES, ELEMENT
    IMPLICIT NONE
    INTEGER, SAVE :: NCHIRAL = -1
+   !!DEBUG
+   INTEGER, SAVE :: NCHIRALBANDS = 0
+   CHARACTER(LEN=4) :: NBAND
    INTEGER :: NCSP2                                          !number of sp2 hybridised carbons
    INTEGER :: NDOUBLE                                        !number of double bonds
    INTEGER, ALLOCATABLE :: CSP2(:)                           !list of sp2 hybridised carbon
@@ -271,6 +274,7 @@ MODULE CHIRALITY
 
       SUBROUTINE CHIRALITY_CHECK(XYZ)
          USE INTERPOLATION_KEYS, ONLY: ATOMACTIVE
+         USE MOD_INTCOORDS, ONLY: WRITE_BAND
          USE QCIKEYS, ONLY: NATOMS, DEBUG, NIMAGES, ATOMS2RES
          USE AMBER_CONSTRAINTS, ONLY: RES_START, RES_END
          USE QCIMINDIST, ONLY: ALIGNXBTOA
@@ -326,6 +330,13 @@ MODULE CHIRALITY
                THIS_SR = ASSIGNMENT_SR(NEIGHBOUR_COORDS,CENTRE_COORDS)
                IF (THIS_SR.NEQV.PREV_SR) THEN
                   WRITE(*,*) " chirality_check> Atom ", CHIRALCENTRE, " image ", J3, " chirality changed"
+                  !!DEBUG
+                  NCHIRALBANDS = NCHIRALBANDS + 1
+                  WRITE(NBAND,'(I4)') NCHIRALBANDS
+                  CALL WRITE_BAND("chirality_issue."//TRIM(ADJUSTL(NBAND))//"a.xyz")
+                  
+                  !!END DEBUG
+
                   IF (POTENTIAL_SWAPT(J1)) THEN
                      WRITE(*,*) "                  Located a swappable pair - fixing chirality by switching small groups."
                      CALL SWITCH_SMALL_GROUPS(XYZ,J1,J3)
@@ -355,6 +366,7 @@ MODULE CHIRALITY
                         XYZ(THISIMAGE+OFFSET+1:THISIMAGE+OFFSET+3)=COORDSB(OFFSET2+1:OFFSET2+3)  
                      ENDDO
                   END IF
+                  CALL WRITE_BAND("chirality_issue."//TRIM(ADJUSTL(NBAND))//"b.xyz")
 
                END IF
             END DO
