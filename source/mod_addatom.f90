@@ -19,6 +19,18 @@ MODULE ADDINGATOM
          IF (ALLOCATED(NCONTOACTIVE)) DEALLOCATE(NCONTOACTIVE)
       END SUBROUTINE DEALLOC_ADDATOM
 
+      !debugging function
+      SUBROUTINE CHECK_DIFF_FINAL()
+         USE MOD_INTCOORDS, ONLY: XYZ, XFINAL
+         USE QCIKEYS, ONLY: NATOMS, NIMAGES
+
+         REAL(KIND = REAL64) :: DIFF(3*NATOMS)
+
+         DIFF(1:3*NATOMS) = XYZ((3*NATOMS)*(NIMAGES+1)+1:(3*NATOMS)*(NIMAGES+2)) - XFINAL(1:3*NATOMS) 
+
+         WRITE(*,*) " COMPARING FINISH COORDS: ", SUM(DIFF)
+      END SUBROUTINE CHECK_DIFF_FINAL
+
       SUBROUTINE ADDATOM()
          USE MOD_INTCOORDS, ONLY: XYZ, EEE, GGG, RMS
          USE QCIKEYS, ONLY: QCIDOBACK, QCIADDACIDT, NATOMS, NIMAGES, DEBUG, QCILINEART, INLINLIST, &
@@ -57,7 +69,7 @@ MODULE ADDINGATOM
       
          ! setup book keeping
          NTOADD = 1
-         IF (QCILINEART) NTOADD = NQCILINEAR - 2
+         IF (QCILINEART) NTOADD = MIN(NQCILINEAR - 2,NQCILINEAR-NACTIVE)
          NADDED = 0
          CHOSENACID = .FALSE.
          ! check whether we have more backbone atoms to add
@@ -137,7 +149,10 @@ MODULE ADDINGATOM
             !if we have three or more constraints, we use them and construct a local axis system
             IF (NLOCAL.GE.3) THEN
                ADDEDTHISCYCLE = .TRUE.
-               CALL PLACE_ATOM(NEXTATOM,NLOCAL,LOCALIDX)
+               !use vectors within the local coordinate frame
+               !CALL PLACE_ATOM(NEXTATOM,NLOCAL,LOCALIDX)
+               !build internal coordinates for interpolation
+               CALL PLACE_INTERNALS(NEXTATOM,NLOCAL,LOCALIDX)
                IF (QCITRILATERATION) THEN
                   CALL TRILATERATE_ATOMS(NEXTATOM,LOCALIDX,LOCALDIST)
                END IF
@@ -150,6 +165,7 @@ MODULE ADDINGATOM
                   NEWATOMOFFSET = J1*3*NATOMS + 3*(NEXTATOM-1)
                   XCON(J1,1:3) = XYZ((NEWATOMOFFSET+1):(NEWATOMOFFSET+3)) 
                END DO
+      
             END IF
             !if we haven't suceeded in adding the atom or it is QCIlinear, go for a linear interpolation for new atom based on the tightest constraint
             IF ((.NOT.ADDEDTHISCYCLE).OR.QCILINEART) THEN
@@ -163,7 +179,6 @@ MODULE ADDINGATOM
                   CONONEOFFSET = 3*(LOCALIDX(1)-1)
                   STARTWEIGHT = FRAC*(NIMAGES+1-J1)/(NIMAGES+1) 
                   ENDWEIGHT = 1.0D0*J1/(NIMAGES+1) !need to keep this 1.0D0* in here to convert the type correctly
-                  WRITE(*,*) J1, STARTWEIGHT, ENDWEIGHT
                   !X coordinate
                   XYZ(THISIMAGE+NEWATOMOFFSET+1) = XYZ(THISIMAGE+CONONEOFFSET+1) + STARTWEIGHT*(XYZ(NEWATOMOFFSET+1)-XYZ(CONONEOFFSET+1)) + &
                                                    ENDWEIGHT*(XYZ(ENDPOINT+NEWATOMOFFSET+1)-XYZ(ENDPOINT+CONONEOFFSET+1))
@@ -183,8 +198,8 @@ MODULE ADDINGATOM
                   NEWATOMOFFSET = J1*3*NATOMS + 3*(NEXTATOM-1)
                   XLIN(J1,1:3) = XYZ(NEWATOMOFFSET+1:NEWATOMOFFSET+3) 
                END DO
-            END IF
-            
+            END IF   
+
             !select which interpolation is used based on energy if multiple are used (we shouldn't have this case except for QCIlinear)
             WRITE(*,*) "ECON, ELIST: ", ECON, ELIN
             IF (QCILINEART) THEN
@@ -261,6 +276,8 @@ MODULE ADDINGATOM
          CALL CONGRAD(ETOTAL, XYZ, GGG, EEE, RMS)
          !we are done with QCIlinear, so set it to false
          QCILINEART = .FALSE.
+         WRITE(*,*) "FINISHED LINEAR INTERPOLATION"
+         CALL WRITE_ACTIVE_BAND("after_linear.xyz")
 
 
       END SUBROUTINE ADDATOM
@@ -483,6 +500,85 @@ MODULE ADDINGATOM
          END IF
       END SUBROUTINE TRILATERATION
 
+
+      SUBROUTINE PLACE_INTERNALS(NEWATOM,NLOCAL,CONIDXLIST)
+         USE QCIFILEHANDLER, ONLY: FILE_OPEN
+         USE HELPER_FNCTS, ONLY: DOTP, EUC_NORM, NORM_VEC, DIHEDRAL, ANGLE, DISTANCE_SIMPLE
+         USE QCIKEYS, ONLY: NATOMS, DEBUG, NIMAGES
+         USE MOD_INTCOORDS, ONLY: XYZ
+         IMPLICIT NONE
+         INTEGER, INTENT(IN) :: NEWATOM
+         INTEGER, INTENT(IN) :: NLOCAL
+         INTEGER, INTENT(IN) :: CONIDXLIST(4)
+         
+         REAL(KIND=REAL64) :: D1, D2, ANG1, ANG2, DIH1, DIH2
+         REAL(KIND=REAL64) :: COORDS(12)
+         REAL(KIND=REAL64) :: ALPHA
+         REAL(KIND=REAL64) :: DNEW, ANGNEW, DIHNEW
+         REAL(KIND=REAL64) :: C(3), V1(3), V2(3), V3(3), POS(3)
+         REAL(KIND=REAL64) :: SINTH, COSTH, SINPHI, COSPHI
+
+         INTEGER :: IDX1, IDX2, IDX3, IMAGEOFFSET
+         INTEGER :: J1, I
+
+         IDX1 = CONIDXLIST(1); IDX2 = CONIDXLIST(2); IDX3 = CONIDXLIST(3)
+         WRITE(*,'(A,I8)') " place_internal> New atom: ", NEWATOM
+
+         ! start coordinates
+         COORDS(1:3) = XYZ((3*(IDX3-1)+1):((3*(IDX3-1)+3)))
+         COORDS(4:6) = XYZ((3*(IDX2-1)+1):((3*(IDX2-1)+3)))
+         COORDS(7:9) = XYZ((3*(IDX1-1)+1):((3*(IDX1-1)+3)))
+         COORDS(10:12) = XYZ((3*(NEWATOM-1)+1):((3*(NEWATOM-1)+3)))
+
+         ! get distance, angle and dihedral
+         CALL DISTANCE_SIMPLE(COORDS(7:9), COORDS(10:12), D1)
+         ANG1 = ANGLE(COORDS(4:12))
+         DIH1 = DIHEDRAL(COORDS)
+
+         !finish coordinates
+         IMAGEOFFSET = (3*NATOMS)*(NIMAGES+1)
+         COORDS(1:3) = XYZ(IMAGEOFFSET+(3*(IDX3-1)+1):IMAGEOFFSET+((3*(IDX3-1)+3)))
+         COORDS(4:6) = XYZ(IMAGEOFFSET+(3*(IDX2-1)+1):IMAGEOFFSET+((3*(IDX2-1)+3)))
+         COORDS(7:9) = XYZ(IMAGEOFFSET+(3*(IDX1-1)+1):IMAGEOFFSET+((3*(IDX1-1)+3)))
+         COORDS(10:12) = XYZ(IMAGEOFFSET+(3*(NEWATOM-1)+1):IMAGEOFFSET+((3*(NEWATOM-1)+3)))
+
+         ! get distance, angle and dihedral
+         CALL DISTANCE_SIMPLE(COORDS(7:9), COORDS(10:12), D2)
+         ANG2 = ANGLE(COORDS(4:12))
+         DIH2 = DIHEDRAL(COORDS)
+
+         WRITE(*,*) "<><>Start: ", D1, ANG1, DIH1
+         WRITE(*,*) "<><>Final: ", D2, ANG2, DIH2
+
+         ! iterate over all images and place the new atom
+         DO J1=2,NIMAGES+1
+            IMAGEOFFSET = (J1-1)*3*NATOMS
+            ! get linear interpolation in internal coordinates
+            ALPHA = 1.0D0/J1
+            DNEW = (1-ALPHA)*D1 + ALPHA*D2
+            ANGNEW = (1-ALPHA)*ANG1 + ALPHA*ANG2
+            DIHNEW = (1-ALPHA)*DIH1 + ALPHA*DIH2
+            
+            !!translate back into Cartesians
+            C(1:3) = XYZ((IMAGEOFFSET+3*(IDX1-1)+1):(IMAGEOFFSET+3*(IDX1-1)+3))
+            ! orthogonal basis (order of indices correpsonds to how we compute the angle/dihedral)
+            CALL GET_LOCAL_AXIS(IDX2,IDX1,IDX3,J1,V1,V2,V3)
+            !Debug check - difference between IDX2, IDX3, IDX1 and IDX2, IDX1, IDX3?
+
+            COSTH = COS(ANGNEW)
+            SINTH = SIN(ANGNEW)
+
+            COSPHI = COS(DIHNEW)
+            SINPHI = SIN(DIHNEW)
+
+            DO I=1,3
+               POS(I) = C(I) + DNEW*(-V1(I)*COSTH + V2(I)*SINTH*COSPHI + V3(I)*SINTH*SINPHI)
+            END DO
+            XYZ((IMAGEOFFSET+3*(NEWATOM-1)+1):(IMAGEOFFSET+3*(NEWATOM-1)+3)) =  POS(1:3)
+         END DO
+      END SUBROUTINE PLACE_INTERNALS
+
+
       SUBROUTINE PLACE_ATOM(NEWATOM,NLOCAL,CONIDXLIST)
          USE QCIFILEHANDLER, ONLY: FILE_OPEN
          USE HELPER_FNCTS, ONLY: DOTP, EUC_NORM, NORM_VEC
@@ -503,6 +599,8 @@ MODULE ADDINGATOM
          IDX1 = CONIDXLIST(1); IDX2 = CONIDXLIST(2); IDX3 = CONIDXLIST(3); IDX4 = CONIDXLIST(4)
          
          WRITE(*,'(A,I8)') " place_atom> New atom: ", NEWATOM
+
+
 
          !Setting up local axis system for the start image
          IF (NLOCAL.EQ.3) THEN
@@ -548,7 +646,7 @@ MODULE ADDINGATOM
 
          !D = D1*B1(1:3) + D2*B2(1:3) + D3*B3(1:3)
          !CALL GET_ROT_ANGLE(C,D,ROT,ANGLE)
-         !WRITE(OUTUNIT,'(A,3F12.7,A,F12.7)') " Rotational axis: ", ROT, " angle from C to D: ", ANGLE
+         !WRITE(*,'(A,3F12.7,A,F12.7)') " Rotational axis: ", ROT, " angle from C to D: ", ANGLE
 
          SCALE = 0.5*(EUC_NORM(VEC1) + EUC_NORM(VEC2))
          !iterate over images and place NEWATOM
@@ -1070,7 +1168,7 @@ MODULE ADDINGATOM
          !sanity check that we have found an atom to be added - if not we terminate
          IF (NEWATOM*NCONTOACT.EQ.0) THEN
             WRITE(*,*) NCONTOACTIVE
-            WRITE(*,*) "Nactive; ", NACTIVE
+            WRITE(*,*) "Nactive: ", NACTIVE
             WRITE(*,*) "QCI linear: ", QCILINEART
             WRITE(*,*) NEWATOM, NCONTOACT
             WRITE(*,*) " find_next_atom> Error - new active atom not set, NEWATOM: ", NEWATOM, " NCONTOACT: ", NCONTOACT
