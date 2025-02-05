@@ -45,6 +45,8 @@ MODULE QCIKEYS
    LOGICAL :: QCILINEART = .FALSE.
    ! logical list if atom is linear
    LOGICAL, ALLOCATABLE :: INLINLIST(:)
+   !linear nterpolation for backbone
+   LOGICAL :: LINEARBBT = .FALSE.
 
    ! Atom to residue mapping
    INTEGER, ALLOCATABLE :: ATOMS2RES(:)
