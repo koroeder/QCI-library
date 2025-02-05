@@ -34,6 +34,9 @@ MODULE HIRE_CONSTRAINTS
 
          ! parse topology
          CALL READ_TOPOLOGY()
+         ! create atomstores list
+         CALL CREATE_ATOMS2RES()
+
          ! check for additional constraints in file
          INQUIRE(FILE=HIRECONSTRFILE, EXIST=YESNO)
          IF (YESNO) THEN
@@ -107,6 +110,23 @@ MODULE HIRE_CONSTRAINTS
          WRITE(*,*) "                   Bonds: ", NBOND, ", angles: ", NANGLE, ", additional constraints: ", NADDCONSTR
 
       END SUBROUTINE HIRE_QCI_CONSTRAINTS
+
+      SUBROUTINE CREATE_ATOMS2RES()
+         USE QCIKEYS, ONLY: ATOMS2RES, NATOMS
+         IMPLICIT NONE
+         INTEGER :: I, START, END
+         
+         IF (ALLOCATED(ATOMS2RES)) DEALLOCATE(ATOMS2RES)
+         ALLOCATE(ATOMS2RES(NATOMS))
+
+         DO I=1,NRES
+            START = RESSTART(I)
+            END = RESFINAL(I)
+            ATOMS2RES(START:END) = I
+         END DO
+
+      END SUBROUTINE CREATE_ATOMS2RES
+
 
       SUBROUTINE GET_BACKBONE_HIRE(NATOMS)
          USE QCIKEYS, ONLY: NBACKBONE, ISBBATOM
