@@ -503,7 +503,7 @@ MODULE ADDINGATOM
 
       SUBROUTINE PLACE_INTERNALS(NEWATOM,NLOCAL,CONIDXLIST)
          USE QCIFILEHANDLER, ONLY: FILE_OPEN
-         USE HELPER_FNCTS, ONLY: DOTP, EUC_NORM, NORM_VEC, DIHEDRAL, ANGLE, DISTANCE_SIMPLE
+         USE HELPER_FNCTS, ONLY: DOTP, EUC_NORM, NORM_VEC, DIHEDRAL, ANGLE, DISTANCE_SIMPLE, CROSS_PROD
          USE QCIKEYS, ONLY: NATOMS, DEBUG, NIMAGES
          USE MOD_INTCOORDS, ONLY: XYZ
          IMPLICIT NONE
@@ -517,6 +517,8 @@ MODULE ADDINGATOM
          REAL(KIND=REAL64) :: DNEW, ANGNEW, DIHNEW
          REAL(KIND=REAL64) :: C(3), V1(3), V2(3), V3(3), POS(3)
          REAL(KIND=REAL64) :: SINTH, COSTH, SINPHI, COSPHI
+
+         REAL(KIND=REAL64) :: BC(3), BA(3), A(3), B(3), D(3), N(3), M(3), NORM
 
          INTEGER :: IDX1, IDX2, IDX3, IMAGEOFFSET
          INTEGER :: J1, I
@@ -561,11 +563,17 @@ MODULE ADDINGATOM
             DIHNEW = (1-ALPHA)*DIH1 + ALPHA*DIH2
             
             !!translate back into Cartesians
+            ! orthogonal basis 
+            A(1:3) = XYZ((IMAGEOFFSET+3*(IDX3-1)+1):(IMAGEOFFSET+3*(IDX3-1)+3))
+            B(1:3) = XYZ((IMAGEOFFSET+3*(IDX2-1)+1):(IMAGEOFFSET+3*(IDX2-1)+3))
             C(1:3) = XYZ((IMAGEOFFSET+3*(IDX1-1)+1):(IMAGEOFFSET+3*(IDX1-1)+3))
-            ! orthogonal basis (order of indices correpsonds to how we compute the angle/dihedral)
-            CALL GET_LOCAL_AXIS(IDX2,IDX1,IDX3,J1,V1,V2,V3)
-            !Debug check - difference between IDX2, IDX3, IDX1 and IDX2, IDX1, IDX3?
-            !!!!DEBUG ADD MANUAL COMPUTATION OF THE BASIS SET, THEN COMPARE TO MULTIPLE OPTIONS OF ORDERING IN GET_LOCAL_AXIS
+            BC(1:3) = C(1:3) - B(1:3)
+            BA(1:3) = A(1:3) - B(1:3)
+
+            CALL NORM_VEC(BC,V1,NORM)
+            CALL NORM_VEC(CROSS_PROD(BA,BC),V2,NORM)
+            CALL NORM_VEC(CROSS_PROD(BC,V2),V3,NORM)
+
             COSTH = COS(ANGNEW)
             SINTH = SIN(ANGNEW)
 
