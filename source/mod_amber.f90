@@ -113,6 +113,7 @@ MODULE AMBER_CONSTRAINTS
             END IF
             AMBER_CONDISTREF(NDUMMY) = (DF+DS)/2.0D0
             AMBER_CONCUT(NDUMMY) = ABS(DF-DS)/2.0D0
+            WRITE(*,*) "Bioconstr ", J1, "DS, DF, DISTREF, CONCUT: ", DS, DF, (DF+DS)/2.0D0, ABS(DF-DS)/2.0D0
          END DO
 
          ! now add additional constraints from file provided
@@ -137,7 +138,7 @@ MODULE AMBER_CONSTRAINTS
             CLOSE(CONUNIT)
          END IF
          WRITE(*,*) " amber_constraints> Identified ", AMBER_NCONST, " constraints"
-         WRITE(*,*) "                    Bonds: ", NBOND, ", angles: ", NANGLE, ", additional constraints: ", NADDCONSTR
+         WRITE(*,*) "                    Bonds: ", NBOND, ", angles: ", NANGLE, ", additional constraints: ", NADDCONSTR + NBIOCONSTR
 
       END SUBROUTINE AMBER_QCI_CONSTRAINTS
 
