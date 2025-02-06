@@ -57,7 +57,7 @@ MODULE REPULSION
 
          ! loop over part of the repulsion list
          DO J = NSTART, NREPULSIVE
-            COMPARE = (CHECKREPCUTOFF*REPCUT(J))**2
+            COMPARE = (CHECKREPCUTOFF*REPCUT(J))
             NI = REPI(J)
             NJ = REPJ(J)
             ! now check for the distance between atoms in all images
@@ -72,7 +72,7 @@ MODULE REPULSION
                END IF
             END DO
          END DO
-
+         WRITE(*,'(A,2I8)') ' checkrep> number of active repulsions and total=',NNREPULSIVE,NREPULSIVE
       END SUBROUTINE CHECKREP
 
 END MODULE REPULSION
