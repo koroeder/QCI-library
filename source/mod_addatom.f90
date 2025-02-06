@@ -521,6 +521,7 @@ MODULE ADDINGATOM
          INTEGER :: IDX1, IDX2, IDX3, IMAGEOFFSET
          INTEGER :: J1, I
 
+         !!DEBUG - check the order of things for the initial and the final calculation - are we applying things to the correct atoms?
          IDX1 = CONIDXLIST(1); IDX2 = CONIDXLIST(2); IDX3 = CONIDXLIST(3)
          WRITE(*,'(A,I8)') " place_internal> New atom: ", NEWATOM
 
@@ -564,7 +565,7 @@ MODULE ADDINGATOM
             ! orthogonal basis (order of indices correpsonds to how we compute the angle/dihedral)
             CALL GET_LOCAL_AXIS(IDX2,IDX1,IDX3,J1,V1,V2,V3)
             !Debug check - difference between IDX2, IDX3, IDX1 and IDX2, IDX1, IDX3?
-
+            !!!!DEBUG ADD MANUAL COMPUTATION OF THE BASIS SET, THEN COMPARE TO MULTIPLE OPTIONS OF ORDERING IN GET_LOCAL_AXIS
             COSTH = COS(ANGNEW)
             SINTH = SIN(ANGNEW)
 
@@ -599,8 +600,6 @@ MODULE ADDINGATOM
          IDX1 = CONIDXLIST(1); IDX2 = CONIDXLIST(2); IDX3 = CONIDXLIST(3); IDX4 = CONIDXLIST(4)
          
          WRITE(*,'(A,I8)') " place_atom> New atom: ", NEWATOM
-
-
 
          !Setting up local axis system for the start image
          IF (NLOCAL.EQ.3) THEN
