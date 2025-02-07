@@ -171,6 +171,8 @@ MODULE QCISETUP
          ! options for these potentials
          ELSE IF (ENTRY.EQ."AMBERCONSTRFILE") THEN
             AMBERCONSTRFILE = VAL
+         ELSE IF (ENTRY.EQ."DETECTBASEPAIRS") THEN
+            BASEPAIRDETECTION = .TRUE.
          ELSE IF (ENTRY.EQ."TOPFILENAME") THEN
             TOPFILENAME = VAL
          ELSE IF (ENTRY.EQ."HIRECONSTRFILE") THEN
@@ -198,6 +200,13 @@ MODULE QCISETUP
          ! use trilateration
          ELSE IF (ENTRY.EQ."TRILATERATE") THEN
             QCITRILATERATION = .TRUE.
+            USEINTERNALST = .FALSE.
+         ! use internal corodinates for inteprolation
+         ELSE IF (ENTRY.EQ."USEINTERNALS") THEN
+            USEINTERNALST = .TRUE.
+         ! use four atom basis for interpolation
+         ELSE IF (ENTRY.EQ."USEFOURATOMS") THEN
+            USEFOURATOMST = .TRUE.
          ! use linear atoms
          ELSE IF (ENTRY.EQ."QCILINEAR") THEN
             QCILINEART = .TRUE.

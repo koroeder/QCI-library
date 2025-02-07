@@ -1,5 +1,6 @@
 MODULE AMBER_CONSTRAINTS
    USE QCIPREC
+   USE QCIKEYS, ONLY: DEBUG
    IMPLICIT NONE
    INTEGER :: NRES
    INTEGER, ALLOCATABLE :: BACKBONE(:)
@@ -9,6 +10,7 @@ MODULE AMBER_CONSTRAINTS
    REAL(KIND = REAL64), ALLOCATABLE :: AMBER_CONCUT(:)
    CHARACTER(LEN=30) :: AMBERCONSTRFILE = "constraintfile"
    CHARACTER(LEN=25) :: TOPFILENAME = "coords.prmtop"
+   CHARACTER(LEN=1), ALLOCATABLE :: NASIMPLE(:)
    INTEGER, ALLOCATABLE :: BONDS(:,:)
    INTEGER, ALLOCATABLE :: ANGLES(:,:)
    INTEGER, ALLOCATABLE :: BIOCONSTR(:,:)   
@@ -113,7 +115,7 @@ MODULE AMBER_CONSTRAINTS
             END IF
             AMBER_CONDISTREF(NDUMMY) = (DF+DS)/2.0D0
             AMBER_CONCUT(NDUMMY) = ABS(DF-DS)/2.0D0
-            WRITE(*,*) "Bioconstr ", J1, "DS, DF, DISTREF, CONCUT: ", DS, DF, (DF+DS)/2.0D0, ABS(DF-DS)/2.0D0
+            IF (DEBUG) WRITE(*,*) "Bioconstr ", J1, "DS, DF, DISTREF, CONCUT: ", DS, DF, (DF+DS)/2.0D0, ABS(DF-DS)/2.0D0
          END DO
 
          ! now add additional constraints from file provided
@@ -176,6 +178,7 @@ MODULE AMBER_CONSTRAINTS
          IF (ALLOCATED(INGROUP)) DEALLOCATE(INGROUP)
          IF (ALLOCATED(SIZEPLACINGGROUPS)) DEALLOCATE(SIZEPLACINGGROUPS)
          IF (ALLOCATED(PLACINGGROUPS)) DEALLOCATE(PLACINGGROUPS)
+         IF (ALLOCATED(NASIMPLE)) DEALLOCATE(NASIMPLE)
       END SUBROUTINE AMBER_QCI_DEALLOCATE
 
       SUBROUTINE GET_ATOM_GROUPS()
@@ -277,22 +280,26 @@ MODULE AMBER_CONSTRAINTS
       END SUBROUTINE GET_BACKBONE
 
       SUBROUTINE GET_BIOCONSTR()
+         USE QCIKEYS, ONLY: BASEPAIRDETECTION
          IMPLICIT NONE
         
          INTEGER :: NDUMMY, J1, OPOS1, CPOS1, CPOS2, HPOS2, ATOMID
-         LOGICAL :: AAT, RNAT, DNAT, CAPT, AALIST(NRES), ISTER(NRES), ISCAP(NRES)
+         LOGICAL :: AAT, RNAT, DNAT, CAPT, AALIST(NRES), ISTER(NRES), ISCAP(NRES), ISNA(NRES)
          INTEGER, ALLOCATABLE :: DUMMYC(:,:)
 
 
          ! the current largest number of additional constraints per residue is 8 and we have two additional constraints for peptide bonds,
          ! and seven constraints for chiral centres and sugar and base in nucleic acids - the worst case seems like 16 constraints per residue
          ! we use 20 for this array size, and should have plenty of space
-         ALLOCATE(BIOCONSTR(20*NRES,2))
+         ALLOCATE(BIOCONSTR(30*NRES,2))
+         ALLOCATE(NASIMPLE(NRES))
+         NASIMPLE(1:NRES) = "X"
          BIOCONSTR(:,:) = -1
          NDUMMY = 0
          AALIST(1:NRES) = .FALSE.
          ISTER(1:NRES) = .FALSE.
          ISCAP(1:NRES) = .FALSE.
+         ISNA(1:NRES) = .FALSE.
 
          ! this is the first round to add constraints for planarity, the sugars in NAs etc.
          DO J1=1,NRES
@@ -316,6 +323,7 @@ MODULE AMBER_CONSTRAINTS
                CALL GET_AA_CONSTR(J1)
             ELSE IF (RNAT.OR.DNAT) THEN
                CALL GET_NA_CONSTR(J1)
+               ISNA(J1) = .TRUE.
             END IF
          END DO
 
@@ -352,12 +360,16 @@ MODULE AMBER_CONSTRAINTS
             END IF
          END DO
 
+         ! detect base pairs and form constraints between nucleotides
+         IF (BASEPAIRDETECTION.AND.ANY(ISNA)) THEN
+            CALL GET_BP_CONSTRAINTS(ISNA)
+         END IF
+
          ALLOCATE(DUMMYC(NBIOCONSTR,2))
          DUMMYC(1:NBIOCONSTR,1:2) = BIOCONSTR(1:NBIOCONSTR,1:2)
          DEALLOCATE(BIOCONSTR)
          ALLOCATE(BIOCONSTR(NBIOCONSTR,2))
          BIOCONSTR(1:NBIOCONSTR,1:2) = DUMMYC(1:NBIOCONSTR,1:2)
-
       END SUBROUTINE GET_BIOCONSTR
 
       SUBROUTINE GET_AA_CONSTR(RESID)
@@ -417,7 +429,7 @@ MODULE AMBER_CONSTRAINTS
          IF ((NAME.EQ.'A').OR.(NAME.EQ.'A3').OR.(NAME.EQ.'A5').OR.  &
              (NAME.EQ.'AN').OR.(NAME.EQ.'DA').OR.(NAME.EQ.'DA3').OR.  &
              (NAME.EQ.'DA5').OR.(NAME.EQ.'DAN')) THEN
-            
+            NASIMPLE(RESID) = "A"
             CALL ADD_CONSTRAINT("N1  ","N9  ",RESID)        
             CALL ADD_CONSTRAINT("C2  ","N7  ",RESID) 
             CALL ADD_CONSTRAINT("N3  ","C6  ",RESID) 
@@ -430,7 +442,7 @@ MODULE AMBER_CONSTRAINTS
          ELSE IF ((NAME.EQ.'C').OR.(NAME.EQ.'C3').OR.(NAME.EQ.'C5').OR.  &
                   (NAME.EQ.'CN').OR.(NAME.EQ.'DC').OR.(NAME.EQ.'DC3').OR.  &
                   (NAME.EQ.'DC5').OR.(NAME.EQ.'DCN')) THEN
-
+            NASIMPLE(RESID) = "C"
             CALL ADD_CONSTRAINT("N1  ","N4  ",RESID) 
             CALL ADD_CONSTRAINT("C2  ","H5  ",RESID) 
             CALL ADD_CONSTRAINT("N3  ","H6  ",RESID) 
@@ -441,7 +453,7 @@ MODULE AMBER_CONSTRAINTS
          ELSE IF ((NAME.EQ.'G').OR.(NAME.EQ.'G3').OR.(NAME.EQ.'G5').OR.  &
                   (NAME.EQ.'GN').OR.(NAME.EQ.'DG').OR.(NAME.EQ.'DG3').OR.  &
                   (NAME.EQ.'DG5').OR.(NAME.EQ.'DGN')) THEN
-        
+            NASIMPLE(RESID) = "G"
             CALL ADD_CONSTRAINT("N1  ","N9  ",RESID)        
             CALL ADD_CONSTRAINT("C2  ","N7  ",RESID) 
             CALL ADD_CONSTRAINT("N3  ","C6  ",RESID) 
@@ -453,7 +465,7 @@ MODULE AMBER_CONSTRAINTS
 
          ELSE IF ((NAME.EQ.'U').OR.(NAME.EQ.'U3').OR.(NAME.EQ.'U5').OR.  &
                   (NAME.EQ.'UN')) THEN
-
+            NASIMPLE(RESID) = "U"
             CALL ADD_CONSTRAINT("N1  ","O4  ",RESID) 
             CALL ADD_CONSTRAINT("C2  ","H5  ",RESID) 
             CALL ADD_CONSTRAINT("N3  ","H6  ",RESID) 
@@ -463,7 +475,7 @@ MODULE AMBER_CONSTRAINTS
                   
          ELSE IF ((NAME.EQ.'DT').OR.(NAME.EQ.'DT3').OR.  &
                   (NAME.EQ.'DT5').OR.(NAME.EQ.'DTN')) THEN
-
+            NASIMPLE(RESID) = "T"
             CALL ADD_CONSTRAINT("N1  ","O4  ",RESID) 
             CALL ADD_CONSTRAINT("C2  ","C7  ",RESID) 
             CALL ADD_CONSTRAINT("N3  ","H6  ",RESID) 
@@ -486,6 +498,152 @@ MODULE AMBER_CONSTRAINTS
 
       END SUBROUTINE GET_NA_CONSTR
 
+      !deals only with canonical base pairing
+      SUBROUTINE GET_BP_CONSTRAINTS(ISNA)
+         USE QCIKEYS, ONLY: NATOMS
+         USE MOD_INTCOORDS, ONLY: XSTART, XFINAL
+         USE HELPER_FNCTS, ONLY: DISTANCE_TWOATOMS
+         REAL(KIND = REAL64), PARAMETER :: HDISTCUT = 3.1D0
+         LOGICAL, INTENT(IN) :: ISNA(NRES)
+         INTEGER :: I, J, ATOM1, ATOM2
+         CHARACTER(LEN=1) :: NAMEI, NAMEJ
+         REAL(KIND = REAL64) :: DS, DF
+         LOGICAL :: CHECKDISTS
+         INTEGER :: NBPAIRS
+
+         NBPAIRS = 0
+         !Want to detect A-U/A-T and C-G basepairing
+         DO I=1,NRES-1
+            ! ignore non nucleic acids
+            IF (.NOT.ISNA(I)) CYCLE
+            NAMEI = NASIMPLE(I)
+            IF (NAMEI.EQ."A") THEN
+               CALL GET_ATOMID("N1",I,ATOM1)
+            ELSE IF (NAMEI.EQ."C") THEN
+               CALL GET_ATOMID("N3",I,ATOM1)
+            ELSE IF (NAMEI.EQ."G") THEN
+               CALL GET_ATOMID("N1",I,ATOM1)
+            ELSE
+               CALL GET_ATOMID("N3",I,ATOM1)
+            END IF
+            DO J=I+1,NRES
+               IF (.NOT.ISNA(J)) CYCLE
+               NAMEJ = NASIMPLE(J)
+               IF (NAMEJ.EQ."A") THEN
+                  CALL GET_ATOMID("N1",J,ATOM2)
+               ELSE IF (NAMEJ.EQ."C") THEN
+                  CALL GET_ATOMID("N3",J,ATOM2)
+               ELSE IF (NAMEJ.EQ."G") THEN
+                  CALL GET_ATOMID("N1",J,ATOM2)
+               ELSE
+                  CALL GET_ATOMID("O4",J,ATOM2)
+               END IF
+               CALL DISTANCE_TWOATOMS(NATOMS, XSTART, ATOM1, ATOM2, DS)
+               CALL DISTANCE_TWOATOMS(NATOMS, XFINAL, ATOM1, ATOM2, DF)
+
+               IF ((DS.LT.HDISTCUT).AND.(DF.LT.HDISTCUT)) THEN
+                  WRITE(*,'(A,I4,A2,A,I4,A2)') " Potential base pair found between nucleotide ", I , NAMEI," and ", J, NAMEJ
+                  IF ((NAMEI.EQ."A").AND.((NAMEJ.EQ."U").OR.(NAMEJ.EQ."T"))) THEN
+                     CHECKDISTS = .FALSE.
+                     CALL GET_ATOMID("N6",I,ATOM1)
+                     CALL GET_ATOMID("O4",J,ATOM2)
+                     CALL DISTANCE_TWOATOMS(NATOMS, XSTART, ATOM1, ATOM2, DS)
+                     CALL DISTANCE_TWOATOMS(NATOMS, XFINAL, ATOM1, ATOM2, DF)
+                     IF ((DS.LT.HDISTCUT).AND.(DF.LT.HDISTCUT)) THEN
+                        CHECKDISTS = .TRUE.
+                     END IF
+                     IF (CHECKDISTS) THEN
+                        NBPAIRS = NBPAIRS + 1
+                        WRITE(*,*) " detect_bp>  Add as base pair"
+                        CALL ADD_CONSTRAINT_TWORES("N1  ", "N3  ", I, J)
+                        CALL ADD_CONSTRAINT_TWORES("N6  ", "O4  ", I, J)
+                     END IF
+                  ELSE IF ((NAMEJ.EQ."A").AND.((NAMEI.EQ."U").OR.(NAMEI.EQ."T"))) THEN
+                     CHECKDISTS = .FALSE.
+                     CALL GET_ATOMID("N6",J,ATOM1)
+                     CALL GET_ATOMID("O4",I,ATOM2)
+                     CALL DISTANCE_TWOATOMS(NATOMS, XSTART, ATOM1, ATOM2, DS)
+                     CALL DISTANCE_TWOATOMS(NATOMS, XFINAL, ATOM1, ATOM2, DF)
+                     IF ((DS.LT.HDISTCUT).AND.(DF.LT.HDISTCUT)) THEN
+                        CHECKDISTS = .TRUE.
+                     END IF
+                     IF (CHECKDISTS) THEN
+                        NBPAIRS = NBPAIRS + 1
+                        WRITE(*,*) " detect_bp>  Add as base pair"
+                        CALL ADD_CONSTRAINT_TWORES("N1  ", "N3  ", J, I)
+                        CALL ADD_CONSTRAINT_TWORES("N6  ", "O4  ", J, I)
+                     END IF
+                  ELSE IF ((NAMEI.EQ."C").AND.(NAMEJ.EQ."G")) THEN
+                     CHECKDISTS = .FALSE.
+                     CALL GET_ATOMID("O2",I,ATOM1)
+                     CALL GET_ATOMID("N2",J,ATOM2)
+                     CALL DISTANCE_TWOATOMS(NATOMS, XSTART, ATOM1, ATOM2, DS)
+                     CALL DISTANCE_TWOATOMS(NATOMS, XFINAL, ATOM1, ATOM2, DF)
+                     IF ((DS.LT.HDISTCUT).AND.(DF.LT.HDISTCUT)) THEN
+                        CHECKDISTS = .TRUE.
+                     END IF
+                     CALL GET_ATOMID("N4",I,ATOM1)
+                     CALL GET_ATOMID("O6",J,ATOM2)
+                     CALL DISTANCE_TWOATOMS(NATOMS, XSTART, ATOM1, ATOM2, DS)
+                     CALL DISTANCE_TWOATOMS(NATOMS, XFINAL, ATOM1, ATOM2, DF)
+                     IF ((DS.LT.HDISTCUT).AND.(DF.LT.HDISTCUT)) THEN
+                     ELSE 
+                        CHECKDISTS = .FALSE.
+                     END IF
+                     IF (CHECKDISTS) THEN
+                        NBPAIRS = NBPAIRS + 1
+                        WRITE(*,*) " detect_bp>  Add as base pair"
+                        CALL ADD_CONSTRAINT_TWORES("O2  ", "N2  ", I, J)
+                        CALL ADD_CONSTRAINT_TWORES("N3  ", "N1  ", I, J)
+                        CALL ADD_CONSTRAINT_TWORES("N4  ", "O6  ", I, J)
+                     END IF
+                  ELSE IF ((NAMEI.EQ."G").AND.(NAMEJ.EQ."C")) THEN
+                     CHECKDISTS = .FALSE.
+                     CALL GET_ATOMID("O2",J,ATOM1)
+                     CALL GET_ATOMID("N2",I,ATOM2)
+                     CALL DISTANCE_TWOATOMS(NATOMS, XSTART, ATOM1, ATOM2, DS)
+                     CALL DISTANCE_TWOATOMS(NATOMS, XFINAL, ATOM1, ATOM2, DF)
+                     IF ((DS.LT.HDISTCUT).AND.(DF.LT.HDISTCUT)) THEN
+                        CHECKDISTS = .TRUE.
+                     END IF
+                     CALL GET_ATOMID("N4",J,ATOM1)
+                     CALL GET_ATOMID("O6",I,ATOM2)
+                     CALL DISTANCE_TWOATOMS(NATOMS, XSTART, ATOM1, ATOM2, DS)
+                     CALL DISTANCE_TWOATOMS(NATOMS, XFINAL, ATOM1, ATOM2, DF)
+                     IF ((DS.LT.HDISTCUT).AND.(DF.LT.HDISTCUT)) THEN
+                     ELSE 
+                        CHECKDISTS = .FALSE.
+                     END IF
+                     IF (CHECKDISTS) THEN
+                        NBPAIRS = NBPAIRS + 1
+                        WRITE(*,*) " detect_bp>  Add as base pair"
+                        CALL ADD_CONSTRAINT_TWORES("O2  ", "N2  ", J, I)
+                        CALL ADD_CONSTRAINT_TWORES("N3  ", "N1  ", J, I)
+                        CALL ADD_CONSTRAINT_TWORES("N4  ", "O6  ", J, I)
+                     END IF
+                  END IF
+               END IF
+            END DO
+         END DO
+         WRITE(*,*) " detect_bp> Total number of base pairs: ", NBPAIRS
+      END SUBROUTINE GET_BP_CONSTRAINTS
+
+      SUBROUTINE ADD_CONSTRAINT_TWORES(ATNAME1,ATNAME2,RES1,RES2)
+         CHARACTER(LEN=4), INTENT(IN) :: ATNAME1, ATNAME2
+         INTEGER, INTENT(IN) :: RES1, RES2
+         INTEGER :: ID1, ID2 
+
+         CALL GET_ATOMID(ATNAME1,RES1,ID1)
+         CALL GET_ATOMID(ATNAME2,RES2,ID2)
+         IF (((ID1.GT.0).AND.(ID2.GT.0)).AND.(ID1.NE.ID2)) THEN
+            IF (DEBUG) WRITE(*,*) " Add constraint ", ATNAME1, " in residue ", RES1, " and ", ATNAME2, " in residue ", RES2, " | Atom IDs: ", ID1, ID2
+            NBIOCONSTR = NBIOCONSTR + 1
+            BIOCONSTR(NBIOCONSTR,1) = ID1
+            BIOCONSTR(NBIOCONSTR,2) = ID2
+         END IF
+      END SUBROUTINE ADD_CONSTRAINT_TWORES
+
+
       SUBROUTINE ADD_CONSTRAINT(ATNAME1,ATNAME2,RESID)
          CHARACTER(LEN=4), INTENT(IN) :: ATNAME1, ATNAME2
          INTEGER, INTENT(IN) :: RESID
@@ -494,7 +652,7 @@ MODULE AMBER_CONSTRAINTS
          CALL GET_ATOMID(ATNAME1,RESID,ID1)
          CALL GET_ATOMID(ATNAME2,RESID,ID2)
          IF (((ID1.GT.0).AND.(ID2.GT.0)).AND.(ID1.NE.ID2)) THEN
-            WRITE(*,*) " Add constraint ", ATNAME1, " and ", ATNAME2, " in residue ", RESID, " | Atom IDs: ", ID1, ID2
+            IF (DEBUG) WRITE(*,*) " Add constraint ", ATNAME1, " and ", ATNAME2, " in residue ", RESID, " | Atom IDs: ", ID1, ID2
             NBIOCONSTR = NBIOCONSTR + 1
             BIOCONSTR(NBIOCONSTR,1) = ID1
             BIOCONSTR(NBIOCONSTR,2) = ID2

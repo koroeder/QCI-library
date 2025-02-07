@@ -34,7 +34,8 @@ MODULE ADDINGATOM
       SUBROUTINE ADDATOM()
          USE MOD_INTCOORDS, ONLY: XYZ, EEE, GGG, RMS
          USE QCIKEYS, ONLY: QCIDOBACK, QCIADDACIDT, NATOMS, NIMAGES, DEBUG, QCILINEART, INLINLIST, &
-                            QCITRILATERATION, QCIDOBACKALL, ATOMS2RES, ISBBATOM, CHECKCHIRAL, QCIUSEGROUPS
+                            QCITRILATERATION, QCIDOBACKALL, ATOMS2RES, ISBBATOM, CHECKCHIRAL, QCIUSEGROUPS, &
+                            USEINTERNALST
          USE REPULSION, ONLY: NNREPULSIVE, NREPULSIVE, CHECKREP
          USE CONSTR_E_GRAD, ONLY: CONGRAD
          USE QCI_LINEAR, ONLY: NQCILINEAR
@@ -147,14 +148,16 @@ MODULE ADDINGATOM
             ECON = 1.0D100
 
             !if we have three or more constraints, we use them and construct a local axis system
-            IF (NLOCAL.GE.3) THEN
+            IF ((NLOCAL.GE.3).AND.(.NOT.QCILINEART)) THEN
                ADDEDTHISCYCLE = .TRUE.
                !use vectors within the local coordinate frame
-               !CALL PLACE_ATOM(NEXTATOM,NLOCAL,LOCALIDX)
-               !build internal coordinates for interpolation
-               CALL PLACE_INTERNALS(NEXTATOM,NLOCAL,LOCALIDX)
-               IF (QCITRILATERATION) THEN
+               IF (USEINTERNALST) THEN
+                  !build internal coordinates for interpolation
+                  CALL PLACE_INTERNALS(NEXTATOM,NLOCAL,LOCALIDX)
+               ELSE IF (QCITRILATERATION) THEN
                   CALL TRILATERATE_ATOMS(NEXTATOM,LOCALIDX,LOCALDIST)
+               ELSE
+                  CALL PLACE_ATOM(NEXTATOM,NLOCAL,LOCALIDX)
                END IF
                ! before we continue check repulsion neighbour list
                CALL CHECKREP(XYZ,NNREPSAVE,NREPSAVE+1)
@@ -201,7 +204,7 @@ MODULE ADDINGATOM
             END IF   
 
             !select which interpolation is used based on energy if multiple are used (we shouldn't have this case except for QCIlinear)
-            WRITE(*,*) "ECON, ELIST: ", ECON, ELIN
+            IF (DEBUG) WRITE(*,*) "ECON, ELIST: ", ECON, ELIN
             IF (QCILINEART) THEN
                WRITE(*,*) " addatom> Using linear interpolation for new atom ", NEXTATOM, " from linear list"
             ELSE 
@@ -247,8 +250,10 @@ MODULE ADDINGATOM
                END DO           
             END IF
             !this is the end of the add atom loop - the loop will continue if MORETOADD is set to TRUE, otherwise we leave the loop
-            WRITE(ATOMSTRING,'(I6)') NEXTATOM
-            CALL WRITE_ACTIVE_BAND("int.active.addedatom_"//TRIM(ADJUSTL(ATOMSTRING))//".xyz")
+            IF (DEBUG) THEN
+               WRITE(ATOMSTRING,'(I6)') NEXTATOM
+               CALL WRITE_ACTIVE_BAND("int.active.addedatom_"//TRIM(ADJUSTL(ATOMSTRING))//".xyz")
+            END IF
          END DO
 
          !check number of chiral centres after addition
@@ -276,10 +281,6 @@ MODULE ADDINGATOM
          CALL CONGRAD(ETOTAL, XYZ, GGG, EEE, RMS)
          !we are done with QCIlinear, so set it to false
          QCILINEART = .FALSE.
-         WRITE(*,*) "FINISHED LINEAR INTERPOLATION"
-         CALL WRITE_ACTIVE_BAND("after_linear.xyz")
-
-
       END SUBROUTINE ADDATOM
 
       SUBROUTINE GET_ATOMS_FOR_LOCAL_AXIS(NEWATOM,NLOCAL,LOCALIDX,LOCALDIST)
@@ -550,9 +551,6 @@ MODULE ADDINGATOM
          ANG2 = ANGLE(COORDS(4:12))
          DIH2 = DIHEDRAL(COORDS)
 
-         WRITE(*,*) "<><>Start: ", D1, ANG1, DIH1
-         WRITE(*,*) "<><>Final: ", D2, ANG2, DIH2
-
          ! iterate over all images and place the new atom
          DO J1=2,NIMAGES+1
             IMAGEOFFSET = (J1-1)*3*NATOMS
@@ -591,7 +589,7 @@ MODULE ADDINGATOM
       SUBROUTINE PLACE_ATOM(NEWATOM,NLOCAL,CONIDXLIST)
          USE QCIFILEHANDLER, ONLY: FILE_OPEN
          USE HELPER_FNCTS, ONLY: DOTP, EUC_NORM, NORM_VEC
-         USE QCIKEYS, ONLY: NATOMS, DEBUG, NIMAGES
+         USE QCIKEYS, ONLY: NATOMS, DEBUG, NIMAGES, USEFOURATOMST
          USE MOD_INTCOORDS, ONLY: XYZ
          IMPLICIT NONE
          INTEGER, INTENT(IN) :: NEWATOM
@@ -610,19 +608,19 @@ MODULE ADDINGATOM
          WRITE(*,'(A,I8)') " place_atom> New atom: ", NEWATOM
 
          !Setting up local axis system for the start image
-         IF (NLOCAL.EQ.3) THEN
-            CALL GET_LOCAL_AXIS(IDX1,IDX2,IDX3,1,B1,B2,B3)
-            WRITE(*,'(A)') " place_atom> Using three atoms for placement"
-            IF (DEBUG) THEN
-               WRITE(*,*) " place_atom> Use the following three active atoms to place new atom"
-               WRITE(*,*) "             New atom: ", NEWATOM, "Closest active atoms: ", CONIDXLIST(1:3)
-            END IF
-         ELSE
+         IF ((NLOCAL.GT.3).AND.(USEFOURATOMST)) THEN
             CALL GET_LOCAL_AXIS2(IDX1,IDX2,IDX3,IDX4,1,B1,B2,B3)
             WRITE(*,'(A)') " place_atom> Using four atoms for placement"
             IF (DEBUG) THEN
                WRITE(*,*) " place_atom> Use the following four active atoms to place new atom"
                WRITE(*,*) "             New atom: ", NEWATOM, "Closest active atoms: ", CONIDXLIST(1:4)
+            END IF
+         ELSE
+            CALL GET_LOCAL_AXIS(IDX1,IDX2,IDX3,1,B1,B2,B3)
+            WRITE(*,'(A)') " place_atom> Using three atoms for placement"
+            IF (DEBUG) THEN
+               WRITE(*,*) " place_atom> Use the following three active atoms to place new atom"
+               WRITE(*,*) "             New atom: ", NEWATOM, "Closest active atoms: ", CONIDXLIST(1:3)
             END IF
          END IF
          !VEC1 is pointing from IDX1 to NEWATOM
@@ -637,10 +635,10 @@ MODULE ADDINGATOM
          !CALL GET_ROT_AXIS(B1,B2,B3,ROT)
 
          !Setting up local axis system for the final image
-         IF (NLOCAL.EQ.3) THEN
-            CALL GET_LOCAL_AXIS(IDX1,IDX2,IDX3,NIMAGES+2,B1,B2,B3)
-         ELSE
+         IF ((NLOCAL.GT.3).AND.(USEFOURATOMST)) THEN
             CALL GET_LOCAL_AXIS2(IDX1,IDX2,IDX3,IDX4,NIMAGES+2,B1,B2,B3)
+         ELSE
+            CALL GET_LOCAL_AXIS(IDX1,IDX2,IDX3,NIMAGES+2,B1,B2,B3) 
          END IF
          !VEC2 is pointing from IDX1 to NEWATOM in the last image
          IMAGEOFFSET = (3*NATOMS)*(NIMAGES+1)
@@ -659,10 +657,10 @@ MODULE ADDINGATOM
          !iterate over images and place NEWATOM
          DO J1=2,NIMAGES+1
             !get B1,B2,B3 for current image 
-            IF (NLOCAL.EQ.3) THEN
-               CALL GET_LOCAL_AXIS(IDX1,IDX2,IDX3,J1,B1,B2,B3)
-            ELSE
+            IF ((NLOCAL.GT.3).AND.(USEFOURATOMST)) THEN   
                CALL GET_LOCAL_AXIS2(IDX1,IDX2,IDX3,IDX4,J1,B1,B2,B3)
+            ELSE
+               CALL GET_LOCAL_AXIS(IDX1,IDX2,IDX3,J1,B1,B2,B3)
             END IF         
             IMAGEOFFSET = (J1-1)*3*NATOMS
             !position of reference atom 1
@@ -695,23 +693,20 @@ MODULE ADDINGATOM
          INTEGER, INTENT(IN) :: IDX1, IDX2, IDX3
          INTEGER, INTENT(IN) :: IMAGE
          REAL(KIND=REAL64), INTENT(OUT) :: B1(3), B2(3), B3(3)
-         REAL(KIND=REAL64) :: VEC1(3), VEC2(3), VEC3(3), NORM, DOT12
+         REAL(KIND = REAL64) :: A(3), B(3), C(3), BA(3), BC(3)
+         REAL(KIND=REAL64) :: NORM
          INTEGER :: IMAGEOFFSET
 
          IMAGEOFFSET = (IMAGE-1)*3*NATOMS
-         ! VEC1 is pointing from IDX1 to IDX2
-         VEC1(1:3) = XYZ((IMAGEOFFSET+3*(IDX2-1)+1):((IMAGEOFFSET+3*(IDX2-1)+3))) - XYZ((IMAGEOFFSET+3*(IDX1-1)+1):((IMAGEOFFSET+3*(IDX1-1)+3))) 
-         !VEC2 is pointing from IDX1 to IDX3
-         VEC2(1:3) = XYZ((IMAGEOFFSET+3*(IDX3-1)+1):((IMAGEOFFSET+3*(IDX3-1)+3))) - XYZ((IMAGEOFFSET+3*(IDX1-1)+1):((IMAGEOFFSET+3*(IDX1-1)+3))) 
+         A(1:3) = XYZ((IMAGEOFFSET+3*(IDX1-1)+1):(IMAGEOFFSET+3*(IDX1-1)+3))
+         B(1:3) = XYZ((IMAGEOFFSET+3*(IDX2-1)+1):(IMAGEOFFSET+3*(IDX2-1)+3))
+         C(1:3) = XYZ((IMAGEOFFSET+3*(IDX3-1)+1):(IMAGEOFFSET+3*(IDX3-1)+3))
+         BC(1:3) = C(1:3) - B(1:3)
+         BA(1:3) = A(1:3) - B(1:3)
 
-         !B1 (first base vector) is the normed VEC1
-         CALL NORM_VEC(VEC1,B1,NORM)
-         !to get the second base vector (B2) we use the orthogonal component of VEC2 to VEC1
-         DOT12 = VEC1(1)*VEC2(1) + VEC1(2)*VEC2(2) + VEC1(3)*VEC2(3)
-         VEC2(1:3) = VEC2(1:3) - DOT12*B1(1:3)
-         CALL NORM_VEC(VEC2,B2,NORM)
-         !The final base vector is the cross product of B1 and B2
-         B3 = CROSS_PROD(B1,B2)
+         CALL NORM_VEC(BC,B1,NORM)
+         CALL NORM_VEC(CROSS_PROD(BA,BC),B2,NORM)
+         CALL NORM_VEC(CROSS_PROD(BC,B2),B3,NORM)
       END SUBROUTINE GET_LOCAL_AXIS
 
       SUBROUTINE GET_LOCAL_AXIS2(IDX1,IDX2,IDX3,IDX4,IMAGE,B1,B2,B3)

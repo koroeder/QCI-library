@@ -1,6 +1,6 @@
 MODULE CHIRALITY
    USE QCIPREC
-   USE QCIKEYS, ONLY: NATOMS
+   USE QCIKEYS, ONLY: NATOMS, DEBUG
    USE AMBER_CONSTRAINTS, ONLY: NRES, NBOND, BONDS, RESNAMES, RES_START, RES_END, AMBER_NAMES, ELEMENT
    IMPLICIT NONE
    INTEGER, SAVE :: NCHIRAL = -1
@@ -269,7 +269,6 @@ MODULE CHIRALITY
                XYZ(3*NATOMS*(IMAGE-1)+3*ATID) =  ATOMX(3) + C(3)
             END IF
          END DO
-         WRITE(*,*) "Switchable group start"
       END SUBROUTINE SWITCH_SMALL_GROUPS
 
 
@@ -367,7 +366,7 @@ MODULE CHIRALITY
                         XYZ(THISIMAGE+OFFSET+1:THISIMAGE+OFFSET+3)=COORDSB(OFFSET2+1:OFFSET2+3)  
                      ENDDO
                   END IF
-                  CALL WRITE_BAND("chirality_issue."//TRIM(ADJUSTL(NBAND))//"b.xyz")
+                  IF (DEBUG) CALL WRITE_BAND("chirality_issue."//TRIM(ADJUSTL(NBAND))//"b.xyz")
 
                END IF
             END DO
@@ -588,7 +587,7 @@ MODULE CHIRALITY
             CHIR_INFO(J1,3) = DUMMY_CHIR_INFO(J1,3)
             CHIR_INFO(J1,4) = DUMMY_CHIR_INFO(J1,4)
             CHIR_INFO(J1,5) = DUMMY_CHIR_INFO(J1,5)
-            WRITE(*,*) "Centre: ", J1, " atom id: ", CHIR_INFO(J1,1), " atoms attached: ", CHIR_INFO(J1,2:5)
+            IF (DEBUG) WRITE(*,*) "Centre: ", J1, " atom id: ", CHIR_INFO(J1,1), " atoms attached: ", CHIR_INFO(J1,2:5)
          ENDDO
          WRITE(*,*) " find_chiral_centres> Completed chiral centre detection, number of chiral centres: ", NCHIRAL
          

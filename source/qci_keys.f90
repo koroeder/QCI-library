@@ -28,6 +28,11 @@ MODULE QCIKEYS
 
    INTEGER :: INTADDATOM = 1
 
+   !use internal coordinates for local interpolation
+   LOGICAL :: USEINTERNALST = .FALSE.
+   !use four atom basis for local interpolation
+   LOGICAL :: USEFOURATOMST = .FALSE.
+   !use trilateration for interpolation
    LOGICAL :: QCITRILATERATION = .FALSE.
 
    LOGICAL :: CHECKCONINT = .FALSE. !which congrad should be used?
@@ -114,6 +119,9 @@ MODULE QCIKEYS
 
    !using groups of atoms in AMBER
    LOGICAL :: QCIUSEGROUPS = .FALSE.
+
+   !using basepair detection
+   LOGICAL :: BASEPAIRDETECTION = .FALSE.
 
    INTEGER :: DUMPQCIXYZFRQS = 100
    LOGICAL :: DUMPQCIXYZ = .FALSE.
