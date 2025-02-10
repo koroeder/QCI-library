@@ -276,19 +276,21 @@ MODULE QCIINTERPOLATION
                END DO
                !!!! End of energy minimisation after adding an atom
                !!! DEBUG WORK
-               IF (NACTIVE.EQ.NATOMS) THEN
-                  UNITCONSTR = 1023
-                  OPEN(UNITCONSTR,FILE="overview_constraints.dat",STATUS='UNKNOWN')
-                  DO J1=1,NCONSTRAINT
-                     WRITE(UNITCONSTR,'(I6,2I8)') J1, CONI(J1), CONJ(J1)
-                  END DO
-                  CLOSE(UNITCONSTR)
-                  OPEN(UNITCONSTR,FILE="overview_repulsions.dat",STATUS='UNKNOWN')
-                  DO J1=1,NREPULSIVE
-                     WRITE(UNITCONSTR,'(I6,2I8)') J1, REPI(J1), REPJ(J1)
-                  END DO
-                  CLOSE(UNITCONSTR)
-               END IF 
+               IF (DEBUG) THEN
+                  IF (NACTIVE.EQ.NATOMS) THEN
+                     UNITCONSTR = 1023
+                     OPEN(UNITCONSTR,FILE="overview_constraints.dat",STATUS='UNKNOWN')
+                     DO J1=1,NCONSTRAINT
+                        WRITE(UNITCONSTR,'(I6,2I8)') J1, CONI(J1), CONJ(J1)
+                     END DO
+                     CLOSE(UNITCONSTR)
+                     OPEN(UNITCONSTR,FILE="overview_repulsions.dat",STATUS='UNKNOWN')
+                     DO J1=1,NREPULSIVE
+                        WRITE(UNITCONSTR,'(I6,2I8)') J1, REPI(J1), REPJ(J1)
+                     END DO
+                     CLOSE(UNITCONSTR)
+                  END IF
+               END IF
             END IF
 
             GTMP(1:DIMS)=0.0D0
