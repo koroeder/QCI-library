@@ -249,9 +249,10 @@ MODULE CONSTR_E_GRAD
       END SUBROUTINE GET_CONSTRAINT_E_NOINTERNAL
 
       SUBROUTINE GET_CONSTRAINT_E(XYZ,GGG,EEE,ECON)
-         USE QCIKEYS, ONLY: NIMAGES, NATOMS, INTMINFAC, CHECKCONINT, INTCONSTRAINTDEL
+         USE QCIKEYS, ONLY: NIMAGES, NATOMS, INTMINFAC, CHECKCONINT, INTCONSTRAINTDEL, &
+                            CONACTINACT, USECONACTINACT
          USE QCI_CONSTRAINT_KEYS, ONLY: NCONSTRAINT, CONI, CONJ, CONDISTREFLOCAL
-         USE INTERPOLATION_KEYS, ONLY: CONACTIVE
+         USE INTERPOLATION_KEYS, ONLY: CONACTIVE, ATOMACTIVE
          USE HELPER_FNCTS, ONLY: DISTANCE_SIMPLE, DOTP
          IMPLICIT NONE
          REAL(KIND = REAL64), INTENT(IN) :: XYZ(3*NATOMS*(NIMAGES+2))   ! input coordinates
@@ -267,6 +268,7 @@ MODULE CONSTR_E_GRAD
          REAL(KIND = REAL64) , PARAMETER :: DINTTEST = 1.0D-50       ! cutoff for DINTMIN to test for internal min
          REAL(KIND = REAL64) :: D1, D2, D12                         ! distances in image 1 and 2         
          REAL(KIND=REAL64) :: EMAX, FMIN, FMAX
+         REAL(KIND=REAL64) :: LOCALCONFACTOR
          INTEGER :: IMAX, JMAX
 
          EEE(1:NIMAGES+2)=0.0D0
@@ -286,8 +288,20 @@ MODULE CONSTR_E_GRAD
          ! A and B refer to atoms, 1 and 2 to images J1-1 and J1 corresponding to J1-2 and J1-1 below.
 
          DO J2=1,NCONSTRAINT
-            ! only active constraints contribute
-            IF (.NOT.CONACTIVE(J2)) CYCLE
+            IF (.NOT.USECONACTINACT) THEN
+               ! only active constraints contribute
+               IF (.NOT.CONACTIVE(J2)) CYCLE
+            END IF
+
+            IF (ATOMACTIVE(CONI(J2)).AND.ATOMACTIVE(CONJ(J2))) THEN
+               !both atoms active:
+               LOCALCONFACTOR = 1.0D0
+            ELSE IF ((ATOMACTIVE(CONI(J2)).AND.(.NOT.ATOMACTIVE(CONJ(J2)))).OR.((.NOT.ATOMACTIVE(CONI(J2))).AND.ATOMACTIVE(CONJ(J2)))) THEN
+               ! one atom active
+               LOCALCONFACTOR = CONACTINACT
+            ELSE
+               CYCLE
+            END IF
             ! get constraint cut off for this contraint
             CALL GET_CCLOCAL(J2,CCLOCAL)            
             ! go through all images 
@@ -318,7 +332,7 @@ MODULE CONSTR_E_GRAD
                ELSE
                   CALL INTMIN_CONSTRAINT(G1,G2,DSQ1,DSQ2,DP_G12,DINTMIN,NOINT,DSQI,DINT,G1INT,G2INT)
                END IF
-
+               !TODO: CHECK FORMUATION - ARE THESE THE SAME?!?!?
                ! Need to include both D2 and D1 contributions if they are both outside tolerance.
                ! Otherwise we get discontinuities if they are very close and swap over.
 
@@ -326,8 +340,10 @@ MODULE CONSTR_E_GRAD
                ! these are the constraint energies as in get_constraint_e_nointernal
                DUMMY = D2-CONDISTREFLOCAL(J2)
                IF ((ABS(DUMMY).GT.CCLOCAL).AND.(J1.LT.NIMAGES+2)) THEN  
-                  CONSTGRAD(1:3)=2*INTCONSTRAINTDEL*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G2(1:3)
-                  DUMMY=INTCONSTRAINTDEL*(DUMMY**2-CCLOCAL**2)**2/(2.0D0*CCLOCAL**2)
+                  !CONSTGRAD(1:3)=2*INTCONSTRAINTDEL*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G2(1:3)
+                  !DUMMY=INTCONSTRAINTDEL*(DUMMY**2-CCLOCAL**2)**2/(2.0D0*CCLOCAL**2)
+                  CONSTGRAD(1:3)=LOCALCONFACTOR*2*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G2(1:3)
+                  DUMMY=LOCALCONFACTOR*(DUMMY**2-CCLOCAL**2)**2/(2.0D0*CCLOCAL**2)                  
                   IF (DUMMY.GT.EMAX) THEN
                      IMAX=J1
                      JMAX=J2
@@ -343,11 +359,14 @@ MODULE CONSTR_E_GRAD
                ! here we have the internal extremum contribution
                IF (CHECKCONINT.AND.(.NOT.NOINT).AND.(ABS(DINT-CONDISTREFLOCAL(J2)).GT.CCLOCAL)) THEN
                   DUMMY=DINT-CONDISTREFLOCAL(J2)  
-                  CONSTGRAD(1:3)=2*INTMINFAC*INTCONSTRAINTDEL*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G1INT(1:3)
+                  !CONSTGRAD(1:3)=2*INTMINFAC*INTCONSTRAINTDEL*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G1INT(1:3)
+                  CONSTGRAD(1:3)=2*INTMINFAC*LOCALCONFACTOR*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G1INT(1:3)
                   GGG(NI1+1:NI1+3)=GGG(NI1+1:NI1+3)+CONSTGRAD(1:3)
                   GGG(NJ1+1:NJ1+3)=GGG(NJ1+1:NJ1+3)-CONSTGRAD(1:3)
-                  CONSTGRAD(1:3)=2*INTMINFAC*INTCONSTRAINTDEL*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G2INT(1:3)
-                  DUMMY=INTMINFAC*INTCONSTRAINTDEL*(DUMMY**2-CCLOCAL**2)**2/(2.0D0*CCLOCAL**2)
+                  !CONSTGRAD(1:3)=2*INTMINFAC*INTCONSTRAINTDEL*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G2INT(1:3)
+                  !DUMMY=INTMINFAC*INTCONSTRAINTDEL*(DUMMY**2-CCLOCAL**2)**2/(2.0D0*CCLOCAL**2)
+                  CONSTGRAD(1:3)=2*INTMINFAC*LOCALCONFACTOR*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G2INT(1:3)
+                  DUMMY=INTMINFAC*LOCALCONFACTOR*(DUMMY**2-CCLOCAL**2)**2/(2.0D0*CCLOCAL**2)
                   ECON=ECON+DUMMY
                   IF (DUMMY.GT.EMAX) THEN
                      IMAX=J1
