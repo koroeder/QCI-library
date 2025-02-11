@@ -197,6 +197,10 @@ MODULE QCISETUP
             READ(VAL,*) QCIDISTCUT
          ELSE IF (ENTRY.EQ."MAXSEPADDATOM") THEN
             READ(VAL,*) QCIATOMSEP
+         !use minimisation after adding atom
+         ELSE IF (ENTRY.EQ."MINIMISEAFTERADD") THEN
+            OPTIMISEAFTERADDITION = .TRUE.
+            READ(VAL, *) NMINAFTERADD
          ! use trilateration
          ELSE IF (ENTRY.EQ."TRILATERATE") THEN
             QCITRILATERATION = .TRUE.
@@ -289,7 +293,10 @@ MODULE QCISETUP
          ELSE IF (ENTRY.EQ."CONCUTFRAC") THEN
             CONCUTFRACT = .TRUE.
             READ(VAL, *) CONCUTFRAC
-         
+         ELSE IF ( ENTRY.EQ."CONACTINACT") THEN
+            USECONACTINACT = .TRUE.
+            READ(VAL,*) CONACTINACT 
+
          !repulsions
          ELSE IF (ENTRY.EQ."REPULSIONCUTOFF") THEN
             READ(VAL, *) QCIREPCUT

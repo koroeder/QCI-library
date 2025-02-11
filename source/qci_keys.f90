@@ -28,6 +28,9 @@ MODULE QCIKEYS
 
    INTEGER :: INTADDATOM = 1
 
+   LOGICAL :: OPTIMISEAFTERADDITION = .FALSE.
+   INTEGER :: NMINAFTERADD = 5
+
    !use internal coordinates for local interpolation
    LOGICAL :: USEINTERNALST = .FALSE.
    !use four atom basis for local interpolation
@@ -77,6 +80,9 @@ MODULE QCIKEYS
    !QUERY: what exactly is this
    REAL(KIND=REAL64) :: INTCONSTRAINTDEL=10.0D0
 
+   !conactinact settings
+   LOGICAL :: USECONACTINACT = .FALSE.
+   REAL(KIND = REAL64) :: CONACTINACT = 0.2D0
 
    !spring constants and adjustment
    !TODO: add initialisation and setting in qci setup
