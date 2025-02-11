@@ -12,7 +12,8 @@ MODULE QCIINTERPOLATION
                             KINT, MAXERISE, MAXINTIMAGE, MAXQCIBFGS, MUPDATE, DGUESS, &
                             DUMPQCIXYZFRQS, DUMPQCIXYZ, QCIADJUSTKFRQ, QCIADJUSTKT, QCIAVDEV, &
                             QCIKINTMIN, QCIKINTMAX, QCIADJUSTKFRAC, QCIADJUSTKTOL, QCIIMAGECHECK, &
-                            QCIPERMCHECKINT, QCIPERMT, QCIRMSTOL, QCIFROZEN, QCIRESET, QCIRESETINT1
+                            QCIPERMCHECKINT, QCIPERMT, QCIRMSTOL, QCIFROZEN, QCIRESET, QCIRESETINT1, &
+                            NMINAFTERADD, OPTIMISEAFTERADDITION
          USE MOD_FREEZE, ONLY: ADD_CONSTR_AND_REP_FROZEN_ATOMS
          USE CONSTR_E_GRAD, ONLY: CONGRAD, CONVERGECONTEST, CONVERGEREPTEST, &
                                   FCONMAX, FREPMAX
@@ -201,81 +202,85 @@ MODULE QCIINTERPOLATION
                !scale gradient if necessary
                IF (MAXGRADCOMP.GT.0.0D0) CALL SCALEGRAD(DIMS,G,RMS,MAXGRADCOMP)
                NLASTGOODE=NITERDONE
-               !!!! Energy minimisation after we added an atom
-               DO I2=1,5
-                  GTMP(1:DIMS)=0.0D0
-                  ! the variables needed for step taking are either module variables in this module or saved in mod_intcoords
-                  CALL MAKESTEP(NITERUSE,NPT,POINT,RHO1,ALPHA)          
+
+               ! Optional energy minimisation after we added an atom
+               IF (OPTIMISEAFTERADDITION) THEN
+                  DO I2=1,NMINAFTERADD
+                     GTMP(1:DIMS)=0.0D0
+                     ! the variables needed for step taking are either module variables in this module or saved in mod_intcoords
+                     CALL MAKESTEP(NITERUSE,NPT,POINT,RHO1,ALPHA)          
            
-                  IF ((DOTP(DIMS,G,GTMP)/MAX(1.0-100,SQRT(DOTP(DIMS,G,G))*SQRT(DOTP(DIMS,GTMP,GTMP)))).GT.0.0D0) THEN
-                     IF (DEBUG) WRITE(*,*) ' QCIinterp - Search direction has positive projection onto gradient - reversing step'
-                     GTMP(1:DIMS)=-GTMP(1:DIMS)
-                     SEARCHSTEP(POINT,1:DIMS)=GTMP(1:DIMS)
-                  END IF
+                     IF ((DOTP(DIMS,G,GTMP)/MAX(1.0-100,SQRT(DOTP(DIMS,G,G))*SQRT(DOTP(DIMS,GTMP,GTMP)))).GT.0.0D0) THEN
+                        IF (DEBUG) WRITE(*,*) ' QCIinterp - Search direction has positive projection onto gradient - reversing step'
+                        GTMP(1:DIMS)=-GTMP(1:DIMS)
+                        SEARCHSTEP(POINT,1:DIMS)=GTMP(1:DIMS)
+                     END IF
            
-                  GTMP(1:DIMS)=G(1:DIMS)
-                  ! Take the minimum scale factor for all images for LBFGS step to avoid discontinuities
-                  STPMIN = 1.0D0
-                  DO J1=1,NIMAGES
-                     STEPIMAGE(J1) = SQRT(DOTP(3*NATOMS,SEARCHSTEP(POINT,(3*NATOMS)*(J1-1)+1:(3*NATOMS)*J1), &
+                     GTMP(1:DIMS)=G(1:DIMS)
+                     ! Take the minimum scale factor for all images for LBFGS step to avoid discontinuities
+                     STPMIN = 1.0D0
+                     DO J1=1,NIMAGES
+                        STEPIMAGE(J1) = SQRT(DOTP(3*NATOMS,SEARCHSTEP(POINT,(3*NATOMS)*(J1-1)+1:(3*NATOMS)*J1), &
                                                          SEARCHSTEP(POINT,(3*NATOMS)*(J1-1)+1:(3*NATOMS)*J1)))
-                     IF (STEPIMAGE(J1).GT.MAXQCIBFGS) THEN
+                        IF (STEPIMAGE(J1).GT.MAXQCIBFGS) THEN
                            STP((3*NATOMS)*(J1-1)+1:(3*NATOMS)*J1) = MAXQCIBFGS/STEPIMAGE(J1)
-                        STPMIN=MIN(STPMIN,STP((3*NATOMS)*(J1-1)+1))
-                     END IF
-                  END DO
-                  STP(1:DIMS) = STPMIN
-         
-                  ACCEPTEDSTEP = .FALSE.
-                  NDECREASE = 0
-                       
-                  DO WHILE(.NOT.ACCEPTEDSTEP)
-                     !apply our step to our coordinates
-                     X(1:DIMS) = X(1:DIMS) + STP(1:DIMS)*SEARCHSTEP(POINT,1:DIMS)
-         
-                     ! call congrad routine
-                     CALL CONGRAD(ETOTAL, XYZ, GGG, EEE, RMS)
-                        
-                     IF ((ETOTAL-EPREV.LT.MAXERISE)) THEN
-                        EPREV = ETOTAL
-                        GPREV(:) = GGG(:)
-                        XPREV(:) = XYZ(:)
-                        ACCEPTEDSTEP = .TRUE.
-                     ELSE
-                        NDECREASE = NDECREASE + 1
-                        !TODO: add NDECREASE and a parameter variable for its limit 
-                        IF (NDECREASE.GT.5) THEN
-                           NFAIL = NFAIL + 1
-                           XYZ(:) = XPREV(:)
-                           GGG(:) = GPREV(:)
-                           WRITE(*,*) " QCIinterp> WARNING - LBFGS cannot find a lower energy, NFAIL=",NFAIL
-                           ACCEPTEDSTEP = .TRUE. !we failed to many times, so for now we accept failure and leave the loop
-                        ELSE
-                           XYZ(:) = XPREV(:)
-                           GGG(:) = GPREV(:)
-                           !TODO: add stepreduction as parameter variable at 10.0D0
-                           STP(1:DIMS) = STP(1:DIMS)/STPREDUCTION  
-                           WRITE(*,*) " QCIinterp> Energy increased from ", EPREV, "to", ETOTAL, "; decreasing step size"                 
+                           STPMIN=MIN(STPMIN,STP((3*NATOMS)*(J1-1)+1))
                         END IF
-                     END IF
-                  END DO ! end of loop for accepting the step size
-                  !scale gradient if necessary
-                  IF (MAXGRADCOMP.GT.0.0D0) CALL SCALEGRAD(DIMS,G,RMS,MAXGRADCOMP)
+                     END DO
+                     STP(1:DIMS) = STPMIN
          
-                  ! set DGUESS to a reasonable guess
-                  DGUESS=DIAG(1)
+                     ACCEPTEDSTEP = .FALSE.
+                     NDECREASE = 0
+                       
+                     DO WHILE(.NOT.ACCEPTEDSTEP)
+                        !apply our step to our coordinates
+                        X(1:DIMS) = X(1:DIMS) + STP(1:DIMS)*SEARCHSTEP(POINT,1:DIMS)
          
-                  ! Compute the new step and gradient change
-                  NPT=POINT*DIMS
-                  SEARCHSTEP(POINT,:) = STP*SEARCHSTEP(POINT,:)
-                  GDIF(POINT,:)=G-GTMP
+                        ! call congrad routine
+                        CALL CONGRAD(ETOTAL, XYZ, GGG, EEE, RMS)
+                        
+                        IF ((ETOTAL-EPREV.LT.MAXERISE)) THEN
+                           EPREV = ETOTAL
+                           GPREV(:) = GGG(:)
+                           XPREV(:) = XYZ(:)
+                           ACCEPTEDSTEP = .TRUE.
+                        ELSE
+                           NDECREASE = NDECREASE + 1
+                           !TODO: add NDECREASE and a parameter variable for its limit 
+                           IF (NDECREASE.GT.5) THEN
+                              NFAIL = NFAIL + 1
+                              XYZ(:) = XPREV(:)
+                              GGG(:) = GPREV(:)
+                              WRITE(*,*) " QCIinterp> WARNING - LBFGS cannot find a lower energy, NFAIL=",NFAIL
+                              ACCEPTEDSTEP = .TRUE. !we failed to many times, so for now we accept failure and leave the loop
+                           ELSE
+                              XYZ(:) = XPREV(:)
+                              GGG(:) = GPREV(:)
+                              !TODO: add stepreduction as parameter variable at 10.0D0
+                              STP(1:DIMS) = STP(1:DIMS)/STPREDUCTION  
+                              WRITE(*,*) " QCIinterp> Energy increased from ", EPREV, "to", ETOTAL, "; decreasing step size"                 
+                           END IF
+                        END IF
+                     END DO ! end of loop for accepting the step size
+                              
+                     !scale gradient if necessary
+                     IF (MAXGRADCOMP.GT.0.0D0) CALL SCALEGRAD(DIMS,G,RMS,MAXGRADCOMP)
          
-                  POINT=POINT+1
-                  IF (POINT.EQ.MUPDATE) POINT=0
-                  NITERUSE=NITERUSE+1
-               END DO
-               !!!! End of energy minimisation after adding an atom
-               !!! DEBUG WORK
+                     ! set DGUESS to a reasonable guess
+                     DGUESS=DIAG(1)
+         
+                     ! Compute the new step and gradient change
+                     NPT=POINT*DIMS
+                     SEARCHSTEP(POINT,:) = STP*SEARCHSTEP(POINT,:)
+                     GDIF(POINT,:)=G-GTMP
+                     
+                     POINT=POINT+1
+                     IF (POINT.EQ.MUPDATE) POINT=0
+                     NITERUSE=NITERUSE+1
+                  END DO
+               END IF
+               !end of optional minimisation after atom addition
+
                IF (DEBUG) THEN
                   IF (NACTIVE.EQ.NATOMS) THEN
                      UNITCONSTR = 1023
