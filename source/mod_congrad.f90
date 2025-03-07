@@ -410,7 +410,7 @@ MODULE CONSTR_E_GRAD
          REAL(KIND = REAL64) :: X1(3*NATOMS), X2(3*NATOMS)           ! coordinates for image 1 and 2
          REAL(KIND = REAL64) :: GLOCAL1(3*NATOMS), GLOCAL2(3*NATOMS) ! gradients for each image
          REAL(KIND = REAL64) :: EREP1, EREP2                         ! repulsion energy contributions
-         INTEGER :: NI1, NI2, NJ1, NJ2                               ! indices for atom I and J in images 1 and 2
+         INTEGER :: NI, NJ                                           ! indices for atom I and J
          REAL(KIND = REAL64) :: G1(3), G2(3), DSQ1, DSQ2             ! dummy variables
          REAL(KIND = REAL64) :: DCUT, DINTMIN, DP_G12                ! values used to test for internal minimum
          REAL(KIND = REAL64) , PARAMETER :: DINTTEST = 1.0D-50       ! cutoff for DINTMIN to test for internal min
@@ -443,12 +443,10 @@ MODULE CONSTR_E_GRAD
             EREP1 = 0.0D0; EREP2 = 0.0D0
             ! iterate over all repulsions
             DO J2 = 1,NNREPULSIVE
-               NI1=3*(NREPI(J2)-1)
-               NI2=3*(NREPI(J2)-1)
-               NJ1=3*(NREPJ(J2)-1)
-               NJ2=3*(NREPJ(J2)-1)               
-               G1(1:3)=X1(NI1+1:NI1+3)-X1(NJ1+1:NJ1+3) !vector from j to i in image 1
-               G2(1:3)=X2(NI2+1:NI2+3)-X2(NJ2+1:NJ2+3) !vector from j to i in image 2
+               NI=3*(NREPI(J2)-1)
+               NJ=3*(NREPJ(J2)-1)             
+               G1(1:3)=X1(NI+1:NI+3)-X1(NJ+1:NJ+3) !vector from j to i in image 1
+               G2(1:3)=X2(NI+1:NI+3)-X2(NJ+1:NJ+3) !vector from j to i in image 2
                ! squared distance between atoms in image 1 (theta = pi/2)
                DSQ1=G1(1)**2 + G1(2)**2 + G1(3)**2
                ! squared distance between atoms in image 2 (theta = 0)
@@ -466,7 +464,7 @@ MODULE CONSTR_E_GRAD
 
                ! Convert derivatives of distance^2 to derivative of distance.
                ! We have cancelled a factor of two above and below
-               D1 = SQRT(DSQ1); D2 = SQRT(DSQ1)
+               D1 = SQRT(DSQ1); D2 = SQRT(DSQ2)
                G1(1:3) = G1(1:3)/D1; G2(1:3) = G2(1:3)/D2
 
                ! if the denominator in the d^2 is approx zero, we do not need to check for an internal minimum
@@ -482,6 +480,7 @@ MODULE CONSTR_E_GRAD
 
                IF (D2.LT.RPLOCAL) THEN
                   DUMMY = RPLOCAL2/DSQ2 + 2.0D0*D2*RPLOCALINV - 3.0D0
+                  !WRITE(*,*) " EREP1: ", DUMMY, DSQ2, D2, RPLOCAL2, RPLOCALINV
                   EREP1 = EREP1 + DUMMY
                   EREP = EREP + DUMMY
                   IF (DUMMY.GT.EMAX) THEN
@@ -491,8 +490,8 @@ MODULE CONSTR_E_GRAD
                   END IF
                   DUMMY=-2.0D0*(RPLOCAL2/(D2*DSQ2)-RPLOCALINV)
                   REPGRAD(1:3) = DUMMY*G2(1:3)
-                  GLOCAL2(NI2+1:NI2+3)=GLOCAL2(NI2+1:NI2+3)+REPGRAD(1:3)
-                  GLOCAL2(NJ2+1:NJ2+3)=GLOCAL2(NJ2+1:NJ2+3)-REPGRAD(1:3)
+                  GLOCAL2(NI+1:NI+3)=GLOCAL2(NI+1:NI+3)+REPGRAD(1:3)
+                  GLOCAL2(NJ+1:NJ+3)=GLOCAL2(NJ+1:NJ+3)-REPGRAD(1:3)
                END IF  
                ! For internal minima we are counting edges. 
                ! Edge J1 is between images J1-1 and J1, starting from J1=2.
@@ -503,6 +502,7 @@ MODULE CONSTR_E_GRAD
                IF ((.NOT.NOINT).AND.(DINT.LT.RPLOCAL).AND.(J1.NE.2)) THEN
                   D12 = DSQI !from call to find internal minimum
                   DUMMY=INTMINFAC*(RPLOCAL2/D12+2.0D0*DINT*RPLOCALINV-3.0D0)
+                  !WRITE(*,*) " EREP2: ", DUMMY, DSQI, DINT, RPLOCAL2, RPLOCALINV
                   EREP2=EREP2+DUMMY
                   EREP=EREP+DUMMY
                   IF (DUMMY.GT.EMAX) THEN
@@ -513,14 +513,15 @@ MODULE CONSTR_E_GRAD
                   DUMMY=-2.0D0*(RPLOCAL2/(DINT*D12)-RPLOCALINV)
                   ! Gradient contributions for image J1-1
                   REPGRAD(1:3)=INTMINFAC*DUMMY*G1INT(1:3)
-                  GLOCAL1(NI1+1:NI1+3)=GLOCAL1(NI1+1:NI1+3)+REPGRAD(1:3)
-                  GLOCAL1(NJ1+1:NJ1+3)=GLOCAL1(NJ1+1:NJ1+3)-REPGRAD(1:3)
+                  GLOCAL1(NI+1:NI+3)=GLOCAL1(NI+1:NI+3)+REPGRAD(1:3)
+                  GLOCAL1(NJ+1:NJ+3)=GLOCAL1(NJ+1:NJ+3)-REPGRAD(1:3)
                   DUMMY2=MINVAL(REPGRAD)
                   ! Gradient contributions for image J1
                   REPGRAD(1:3)=INTMINFAC*DUMMY*G2INT(1:3)
-                  GLOCAL2(NI2+1:NI2+3)=GLOCAL2(NI2+1:NI2+3)+REPGRAD(1:3)
-                  GLOCAL2(NJ2+1:NJ2+3)=GLOCAL2(NJ2+1:NJ2+3)-REPGRAD(1:3)
+                  GLOCAL2(NI+1:NI+3)=GLOCAL2(NI+1:NI+3)+REPGRAD(1:3)
+                  GLOCAL2(NJ+1:NJ+3)=GLOCAL2(NJ+1:NJ+3)-REPGRAD(1:3)
                END IF
+               !WRITE(*,*) " EREP1: ", EREP1, " EREP2: ", EREP2
             END DO
             GGG(OFFSET1+1:OFFSET1+3*NATOMS)=GGG(OFFSET1+1:OFFSET1+3*NATOMS)+GLOCAL1(1:3*NATOMS)
             GGG(OFFSET2+1:OFFSET2+3*NATOMS)=GGG(OFFSET2+1:OFFSET2+3*NATOMS)+GLOCAL2(1:3*NATOMS)
@@ -568,6 +569,7 @@ MODULE CONSTR_E_GRAD
          REAL(KIND=REAL64) :: DUMMY
          INTEGER :: IMAX, JMAX
 
+         WRITE(*,*) " E repulsion 2"
          EMAX = -(HUGE(1.0D0))
          FMAX = -(HUGE(1.0D0))
          FMIN = HUGE(1.0D0)
@@ -604,7 +606,7 @@ MODULE CONSTR_E_GRAD
 
                ! Convert derivatives of distance^2 to derivative of distance.
                ! We have cancelled a factor of two above and below
-               D1 = SQRT(DSQ1); D2 = SQRT(DSQ1)
+               D1 = SQRT(DSQ1); D2 = SQRT(DSQ2)
                G1(1:3) = G1(1:3)/D1; G2(1:3) = G2(1:3)/D2
 
                ! if the denominator in the d^2 is approx zero, we do not need to check for an internal minimum
