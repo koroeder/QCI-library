@@ -28,6 +28,7 @@ MODULE QCIKEYS
 
    INTEGER :: INTADDATOM = 1
 
+   !use minimisations directly after adding atoms
    LOGICAL :: OPTIMISEAFTERADDITION = .FALSE.
    INTEGER :: NMINAFTERADD = 5
 
@@ -77,7 +78,7 @@ MODULE QCIKEYS
    REAL(KIND=REAL64) :: QCICONSTRREP=100.0D0
    INTEGER ::  QCIINTREPMINSEP=20 !Minimum separation in atom index for internal minimum check in repulsion
 
-   !QUERY: what exactly is this
+   !used as energy scaling in convergence test only
    REAL(KIND=REAL64) :: INTCONSTRAINTDEL=10.0D0
 
    !conactinact settings

@@ -445,6 +445,7 @@ MODULE QCIINTERPOLATION
                                  ' RMS=',RMS,' images=',NIMAGES, ", but all atoms were activated."
             QCICOMPLETE = .FALSE.                     
          END IF
+         CALL GET_STATISTIC_INTERP()
          CALL WRITE_BAND(XYZFILE)
          CALL WRITE_ACTIVE_BAND(ADJUSTL(TRIM(XYZFILE))//".active")
          CALL WRITE_PROFILE(EEEFILE,EEE)
