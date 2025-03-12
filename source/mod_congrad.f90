@@ -324,7 +324,7 @@ MODULE CONSTR_E_GRAD
 
                ! Convert derivatives of distance^2 to derivative of distance.
                ! We have cancelled a factor of two above and below
-               D1 = SQRT(DSQ1); D2 = SQRT(DSQ1)
+               D1 = SQRT(DSQ1); D2 = SQRT(DSQ2)
                G1(1:3) = G1(1:3)/D1; G2(1:3) = G2(1:3)/D2
 
                IF ((.NOT.CHECKCONINT).OR.(DINTMIN.LT.DINTTEST)) THEN
