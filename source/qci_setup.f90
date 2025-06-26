@@ -90,7 +90,7 @@ MODULE QCISETUP
          EOFT = .FALSE.
          DO WHILE (.NOT. EOFT)
             READ(PARAMUNIT,'(A)',IOSTAT=IOS) LINE
-            IF (IOS.GT.0) THEN
+            IF (IOS.NE.0) THEN
                EOFT = .TRUE.     
             ELSE
                CALL READ_LINE(LINE,NWORDS,ENTRIES)
