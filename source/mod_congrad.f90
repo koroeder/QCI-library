@@ -210,10 +210,10 @@ MODULE CONSTR_E_GRAD
                ! get distance and various related measures
                CALL DISTANCE_SIMPLE(XA, XB, DIST)
                DUMMY = DIST - CONDISTREFLOCAL(J2)
-               DUMMY2 = DUMMY**2
-               CCLOCAL2 = CCLOCAL**2
                ! now check whether we are beyond the constraint cutoff
-               IF (DUMMY2.GT.CCLOCAL2) THEN
+               IF (DUMMY.GT.CCLOCAL) THEN
+                  DUMMY2 = DUMMY**2
+                  CCLOCAL2 = CCLOCAL**2  
                   ! calculate gradient and energy
                   G2 = (XA-XB)/DIST
                   GRADAB(1:3) = 2*(DUMMY2-CCLOCAL2)*DUMMY*G2(1:3)/(CCLOCAL2**2)
@@ -339,7 +339,7 @@ MODULE CONSTR_E_GRAD
                ! terms for image J1 - non-zero derivatives only for J1. D2 is the distance for image J1.
                ! these are the constraint energies as in get_constraint_e_nointernal
                DUMMY = D2-CONDISTREFLOCAL(J2)
-               IF ((ABS(DUMMY).GT.CCLOCAL).AND.(J1.LT.NIMAGES+2)) THEN  
+               IF ((DUMMY.GT.CCLOCAL).AND.(J1.LT.NIMAGES+2)) THEN  
                   !CONSTGRAD(1:3)=2*INTCONSTRAINTDEL*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G2(1:3)
                   !DUMMY=INTCONSTRAINTDEL*(DUMMY**2-CCLOCAL**2)**2/(2.0D0*CCLOCAL**2)
                   CONSTGRAD(1:3)=LOCALCONFACTOR*2*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G2(1:3)
@@ -357,6 +357,7 @@ MODULE CONSTR_E_GRAD
                ! Don't add energy contributions to EEE(2) from D1, since the gradients are non-zero only for image 1.
                ! terms for image J1-1 - non-zero derivatives only for J1-1. D1 is the distance for image J1-1.
                ! here we have the internal extremum contribution
+               !QUERY: Does this need to be absolute??? Or should it be the relative value? Not sure it makes sense to have this as the absolute value?
                IF (CHECKCONINT.AND.(.NOT.NOINT).AND.(ABS(DINT-CONDISTREFLOCAL(J2)).GT.CCLOCAL)) THEN
                   DUMMY=DINT-CONDISTREFLOCAL(J2)  
                   !CONSTGRAD(1:3)=2*INTMINFAC*INTCONSTRAINTDEL*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G1INT(1:3)
@@ -737,8 +738,11 @@ MODULE CONSTR_E_GRAD
          REAL(KIND=REAL64), INTENT(OUT) :: CCLOCAL
          !QUERY: this seems odd - why are they applied consecutively?
          CCLOCAL=CONCUTLOCAL(CONID)
-         IF (CONCUTABST) CCLOCAL=CCLOCAL+CONCUTABS
-         IF (CONCUTFRACT) CCLOCAL=CCLOCAL+CONCUTFRAC*CONDISTREFLOCAL(CONID)
+         IF (CONCUTABST) THEN
+            CCLOCAL=CCLOCAL+CONCUTABS
+         ELSE IF (CONCUTFRACT) THEN
+            CCLOCAL=CCLOCAL+CONCUTFRAC*CONDISTREFLOCAL(CONID)
+         END IF
       END SUBROUTINE GET_CCLOCAL
 
       SUBROUTINE INTMIN_REPULSION(G1,G2,DSQ1,DSQ2,DP_G12,DINTMIN,NOINT,DSQI,DINT,G1INT,G2INT)
