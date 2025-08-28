@@ -330,12 +330,12 @@ MODULE CHIRALITY
                THIS_SR = ASSIGNMENT_SR(NEIGHBOUR_COORDS,CENTRE_COORDS)
                IF (THIS_SR.NEQV.PREV_SR) THEN
                   WRITE(*,*) " chirality_check> Atom ", CHIRALCENTRE, " image ", J3, " chirality changed"
-                  !!DEBUG
-                  NCHIRALBANDS = NCHIRALBANDS + 1
-                  WRITE(NBAND,'(I4)') NCHIRALBANDS
-                  CALL WRITE_BAND("chirality_issue."//TRIM(ADJUSTL(NBAND))//"a.xyz")
-                  
-                  !!END DEBUG
+
+                  IF (DEBUG) THEN
+                     NCHIRALBANDS = NCHIRALBANDS + 1
+                     WRITE(NBAND,'(I4)') NCHIRALBANDS
+                     CALL WRITE_BAND("chirality_issue."//TRIM(ADJUSTL(NBAND))//"a.xyz")
+                  END IF
 
                   IF (POTENTIAL_SWAPT(J1)) THEN
                      WRITE(*,*) "                  Located a swappable pair - fixing chirality by switching small groups."
