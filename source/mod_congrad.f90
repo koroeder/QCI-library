@@ -258,6 +258,7 @@ MODULE CONSTR_E_GRAD
       END SUBROUTINE GET_CONSTRAINT_E_NOINTERNAL
 
       SUBROUTINE GET_DIH_CON_E(XYZ,GGG,EEE,EDIH)
+         USE QCIKEYS, ONLY: NIMAGES, NATOMS
          USE DIHEDRAL_CONSTRAINTS, ONLY: DIHEDRAL, DIHEDRALS, NDIH, REFDIH, ALLDIHACTIVE, DIHACTIVE, &
                                          CHECK_DIH_ACTIVE
          IMPLICIT NONE
@@ -265,7 +266,7 @@ MODULE CONSTR_E_GRAD
          REAL(KIND = REAL64), INTENT(OUT) :: GGG(3*NATOMS*(NIMAGES+2))  ! gradient for each atom in each image
          REAL(KIND = REAL64), INTENT(OUT) :: EEE(NIMAGES+2), EDIH       ! energy for constraints  
 
-         INTEGER :: A, B, C, D, N
+         INTEGER :: A, B, C, D, N, I, J
          REAL(KIND = REAL64) :: XA(3), XB(3), XC(3), XD(4) !coordinates of atoms in dihedral
          REAL(KIND = REAL64) :: FA(3), FB(3), FC(3), FD(3) !returned gradient for individual atoms
          REAL(KIND = REAL64) :: PHIREF, THISE
@@ -285,7 +286,7 @@ MODULE CONSTR_E_GRAD
             B = DIHEDRALS(J,2)
             C = DIHEDRALS(J,3)
             D = DIHEDRALS(J,4)
-            PHIREF = REF(DIH(J))
+            PHIREF = REFDIH(J)
             DO I=2,NIMAGES+1
                !reference for image we are in (The x ccoord of the first atom of the current image is N+1)
                N = 3*NATOMS*(I-1)

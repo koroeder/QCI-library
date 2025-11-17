@@ -35,7 +35,7 @@ MODULE DIHEDRAL_CONSTRAINTS
          USE CHIRALITY, ONLY: NCHIRAL, CHIR_INFO
 
          INTEGER :: REFATOMS(NATOMS,4)
-         INTEGER :: NCONS, AT1, AT2, AT3, AT4
+         INTEGER :: NCONS, AT1, AT2, AT3, AT4, I, J
 
          NCONS = 0
          DO I=1,NRES
@@ -127,7 +127,7 @@ MODULE DIHEDRAL_CONSTRAINTS
                CALL GET_ATOMID("CD1",I,AT3)
                CALL GET_ATOMID("CG",I,AT4)
                REFATOMS(NCONS,1) = AT1; REFATOMS(NCONS,2) = AT2; REFATOMS(NCONS,3) = AT3; REFATOMS(NCONS,4) = AT4 
-            ELSE IF ((RESNAMES(I).EQ."A").OR.(RESNAMES(I).EQ."A3").OR.(RESNAMES(I).EQ."A5").OR.
+            ELSE IF ((RESNAMES(I).EQ."A").OR.(RESNAMES(I).EQ."A3").OR.(RESNAMES(I).EQ."A5").OR. &
                (RESNAMES(I).EQ."DA").OR.(RESNAMES(I).EQ."DA3").OR.(RESNAMES(I).EQ."DA5")) THEN
                !first dihedral 
                NCONS = NCONS + 1
@@ -156,7 +156,7 @@ MODULE DIHEDRAL_CONSTRAINTS
                CALL GET_ATOMID("N7",I,AT2)
                CALL GET_ATOMID("C8",I,AT3)
                CALL GET_ATOMID("N9",I,AT4)
-            ELSE IF ((RESNAMES(I).EQ."C").OR.(RESNAMES(I).EQ."C3").OR.(RESNAMES(I).EQ."C5").OR.
+            ELSE IF ((RESNAMES(I).EQ."C").OR.(RESNAMES(I).EQ."C3").OR.(RESNAMES(I).EQ."C5").OR. &
                   (RESNAMES(I).EQ."DC").OR.(RESNAMES(I).EQ."DC3").OR.(RESNAMES(I).EQ."DC5")) THEN
                !first dihedral 
                NCONS = NCONS + 1
@@ -179,7 +179,7 @@ MODULE DIHEDRAL_CONSTRAINTS
                CALL GET_ATOMID("N1",I,AT3)
                CALL GET_ATOMID("C2",I,AT4)
                REFATOMS(NCONS,1) = AT1; REFATOMS(NCONS,2) = AT2; REFATOMS(NCONS,3) = AT3; REFATOMS(NCONS,4) = AT4 
-            ELSE IF ((RESNAMES(I).EQ."G").OR.(RESNAMES(I).EQ."G3").OR.(RESNAMES(I).EQ."G5").OR.
+            ELSE IF ((RESNAMES(I).EQ."G").OR.(RESNAMES(I).EQ."G3").OR.(RESNAMES(I).EQ."G5").OR. &
                      (RESNAMES(I).EQ."DG").OR.(RESNAMES(I).EQ."DG3").OR.(RESNAMES(I).EQ."DG5")) THEN
                !first dihedral 
                NCONS = NCONS + 1
@@ -208,7 +208,7 @@ MODULE DIHEDRAL_CONSTRAINTS
                CALL GET_ATOMID("N7",I,AT2)
                CALL GET_ATOMID("C8",I,AT3)
                CALL GET_ATOMID("N9",I,AT4)
-            ELSE IF ((RESNAMES(I).EQ."U").OR.(RESNAMES(I).EQ."U3").OR.(RESNAMES(I).EQ."U5").OR.
+            ELSE IF ((RESNAMES(I).EQ."U").OR.(RESNAMES(I).EQ."U3").OR.(RESNAMES(I).EQ."U5").OR. &
                      (RESNAMES(I).EQ."DT").OR.(RESNAMES(I).EQ."DT3").OR.(RESNAMES(I).EQ."DT5")) THEN           
                !first dihedral 
                NCONS = NCONS + 1
@@ -244,10 +244,10 @@ MODULE DIHEDRAL_CONSTRAINTS
             DIHEDRALS(J,4) = CHIR_INFO(J,4)
          END DO
          DO J=1,NCONS
-            DIHEDRALS(NDIH+J,1) = REFATMS(J,1)
-            DIHEDRALS(NDIH+J,2) = REFATMS(J,2)
-            DIHEDRALS(NDIH+J,3) = REFATMS(J,3)
-            DIHEDRALS(NDIH+J,4) = REFATMS(J,4)            
+            DIHEDRALS(NDIH+J,1) = REFATOMS(J,1)
+            DIHEDRALS(NDIH+J,2) = REFATOMS(J,2)
+            DIHEDRALS(NDIH+J,3) = REFATOMS(J,3)
+            DIHEDRALS(NDIH+J,4) = REFATOMS(J,4)            
          END DO
          ! get reference angles
          DO J=1,NDIH
@@ -265,7 +265,7 @@ MODULE DIHEDRAL_CONSTRAINTS
          REAL(KIND = REAL64), INTENT(OUT) :: PHI
 
          REAL(KIND = REAL64) :: RAB(3), RBC(3), RCD(3)
-         REAL(KIND = REAL64) :: N1(3), N2(3), NORM1, NORM2, NORMBC
+         REAL(KIND = REAL64) :: N1(3), N2(3), NORM1, NORM2, NORMBC, NPROD
          REAL(KIND = REAL64) :: COSPHI, SINPHI
 
          ! compute the vectors between atoms in order
@@ -319,8 +319,8 @@ MODULE DIHEDRAL_CONSTRAINTS
          REAL(KIND = REAL64), INTENT(OUT) :: FA(3), FB(3), FC(3), FD(3)
 
          REAL(KIND = REAL64) :: RAB(3), RBC(3), RCD(3)
-         REAL(KIND = REAL64) :: N1(3), N2(3), NORM1, NORM2, NORMBC
-         REAL(KIND = REAL64) :: COSPHI, SINPHI
+         REAL(KIND = REAL64) :: N1(3), N2(3), NORM1, NORM2, NORMBC, NPROD, FE
+         REAL(KIND = REAL64) :: COSPHI, SINPHI, PHI
 
          REAL(KIND = REAL64) :: DSINDN1(3), DSINDN2(3), DCOSDN1(3), DCOSDN2(3)
          REAL(KIND = REAL64) :: DPHIDN1(3), DPHIDN2(3)
@@ -362,14 +362,14 @@ MODULE DIHEDRAL_CONSTRAINTS
          FE = 2*KDIH*(PHI-PHIREF)
          ! start the derivatives here
          !derivative of cos(phi) and sin(phi) w.r.t. n1 and n2
-         DCOSDN1 = (N2 - COS_PHI*N1)/NORM1
-         DCOSDN2 = (N1 - COS_PHI*N2)/NORM2
-         DSINDN1 = CROSS_PROD(N2,RBC)*NPROD - (SIN_PHI/NORM1**2)*N1
-         DSINDN2 = CROSS_PROD(RBC,N1)*NPROD - (SIN_PHI/NORM2**2)*N2
+         DCOSDN1 = (N2 - COSPHI*N1)/NORM1
+         DCOSDN2 = (N1 - COSPHI*N2)/NORM2
+         DSINDN1 = CROSS_PROD(N2,RBC)*NPROD - (SINPHI/NORM1**2)*N1
+         DSINDN2 = CROSS_PROD(RBC,N1)*NPROD - (SINPHI/NORM2**2)*N2
 
          !derivative of phi w.r.t. n1 and n2
-         DPHIDN1 = (DSINDN1*COS_PHI - DCOSDN1*SIN_PHI)/(NORM1*SIN_PHI)
-         DPHIDN2 = (DSINDN2*COS_PHI - DCOSDN2*SIN_PHI)/(NROM2*SIN_PHI)
+         DPHIDN1 = (DSINDN1*COSPHI - DCOSDN1*SINPHI)/(NORM1*SINPHI)
+         DPHIDN2 = (DSINDN2*COSPHI - DCOSDN2*SINPHI)/(NORM2*SINPHI)
 
          DN1DA(1,1:3) = -CROSS_PROD(X0,RBC)
          DN1DA(2,1:3) = -CROSS_PROD(Y0,RBC)
