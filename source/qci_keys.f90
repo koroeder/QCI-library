@@ -85,6 +85,9 @@ MODULE QCIKEYS
    LOGICAL :: USECONACTINACT = .FALSE.
    REAL(KIND = REAL64) :: CONACTINACT = 0.2D0
 
+   !use dihedral cosntraints for chiral atoms and planarity
+   LOGICAL :: USEDIHEDRALCONST = .FALSE.
+
    !spring constants and adjustment
    !TODO: add initialisation and setting in qci setup
    LOGICAL :: QCISPRINGACTIVET = .TRUE. !QUERY: what is this?

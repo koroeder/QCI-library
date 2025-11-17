@@ -32,7 +32,8 @@ MODULE CONSTR_E_GRAD
 
 
       SUBROUTINE CONGRAD1(ETOTAL, XYZ, GGG, EEE, RMS)
-         USE QCIKEYS, ONLY: NIMAGES, NATOMS, QCICONSTRREP, KINT, QCIFREEZET, QCIFROZEN, INTCONSTRAINTDEL
+         USE QCIKEYS, ONLY: NIMAGES, NATOMS, QCICONSTRREP, KINT, QCIFREEZET, QCIFROZEN, INTCONSTRAINTDEL, &
+                            USEDIHEDRALCONST
          IMPLICIT NONE
          REAL(KIND = REAL64), INTENT(IN) :: XYZ(3*NATOMS*(NIMAGES+2))   ! input coordinates
          REAL(KIND = REAL64), INTENT(OUT) :: GGG(3*NATOMS*(NIMAGES+2))  ! gradient for each atom in each image
@@ -40,11 +41,11 @@ MODULE CONSTR_E_GRAD
          REAL(KIND = REAL64), INTENT(OUT) :: ETOTAL                    ! overall energy
          REAL(KIND = REAL64), INTENT(OUT) :: RMS                       ! total force
         
-         REAL(KIND = REAL64) :: ECON, EREP, ESPR      ! QUERY: should these be globals in keys?
+         REAL(KIND = REAL64) :: ECON, EREP, ESPR, EDIH      ! QUERY: should these be globals in keys?
          REAL(KIND = REAL64) :: EEEC(NIMAGES+2), GGGC(3*NATOMS*(NIMAGES+2))
          REAL(KIND = REAL64) :: EEER(NIMAGES+2), GGGR(3*NATOMS*(NIMAGES+2))
          REAL(KIND = REAL64) :: EEES(NIMAGES+2), GGGS(3*NATOMS*(NIMAGES+2))
-
+         REAL(KIND = REAL64) :: EEED(NIMAGES+2), GGGD(3*NATOMS*(NIMAGES+2))
          INTEGER :: J1, J2
 
          CALLN = CALLN + 1
@@ -65,10 +66,13 @@ MODULE CONSTR_E_GRAD
          IF (.NOT.(KINT.EQ.0.0D0)) THEN
             CALL GET_SPRING_E(XYZ, GGGS, EEES, ESPR)
          END IF
+         IF (USEDIHEDRALCONST) THEN
+            CALL GET_DIH_CON_E(XYZ,GGGD,EEED,EDIH)
+         END IF
 
          ! add all contributions
-         EEE = EEEC + EEER + EEES
-         GGG = GGGC + GGGR + GGGS
+         EEE = EEEC + EEER + EEES + EEED
+         GGG = GGGC + GGGR + GGGS + GGGD
          ! freeze atoms that should be frozen
          IF (QCIFREEZET) THEN
             DO J1=2,NIMAGES+1
@@ -96,12 +100,14 @@ MODULE CONSTR_E_GRAD
          RMS = SQRT(RMS/(3*NATOMS*NIMAGES))
          ETOTAL = SUM(EEE(2:NIMAGES+1))
          WRITE(*,*) " congrad> E total: ", ETOTAL, "RMS: ", RMS, " E rep: ", SUM(EEER), " E constr: ", SUM(EEEC)
+         WRITE(*,*) "                                              E spring: ", SUM(EEES), " E dih: ", SUM(EEED)
          WRITE(*,*) " congrad> FCONTEST: ", FCONTEST, " FREPTEST: ", FREPTEST
       END SUBROUTINE CONGRAD1
 
 
       SUBROUTINE CONGRAD2(ETOTAL, XYZ, GGG, EEE, RMS)
-         USE QCIKEYS, ONLY: NIMAGES, NATOMS, KINT, QCIFREEZET, QCIFROZEN, QCICONSTRREP, INTCONSTRAINTDEL
+         USE QCIKEYS, ONLY: NIMAGES, NATOMS, KINT, QCIFREEZET, QCIFROZEN, QCICONSTRREP, INTCONSTRAINTDEL, &
+                            USEDIHEDRALCONST
          IMPLICIT NONE
          REAL(KIND = REAL64), INTENT(IN) :: XYZ(3*NATOMS*(NIMAGES+2))   ! input coordinates
          REAL(KIND = REAL64), INTENT(OUT) :: GGG(3*NATOMS*(NIMAGES+2))  ! gradient for each atom in each image
@@ -109,11 +115,11 @@ MODULE CONSTR_E_GRAD
          REAL(KIND = REAL64), INTENT(OUT) :: ETOTAL                    ! overall energy
          REAL(KIND = REAL64), INTENT(OUT) :: RMS                       ! total force
         
-         REAL(KIND = REAL64) :: ECON, EREP, ESPR      ! QUERY: should these be globals in keys?
+         REAL(KIND = REAL64) :: ECON, EREP, ESPR, EDIH      ! QUERY: should these be globals in keys?
          REAL(KIND = REAL64) :: EEEC(NIMAGES+2), GGGC(3*NATOMS*(NIMAGES+2))
          REAL(KIND = REAL64) :: EEER(NIMAGES+2), GGGR(3*NATOMS*(NIMAGES+2))
          REAL(KIND = REAL64) :: EEES(NIMAGES+2), GGGS(3*NATOMS*(NIMAGES+2))
-
+         REAL(KIND = REAL64) :: EEED(NIMAGES+2), GGGD(3*NATOMS*(NIMAGES+2))
          INTEGER :: J1, J2
 
 
@@ -133,10 +139,13 @@ MODULE CONSTR_E_GRAD
          IF (.NOT.(KINT.EQ.0.0D0)) THEN
             CALL GET_SPRING_E(XYZ, GGGS, EEES, ESPR)
          END IF
+         IF (USEDIHEDRALCONST) THEN
+            CALL GET_DIH_CON_E(XYZ,GGGD,EEED,EDIH)
+         END IF
 
          ! add all contributions
-         EEE = EEEC + EEER + EEES
-         GGG = GGGC + GGGR + GGGS
+         EEE = EEEC + EEER + EEES + EEED
+         GGG = GGGC + GGGR + GGGS + GGGD
 
          ! freeze atoms that should be frozen
          IF (QCIFREEZET) THEN
@@ -247,6 +256,56 @@ MODULE CONSTR_E_GRAD
             WRITE(*,*) ' congrad> Highest constraint for image ',IMAX, ', con ',JMAX, ', atoms ',CONI(JMAX),CONJ(JMAX),' value=',EMAX
          ENDIF
       END SUBROUTINE GET_CONSTRAINT_E_NOINTERNAL
+
+      SUBROUTINE GET_DIH_CON_E(XYZ,GGG,EEE,EDIH)
+         USE DIHEDRAL_CONSTRAINTS, ONLY: DIHEDRAL, DIHEDRALS, NDIH, REFDIH, ALLDIHACTIVE, DIHACTIVE, &
+                                         CHECK_DIH_ACTIVE
+         IMPLICIT NONE
+         REAL(KIND = REAL64), INTENT(IN) :: XYZ(3*NATOMS*(NIMAGES+2))   ! input coordinates
+         REAL(KIND = REAL64), INTENT(OUT) :: GGG(3*NATOMS*(NIMAGES+2))  ! gradient for each atom in each image
+         REAL(KIND = REAL64), INTENT(OUT) :: EEE(NIMAGES+2), EDIH       ! energy for constraints  
+
+         INTEGER :: A, B, C, D, N
+         REAL(KIND = REAL64) :: XA(3), XB(3), XC(3), XD(4) !coordinates of atoms in dihedral
+         REAL(KIND = REAL64) :: FA(3), FB(3), FC(3), FD(3) !returned gradient for individual atoms
+         REAL(KIND = REAL64) :: PHIREF, THISE
+
+         EDIH = 0.0D0
+         GGG = 0.0D0
+         EEE = 0.0D0
+
+         ! if not all dihedral constraints are activated, update the list
+         IF (.NOT.ALLDIHACTIVE) CALL CHECK_DIH_ACTIVE()
+
+         DO J=1,NDIH
+            !cycle if the dihedral constraint is inactive
+            IF (.NOT.DIHACTIVE(J)) CYCLE
+            !look up atoms in dihedral
+            A = DIHEDRALS(J,1)
+            B = DIHEDRALS(J,2)
+            C = DIHEDRALS(J,3)
+            D = DIHEDRALS(J,4)
+            PHIREF = REF(DIH(J))
+            DO I=2,NIMAGES+1
+               !reference for image we are in (The x ccoord of the first atom of the current image is N+1)
+               N = 3*NATOMS*(I-1)
+               !extract relevant coordinates
+               XA(1:3) = XYZ(N+3*A-2:N+3*A)
+               XB(1:3) = XYZ(N+3*B-2:N+3*B)
+               XC(1:3) = XYZ(N+3*C-2:N+3*C)
+               XD(1:3) = XYZ(N+3*D-2:N+3*D)
+               !call routine to compute dihedral and get gradient
+               CALL DIHEDRAL(XA, XB, XC, XD, PHIREF, THISE, FA, FB, FC, FD)
+               !add results to appropriate variables
+               EDIH = EDIH + THISE
+               EEE(I) = EEE(I) + THISE
+               GGG(N+3*A-2:N+3*A) = GGG(N+3*A-2:N+3*A) - FA(1:3)
+               GGG(N+3*B-2:N+3*B) = GGG(N+3*B-2:N+3*B) - FB(1:3)
+               GGG(N+3*C-2:N+3*C) = GGG(N+3*C-2:N+3*C) - FC(1:3)
+               GGG(N+3*D-2:N+3*D) = GGG(N+3*D-2:N+3*D) - FD(1:3)
+            END DO
+         END DO
+      END SUBROUTINE GET_DIH_CON_E
 
       SUBROUTINE GET_CONSTRAINT_E(XYZ,GGG,EEE,ECON)
          USE QCIKEYS, ONLY: NIMAGES, NATOMS, INTMINFAC, CHECKCONINT, INTCONSTRAINTDEL, &
