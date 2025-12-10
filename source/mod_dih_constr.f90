@@ -129,6 +129,7 @@ MODULE DIHEDRAL_CONSTRAINTS
                REFATOMS(NCONS,1) = AT1; REFATOMS(NCONS,2) = AT2; REFATOMS(NCONS,3) = AT3; REFATOMS(NCONS,4) = AT4 
             ELSE IF ((RESNAMES(I).EQ."A").OR.(RESNAMES(I).EQ."A3").OR.(RESNAMES(I).EQ."A5").OR. &
                (RESNAMES(I).EQ."DA").OR.(RESNAMES(I).EQ."DA3").OR.(RESNAMES(I).EQ."DA5")) THEN
+               WRITE(*,*) "Dihedrals for A"
                !first dihedral 
                NCONS = NCONS + 1
                CALL GET_ATOMID("N9",I,AT1)
@@ -142,7 +143,8 @@ MODULE DIHEDRAL_CONSTRAINTS
                CALL GET_ATOMID("C5",I,AT2)
                CALL GET_ATOMID("C4",I,AT3)
                CALL GET_ATOMID("N3",I,AT4)
-               REFATOMS(NCONS,1) = AT1; REFATOMS(NCONS,2) = AT2; REFATOMS(NCONS,3) = AT3; REFATOMS(NCONS,4) = AT4     
+               REFATOMS(NCONS,1) = AT1; REFATOMS(NCONS,2) = AT2; REFATOMS(NCONS,3) = AT3; REFATOMS(NCONS,4) = AT4   
+               WRITE(*,*) REFATOMS(NCONS,1:4)  
                !third dihedral 
                NCONS = NCONS + 1
                CALL GET_ATOMID("C5",I,AT1)
@@ -150,14 +152,18 @@ MODULE DIHEDRAL_CONSTRAINTS
                CALL GET_ATOMID("N1",I,AT3)
                CALL GET_ATOMID("C2",I,AT4)
                REFATOMS(NCONS,1) = AT1; REFATOMS(NCONS,2) = AT2; REFATOMS(NCONS,3) = AT3; REFATOMS(NCONS,4) = AT4 
+               WRITE(*,*) REFATOMS(NCONS,1:4)
                !fourth dihedral 
                NCONS = NCONS + 1
                CALL GET_ATOMID("C5",I,AT1)
                CALL GET_ATOMID("N7",I,AT2)
                CALL GET_ATOMID("C8",I,AT3)
                CALL GET_ATOMID("N9",I,AT4)
+               REFATOMS(NCONS,1) = AT1; REFATOMS(NCONS,2) = AT2; REFATOMS(NCONS,3) = AT3; REFATOMS(NCONS,4) = AT4
+               WRITE(*,*) REFATOMS(NCONS,1:4)
             ELSE IF ((RESNAMES(I).EQ."C").OR.(RESNAMES(I).EQ."C3").OR.(RESNAMES(I).EQ."C5").OR. &
                   (RESNAMES(I).EQ."DC").OR.(RESNAMES(I).EQ."DC3").OR.(RESNAMES(I).EQ."DC5")) THEN
+               WRITE(*,*) "Dihedrals for C"
                !first dihedral 
                NCONS = NCONS + 1
                CALL GET_ATOMID("N1",I,AT1)
@@ -165,13 +171,15 @@ MODULE DIHEDRAL_CONSTRAINTS
                CALL GET_ATOMID("N3",I,AT3)
                CALL GET_ATOMID("C4",I,AT4)
                REFATOMS(NCONS,1) = AT1; REFATOMS(NCONS,2) = AT2; REFATOMS(NCONS,3) = AT3; REFATOMS(NCONS,4) = AT4
+               WRITE(*,*) REFATOMS(NCONS,1:4)
                !second dihedral 
                NCONS = NCONS + 1
                CALL GET_ATOMID("N3",I,AT1)
                CALL GET_ATOMID("C4",I,AT2)
                CALL GET_ATOMID("C5",I,AT3)
                CALL GET_ATOMID("C6",I,AT4)
-               REFATOMS(NCONS,1) = AT1; REFATOMS(NCONS,2) = AT2; REFATOMS(NCONS,3) = AT3; REFATOMS(NCONS,4) = AT4     
+               REFATOMS(NCONS,1) = AT1; REFATOMS(NCONS,2) = AT2; REFATOMS(NCONS,3) = AT3; REFATOMS(NCONS,4) = AT4   
+               WRITE(*,*) REFATOMS(NCONS,1:4)  
                !third dihedral 
                NCONS = NCONS + 1
                CALL GET_ATOMID("C5",I,AT1)
@@ -179,8 +187,10 @@ MODULE DIHEDRAL_CONSTRAINTS
                CALL GET_ATOMID("N1",I,AT3)
                CALL GET_ATOMID("C2",I,AT4)
                REFATOMS(NCONS,1) = AT1; REFATOMS(NCONS,2) = AT2; REFATOMS(NCONS,3) = AT3; REFATOMS(NCONS,4) = AT4 
+               WRITE(*,*) REFATOMS(NCONS,1:4)
             ELSE IF ((RESNAMES(I).EQ."G").OR.(RESNAMES(I).EQ."G3").OR.(RESNAMES(I).EQ."G5").OR. &
                      (RESNAMES(I).EQ."DG").OR.(RESNAMES(I).EQ."DG3").OR.(RESNAMES(I).EQ."DG5")) THEN
+               WRITE(*,*) "Dihedrals for G"
                !first dihedral 
                NCONS = NCONS + 1
                CALL GET_ATOMID("N9",I,AT1)
@@ -188,13 +198,15 @@ MODULE DIHEDRAL_CONSTRAINTS
                CALL GET_ATOMID("C5",I,AT3)
                CALL GET_ATOMID("C6",I,AT4)
                REFATOMS(NCONS,1) = AT1; REFATOMS(NCONS,2) = AT2; REFATOMS(NCONS,3) = AT3; REFATOMS(NCONS,4) = AT4
+               WRITE(*,*) REFATOMS(NCONS,1:4)
                !second dihedral 
                NCONS = NCONS + 1
                CALL GET_ATOMID("N7",I,AT1)
                CALL GET_ATOMID("C5",I,AT2)
                CALL GET_ATOMID("C4",I,AT3)
                CALL GET_ATOMID("N3",I,AT4)
-               REFATOMS(NCONS,1) = AT1; REFATOMS(NCONS,2) = AT2; REFATOMS(NCONS,3) = AT3; REFATOMS(NCONS,4) = AT4     
+               REFATOMS(NCONS,1) = AT1; REFATOMS(NCONS,2) = AT2; REFATOMS(NCONS,3) = AT3; REFATOMS(NCONS,4) = AT4
+               WRITE(*,*) REFATOMS(NCONS,1:4)     
                !third dihedral 
                NCONS = NCONS + 1
                CALL GET_ATOMID("C5",I,AT1)
@@ -202,14 +214,18 @@ MODULE DIHEDRAL_CONSTRAINTS
                CALL GET_ATOMID("N1",I,AT3)
                CALL GET_ATOMID("C2",I,AT4)
                REFATOMS(NCONS,1) = AT1; REFATOMS(NCONS,2) = AT2; REFATOMS(NCONS,3) = AT3; REFATOMS(NCONS,4) = AT4 
+               WRITE(*,*) REFATOMS(NCONS,1:4)
                !fourth dihedral 
                NCONS = NCONS + 1
                CALL GET_ATOMID("C5",I,AT1)
                CALL GET_ATOMID("N7",I,AT2)
                CALL GET_ATOMID("C8",I,AT3)
                CALL GET_ATOMID("N9",I,AT4)
+               REFATOMS(NCONS,1) = AT1; REFATOMS(NCONS,2) = AT2; REFATOMS(NCONS,3) = AT3; REFATOMS(NCONS,4) = AT4 
+               WRITE(*,*) REFATOMS(NCONS,1:4)
             ELSE IF ((RESNAMES(I).EQ."U").OR.(RESNAMES(I).EQ."U3").OR.(RESNAMES(I).EQ."U5").OR. &
                      (RESNAMES(I).EQ."DT").OR.(RESNAMES(I).EQ."DT3").OR.(RESNAMES(I).EQ."DT5")) THEN           
+               WRITE(*,*) "Dihedrals for U/T"
                !first dihedral 
                NCONS = NCONS + 1
                CALL GET_ATOMID("N1",I,AT1)
@@ -217,13 +233,15 @@ MODULE DIHEDRAL_CONSTRAINTS
                CALL GET_ATOMID("N3",I,AT3)
                CALL GET_ATOMID("C4",I,AT4)
                REFATOMS(NCONS,1) = AT1; REFATOMS(NCONS,2) = AT2; REFATOMS(NCONS,3) = AT3; REFATOMS(NCONS,4) = AT4
+               WRITE(*,*) REFATOMS(NCONS,1:4)
                !second dihedral 
                NCONS = NCONS + 1
                CALL GET_ATOMID("N3",I,AT1)
                CALL GET_ATOMID("C4",I,AT2)
                CALL GET_ATOMID("C5",I,AT3)
                CALL GET_ATOMID("C6",I,AT4)
-               REFATOMS(NCONS,1) = AT1; REFATOMS(NCONS,2) = AT2; REFATOMS(NCONS,3) = AT3; REFATOMS(NCONS,4) = AT4     
+               REFATOMS(NCONS,1) = AT1; REFATOMS(NCONS,2) = AT2; REFATOMS(NCONS,3) = AT3; REFATOMS(NCONS,4) = AT4 
+               WRITE(*,*) REFATOMS(NCONS,1:4)    
                !third dihedral 
                NCONS = NCONS + 1
                CALL GET_ATOMID("C5",I,AT1)
@@ -231,23 +249,29 @@ MODULE DIHEDRAL_CONSTRAINTS
                CALL GET_ATOMID("N1",I,AT3)
                CALL GET_ATOMID("C2",I,AT4)
                REFATOMS(NCONS,1) = AT1; REFATOMS(NCONS,2) = AT2; REFATOMS(NCONS,3) = AT3; REFATOMS(NCONS,4) = AT4 
+               WRITE(*,*) REFATOMS(NCONS,1:4)
             END IF
          END DO
+         WRITE(*,*) REFATOMS
          !assign arrays for dihedrals
          NDIH = NCHIRAL + NCONS
+         WRITE(*,*) "NDIH,NCHIRAL,NCONS: ", NDIH, NCHIRAL, NCONS
          CALL ALLOC_DIHVARS()
          DIHACTIVE(1:NDIH) = .FALSE.
          DO J=1,NCHIRAL
+            WRITE(*,*) "J: ", J
             DIHEDRALS(J,1) = CHIR_INFO(J,1)
             DIHEDRALS(J,2) = CHIR_INFO(J,2)
             DIHEDRALS(J,3) = CHIR_INFO(J,3)
             DIHEDRALS(J,4) = CHIR_INFO(J,4)
          END DO
+         WRITE(*,*) "NCONS loop"
          DO J=1,NCONS
-            DIHEDRALS(NDIH+J,1) = REFATOMS(J,1)
-            DIHEDRALS(NDIH+J,2) = REFATOMS(J,2)
-            DIHEDRALS(NDIH+J,3) = REFATOMS(J,3)
-            DIHEDRALS(NDIH+J,4) = REFATOMS(J,4)            
+            WRITE(*,*) "J: ", NCHIRAL+J
+            DIHEDRALS(NCHIRAL+J,1) = REFATOMS(J,1)
+            DIHEDRALS(NCHIRAL+J,2) = REFATOMS(J,2)
+            DIHEDRALS(NCHIRAL+J,3) = REFATOMS(J,3)
+            DIHEDRALS(NCHIRAL+J,4) = REFATOMS(J,4)            
          END DO
          ! get reference angles
          DO J=1,NDIH
@@ -268,6 +292,7 @@ MODULE DIHEDRAL_CONSTRAINTS
          REAL(KIND = REAL64) :: N1(3), N2(3), NORM1, NORM2, NORMBC, NPROD
          REAL(KIND = REAL64) :: COSPHI, SINPHI
 
+         WRITE(*,*) "ABCD ", A, B, C, D
          ! compute the vectors between atoms in order
          RAB(1:3) = X(3*B-2:3*B) - X(3*A-2:3*A)
          RBC(1:3) = X(3*C-2:3*C) - X(3*B-2:3*B)
@@ -356,6 +381,8 @@ MODULE DIHEDRAL_CONSTRAINTS
          COSPHI = DOTP(3,N1,N2)
          SINPHI = DOTP(3,CROSS_PROD(N1,N2),RBC)*NPROD
          PHI = ATAN2(SINPHI,COSPHI)
+
+         WRITE(*,*) ">>> dih_values phi - ", PHI, " ,ref: ", PHIREF
 
          E = KDIH*(PHI-PHIREF)**2
 

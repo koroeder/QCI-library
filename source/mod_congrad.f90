@@ -51,9 +51,17 @@ MODULE CONSTR_E_GRAD
          CALLN = CALLN + 1
 
          ! initiate some variables
-         EEE(1:NIMAGES+2)=0.0D0; EEEC(1:NIMAGES+2)=0.0D0; EEER(1:NIMAGES+2)=0.0D0; EEES(1:NIMAGES+2)=0.0D0
-         GGG(1:(3*NATOMS)*(NIMAGES+2))=0.0D0; GGGC(1:(3*NATOMS)*(NIMAGES+2))=0.0D0; GGGR(1:(3*NATOMS)*(NIMAGES+2))=0.0D0; GGGS(1:(3*NATOMS)*(NIMAGES+2))=0.0D0
-         ECON = 0.0D0; EREP = 0.0D0; ESPR = 0.0D0
+         EEE(1:NIMAGES+2)=0.0D0
+         EEEC(1:NIMAGES+2)=0.0D0
+         EEER(1:NIMAGES+2)=0.0D0
+         EEES(1:NIMAGES+2)=0.0D0
+         EEED(1:NIMAGES+2)=0.0D0
+         GGG(1:(3*NATOMS)*(NIMAGES+2))=0.0D0
+         GGGC(1:(3*NATOMS)*(NIMAGES+2))=0.0D0
+         GGGR(1:(3*NATOMS)*(NIMAGES+2))=0.0D0
+         GGGS(1:(3*NATOMS)*(NIMAGES+2))=0.0D0
+         GGGD(1:(3*NATOMS)*(NIMAGES+2))=0.0D0
+         ECON = 0.0D0; EREP = 0.0D0; ESPR = 0.0D0; EDIH = 0.0D0
 
 
          ! QUERY: what is INTCONSTRAINTDEL? seems like a scaling for the potential
@@ -66,7 +74,9 @@ MODULE CONSTR_E_GRAD
          IF (.NOT.(KINT.EQ.0.0D0)) THEN
             CALL GET_SPRING_E(XYZ, GGGS, EEES, ESPR)
          END IF
+         WRITE(*,*) "USEDIHEDRALS: ", USEDIHEDRALCONST
          IF (USEDIHEDRALCONST) THEN
+            WRITE(*,*) "COMPUTE DIH CONST"
             CALL GET_DIH_CON_E(XYZ,GGGD,EEED,EDIH)
          END IF
 
@@ -125,8 +135,16 @@ MODULE CONSTR_E_GRAD
 
          ! initiate some variables
          EEE(1:NIMAGES+2)=0.0D0
+         EEEC(1:NIMAGES+2)=0.0D0
+         EEER(1:NIMAGES+2)=0.0D0
+         EEES(1:NIMAGES+2)=0.0D0
+         EEED(1:NIMAGES+2)=0.0D0
          GGG(1:(3*NATOMS)*(NIMAGES+2))=0.0D0
-         ECON = 0.0D0; EREP = 0.0D0; ESPR = 0.0D0
+         GGGC(1:(3*NATOMS)*(NIMAGES+2))=0.0D0
+         GGGR(1:(3*NATOMS)*(NIMAGES+2))=0.0D0
+         GGGS(1:(3*NATOMS)*(NIMAGES+2))=0.0D0
+         GGGD(1:(3*NATOMS)*(NIMAGES+2))=0.0D0
+         ECON = 0.0D0; EREP = 0.0D0; ESPR = 0.0D0; EDIH = 0.0D0
 
          ! QUERY: what is INTCONSTRAINTDEL? seems like a scaling for the potential
          IF (.NOT.(INTCONSTRAINTDEL.EQ.0.0D0)) THEN
@@ -277,10 +295,14 @@ MODULE CONSTR_E_GRAD
 
          ! if not all dihedral constraints are activated, update the list
          IF (.NOT.ALLDIHACTIVE) CALL CHECK_DIH_ACTIVE()
-
+         WRITE(*,*) "CHECKING NDIH ", NDIH, " CONSTRAINTS"
          DO J=1,NDIH
+            WRITE(*,*) "J: ", J
             !cycle if the dihedral constraint is inactive
-            IF (.NOT.DIHACTIVE(J)) CYCLE
+            IF (.NOT.DIHACTIVE(J)) THEN
+               WRITE(*,*) "dih> dihedral ", J, " not active"
+               CYCLE
+            END IF
             !look up atoms in dihedral
             A = DIHEDRALS(J,1)
             B = DIHEDRALS(J,2)
