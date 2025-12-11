@@ -6,7 +6,7 @@ MODULE DIHEDRAL_CONSTRAINTS
    ! atoms in dihedrals (by id)
    INTEGER, ALLOCATABLE :: DIHEDRALS(:,:)
    ! reference dihedrals
-   REAL(KIND = REAL64), ALLOCATABLE :: REFDIH(:)
+   REAL(KIND = REAL64), ALLOCATABLE, SAVE :: REFDIH(:)
    ! activated all dihedrals?
    LOGICAL :: ALLDIHACTIVE = .FALSE.
    ! activated dihedrals?
@@ -36,6 +36,7 @@ MODULE DIHEDRAL_CONSTRAINTS
 
          INTEGER :: REFATOMS(NATOMS,4)
          INTEGER :: NCONS, AT1, AT2, AT3, AT4, I, J
+         REAL(KIND=REAL64) :: THISDIH
 
          NCONS = 0
          DO I=1,NRES
@@ -258,6 +259,7 @@ MODULE DIHEDRAL_CONSTRAINTS
          WRITE(*,*) "NDIH,NCHIRAL,NCONS: ", NDIH, NCHIRAL, NCONS
          CALL ALLOC_DIHVARS()
          DIHACTIVE(1:NDIH) = .FALSE.
+         REFDIH(1:NDIH) = 0.0D0
          DO J=1,NCHIRAL
             WRITE(*,*) "J: ", J
             DIHEDRALS(J,1) = CHIR_INFO(J,1)
@@ -276,8 +278,11 @@ MODULE DIHEDRAL_CONSTRAINTS
          ! get reference angles
          DO J=1,NDIH
             AT1 = DIHEDRALS(J,1); AT2 = DIHEDRALS(J,2); AT3 = DIHEDRALS(J,3); AT4 = DIHEDRALS(J,4)
-            CALL COMPUTE_DIH(NATOMS, XSTART, AT1, AT2, AT3, AT4, REFDIH(I))
+            CALL COMPUTE_DIH(NATOMS, XSTART, AT1, AT2, AT3, AT4, THISDIH)
+            REFDIH(J) = THISDIH
+            WRITE(*,*) "dih_ref_comput> ", AT1, AT2, AT3, AT4, REFDIH(J)
          END DO
+         WRITE(*,*) "end of setup dih: ", REFDIH
       END SUBROUTINE SETUP_DIH_CONSTR
 
       SUBROUTINE COMPUTE_DIH(NATOMS, X, A, B, C, D, PHI)
