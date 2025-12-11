@@ -74,9 +74,7 @@ MODULE CONSTR_E_GRAD
          IF (.NOT.(KINT.EQ.0.0D0)) THEN
             CALL GET_SPRING_E(XYZ, GGGS, EEES, ESPR)
          END IF
-         WRITE(*,*) "USEDIHEDRALS: ", USEDIHEDRALCONST
          IF (USEDIHEDRALCONST) THEN
-            WRITE(*,*) "COMPUTE DIH CONST"
             CALL GET_DIH_CON_E(XYZ,GGGD,EEED,EDIH)
          END IF
 
@@ -295,20 +293,14 @@ MODULE CONSTR_E_GRAD
 
          ! if not all dihedral constraints are activated, update the list
          IF (.NOT.ALLDIHACTIVE) CALL CHECK_DIH_ACTIVE()
-         WRITE(*,*) "CHECKING NDIH ", NDIH, " CONSTRAINTS"
          DO J=1,NDIH
-            WRITE(*,*) "J: ", J
             !cycle if the dihedral constraint is inactive
-            IF (.NOT.DIHACTIVE(J)) THEN
-               WRITE(*,*) "dih> dihedral ", J, " not active"
-               CYCLE
-            END IF
+            IF (.NOT.DIHACTIVE(J)) CYCLE
             !look up atoms in dihedral
             A = DIHEDRALS(J,1)
             B = DIHEDRALS(J,2)
             C = DIHEDRALS(J,3)
             D = DIHEDRALS(J,4)
-            PHIREF = REFDIH(J)
             DO I=2,NIMAGES+1
                !reference for image we are in (The x ccoord of the first atom of the current image is N+1)
                N = 3*NATOMS*(I-1)
@@ -318,7 +310,7 @@ MODULE CONSTR_E_GRAD
                XC(1:3) = XYZ(N+3*C-2:N+3*C)
                XD(1:3) = XYZ(N+3*D-2:N+3*D)
                !call routine to compute dihedral and get gradient
-               CALL DIHEDRAL(XA, XB, XC, XD, PHIREF, THISE, FA, FB, FC, FD)
+               CALL DIHEDRAL(XA, XB, XC, XD, J, THISE, FA, FB, FC, FD)
                !add results to appropriate variables
                EDIH = EDIH + THISE
                EEE(I) = EEE(I) + THISE
@@ -780,6 +772,8 @@ MODULE CONSTR_E_GRAD
             END DO
             DVEC(J1) = SQRT(DPLUS)
             DUMMY = KINT*0.5D0*DPLUS/KINTSCALED
+            EEE(J1) = EEE(J1) + 0.5D0*DUMMY
+            EEE(J1+1) = EEE(J1+1) + 0.5D0*DUMMY
             IF (DUMMY.GT.EMAX) THEN
                IMAX=J1
                EMAX=DUMMY
