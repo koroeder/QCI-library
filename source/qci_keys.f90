@@ -71,7 +71,7 @@ MODULE QCIKEYS
 
    INTEGER :: QCIIMAGECHECK = 10
 
-   REAL(KIND=REAL64) :: INTMINFAC=1.0D0 !Scaling factor for internal minima
+   REAL(KIND=REAL64) :: INTMINFAC=1.0D0 !< Scaling factor for internal minima
 
    !repulsions
    REAL(KIND=REAL64) :: QCIREPCUT = 1.0D-3
