@@ -39,7 +39,7 @@ MODULE QCIKEYS
    !use trilateration for interpolation
    LOGICAL :: QCITRILATERATION = .FALSE.
 
-   LOGICAL :: CHECKCONINT = .FALSE. !which congrad should be used?
+   LOGICAL :: CHECKCONINT = .FALSE. !<which congrad should be used?
 
    LOGICAL :: QCIREADGUESS = .FALSE. ! read guess for band
    CHARACTER(20) :: GUESSFILE = "int_guess.xyz"

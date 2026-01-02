@@ -236,12 +236,17 @@ MODULE CONSTR_E_GRAD
                CALL DISTANCE_SIMPLE(XA, XB, DIST)
                DUMMY = DIST - CONDISTREFLOCAL(J2)
                ! now check whether we are beyond the constraint cutoff
+               ! d^i_AB - ave(d_AB) > C^con_AB
                IF (DUMMY.GT.CCLOCAL) THEN
                   DUMMY2 = DUMMY**2
                   CCLOCAL2 = CCLOCAL**2  
                   ! calculate gradient and energy
                   G2 = (XA-XB)/DIST
                   GRADAB(1:3) = 2*(DUMMY2-CCLOCAL2)*DUMMY*G2(1:3)/(CCLOCAL2**2)
+                  
+                  ! V_con(d^i_AB) = (eps_con* (d^i_AB - ave(d_AB))^2 - (C^con_AB)^2 )^2 / 2*(C^con_AB)^2
+                  ! QUESTION why are we squaring CCLOCAL twice? ... CCLOCAL2**2 term
+                  ! QUESTION missing eps_con - is this supposed to be INTCONSTRAINTDEL?
                   DUMMY = (DUMMY2-CCLOCAL2)**2/(2.0D0*CCLOCAL2**2)
                   EEE(J1) = EEE(J1) + DUMMY
                   ECON = ECON + DUMMY
@@ -329,20 +334,20 @@ MODULE CONSTR_E_GRAD
          USE INTERPOLATION_KEYS, ONLY: CONACTIVE, ATOMACTIVE
          USE HELPER_FNCTS, ONLY: DISTANCE_SIMPLE, DOTP
          IMPLICIT NONE
-         REAL(KIND = REAL64), INTENT(IN) :: XYZ(3*NATOMS*(NIMAGES+2))   ! input coordinates
-         REAL(KIND = REAL64), INTENT(OUT) :: GGG(3*NATOMS*(NIMAGES+2))  ! gradient for each atom in each image
-         REAL(KIND = REAL64), INTENT(OUT) :: EEE(NIMAGES+2), ECON       ! energy for constraints         
+         REAL(KIND = REAL64), INTENT(IN) :: XYZ(3*NATOMS*(NIMAGES+2))   !< input coordinates
+         REAL(KIND = REAL64), INTENT(OUT) :: GGG(3*NATOMS*(NIMAGES+2))  !< gradient for each atom in each image
+         REAL(KIND = REAL64), INTENT(OUT) :: EEE(NIMAGES+2), ECON       !< energy for constraints         
          INTEGER :: J1, J2       
          INTEGER :: NI1, NI2, NJ1, NJ2                                 ! indices for atom I and J in images 1 and 2
          REAL(KIND = REAL64) :: G1(3), G2(3), DSQ1, DSQ2, DINTMIN, DP_G12 ! dummy variables
          REAL(KIND = REAL64) :: CONSTGRAD(3), DUMMY
          REAL(KIND = REAL64) :: CCLOCAL
-         LOGICAL :: NOINT                                            ! do we hae an internal minimum
-         REAL(KIND = REAL64) :: DINT, DSQI, G1INT(3), G2INT(3)       ! information for internal minimum contribution
-         REAL(KIND = REAL64) , PARAMETER :: DINTTEST = 1.0D-50       ! cutoff for DINTMIN to test for internal min
+         LOGICAL :: NOINT                                            !< do we have an internal minimum
+         REAL(KIND = REAL64) :: DINT, DSQI, G1INT(3), G2INT(3)       !< information for internal minimum contribution
+         REAL(KIND = REAL64) , PARAMETER :: DINTTEST = 1.0D-50       !< cutoff for DINTMIN to test for internal min
          REAL(KIND = REAL64) :: D1, D2, D12                         ! distances in image 1 and 2         
          REAL(KIND=REAL64) :: EMAX, FMIN, FMAX
-         REAL(KIND=REAL64) :: LOCALCONFACTOR
+         REAL(KIND=REAL64) :: LOCALCONFACTOR                          !< scaling factor if active-inactive atom interaction
          INTEGER :: IMAX, JMAX
 
          EEE(1:NIMAGES+2)=0.0D0
@@ -401,6 +406,7 @@ MODULE CONSTR_E_GRAD
                D1 = SQRT(DSQ1); D2 = SQRT(DSQ2)
                G1(1:3) = G1(1:3)/D1; G2(1:3) = G2(1:3)/D2
 
+               ! Don't calculate internal minima for congrad1 
                IF ((.NOT.CHECKCONINT).OR.(DINTMIN.LT.DINTTEST)) THEN
                   NOINT = .TRUE.
                ELSE
@@ -412,6 +418,8 @@ MODULE CONSTR_E_GRAD
 
                ! terms for image J1 - non-zero derivatives only for J1. D2 is the distance for image J1.
                ! these are the constraint energies as in get_constraint_e_nointernal
+               
+               ! condition: |G2| - mean(d_AB) < C_AB
                DUMMY = D2-CONDISTREFLOCAL(J2)
                IF ((DUMMY.GT.CCLOCAL).AND.(J1.LT.NIMAGES+2)) THEN  
                   !CONSTGRAD(1:3)=2*INTCONSTRAINTDEL*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G2(1:3)
@@ -432,6 +440,8 @@ MODULE CONSTR_E_GRAD
                ! terms for image J1-1 - non-zero derivatives only for J1-1. D1 is the distance for image J1-1.
                ! here we have the internal extremum contribution
                !QUERY: Does this need to be absolute??? Or should it be the relative value? Not sure it makes sense to have this as the absolute value?
+               
+               !QUESTION Used for congrad1 and no intenal minima? if so why do we use INTMINFAC here?
                IF (CHECKCONINT.AND.(.NOT.NOINT).AND.(ABS(DINT-CONDISTREFLOCAL(J2)).GT.CCLOCAL)) THEN
                   DUMMY=DINT-CONDISTREFLOCAL(J2)  
                   !CONSTGRAD(1:3)=2*INTMINFAC*INTCONSTRAINTDEL*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G1INT(1:3)
@@ -533,6 +543,7 @@ MODULE CONSTR_E_GRAD
                IF (ABS(NREPI(J2)-NREPJ(J2)).LT.QCIINTREPMINSEP) THEN
                   DINTMIN = 0.0D0
                ELSE 
+                  !internal minimum (theta*)?
                   DP_G12 = DOTP(3,G1,G2)
                   DINTMIN = DSQ1+DSQ2-2.0D0*DP_G12
                END IF
@@ -644,7 +655,7 @@ MODULE CONSTR_E_GRAD
          REAL(KIND=REAL64) :: DUMMY
          INTEGER :: IMAX, JMAX
 
-         WRITE(*,*) " E repulsion 2"
+         
          EMAX = -(HUGE(1.0D0))
          FMAX = -(HUGE(1.0D0))
          FMIN = HUGE(1.0D0)
@@ -660,7 +671,7 @@ MODULE CONSTR_E_GRAD
             INTCONSTINV = 1.0D0/INTCONST
 
             DO J1=2,NIMAGES+2
-               NI1=(3*NATOMS)*(J1-2)+3*(NREPI(J2)-1)
+               NI1=(3*NATOMS)*(J1-2)+3*(NREPI(J2)-1) !atom 1 in image I
                NI2=(3*NATOMS)*(J1-1)+3*(NREPI(J2)-1)
                NJ1=(3*NATOMS)*(J1-2)+3*(NREPJ(J2)-1)
                NJ2=(3*NATOMS)*(J1-1)+3*(NREPJ(J2)-1)
@@ -858,6 +869,19 @@ MODULE CONSTR_E_GRAD
       END SUBROUTINE INTMIN_REPULSION
 
       ! QUERY: these functions are identical apart from use of the ondition for repulsions - is that condition required?
+     
+      !> @brief Calculate internal minima distance 
+      !! @param[in]     G1: normalised vector from j to i in image 1
+      !! @param[in]     G2: normalised vector from j to i in image 2
+      !! @param[in]     DSQ1: |G1|^2 
+      !! @param[in]     DSQ2: |G2|^2
+      !! @param[in]     DP_G12: dotproduct (G1, G2) 
+      !! @param[in]     DINTMIN: |G1-G2|^2  
+      !! @param[out]    NOINT: Is there internal minimum
+      !! @param[out]    DSQI: d(theta*)^2 internal minimum solution 
+      !! @param[out]    DINT: d(theta*) 
+      !! @param[out]    G1INT: derivative of DSQI with respect to carthesian coords in image 1 divided by DINT  
+      !! @param[out]    G2INT: derivative of DSQI with respect to carthesian coords in image 2 divided by DINT  
       SUBROUTINE INTMIN_CONSTRAINT(G1,G2,DSQ1,DSQ2,DP_G12,DINTMIN,NOINT,DSQI,DINT,G1INT,G2INT)
          IMPLICIT NONE
          REAL(KIND = REAL64), INTENT(IN) :: G1(3), G2(3)
@@ -875,7 +899,9 @@ MODULE CONSTR_E_GRAD
          G1INT(1:3)=0.0D0; G2INT(1:3)=0.0D0
 
          ! are we having an internal minimum?
+         ! calculate cos^2 (theta*)
          DUMMY = (DSQ1-DP_G12)/DINTMIN
+         ! internal minimum exists if cos^2(theta) in range <0,1>
          IF ((DUMMY.GT.0.0D0).AND.(DUMMY.LT.1.0D0)) THEN
             NOINT=.FALSE.
             DP_G12_SQ = DP_G12**2
@@ -887,6 +913,7 @@ MODULE CONSTR_E_GRAD
             ELSE
                DUMMY = DINT*DINTMIN**2
                ! to convert derivatives of distance^2 to derivative of distance.
+               ! QUESTION: Is this derivative of distance divided by the distance? 
                G1INT(1:3)= (DUMMY2*(G1(1:3) - G2(1:3)) + DINTMIN*(G1(1:3)*DSQ2 -G2(1:3)*DP_G12))/DUMMY
                G2INT(1:3)= (DUMMY2*(G2(1:3) - G1(1:3)) + DINTMIN*(G2(1:3)*DSQ1 -G1(1:3)*DP_G12))/DUMMY
             END IF              
