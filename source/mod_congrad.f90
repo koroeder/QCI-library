@@ -5,22 +5,22 @@
 MODULE CONSTR_E_GRAD
    USE QCIPREC
    IMPLICIT NONE
-   INTEGER :: MAXCONIMAGE, MAXREPIMAGE, MAXSPRIMAGE      ! image with highest constraint / repulsion
-   INTEGER :: MAXCONSTR, MAXREP                          ! index for worst constraint / repulsion
-   REAL(KIND=REAL64) :: CONVERGECONTEST, CONVERGEREPTEST ! energy of that term
+   INTEGER :: MAXCONIMAGE, MAXREPIMAGE, MAXSPRIMAGE      !< image with highest constraint / repulsion
+   INTEGER :: MAXCONSTR, MAXREP                          !< index for worst constraint / repulsion
+   REAL(KIND=REAL64) :: CONVERGECONTEST, CONVERGEREPTEST !< energy of that term
    REAL(KIND=REAL64) :: FCONTEST, FREPTEST
    REAL(KIND=REAL64) :: EMAXSPR
-   REAL(KIND=REAL64) :: FCONMAX, FREPMAX                 ! maximum gradient
+   REAL(KIND=REAL64) :: FCONMAX, FREPMAX                 !< maximum gradient
    INTEGER :: CALLN = 0
    CONTAINS
 
       SUBROUTINE CONGRAD(ETOTAL, XYZ, GGG, EEE, RMS)
          USE QCIKEYS, ONLY: NIMAGES, NATOMS, CHECKCONINT
-         REAL(KIND = REAL64), INTENT(IN) :: XYZ(3*NATOMS*(NIMAGES+2))   ! input coordinates
-         REAL(KIND = REAL64), INTENT(OUT) :: GGG(3*NATOMS*(NIMAGES+2))  ! gradient for each atom in each image
-         REAL(KIND = REAL64), INTENT(OUT) :: EEE(NIMAGES+2)             ! energy for each image
-         REAL(KIND = REAL64), INTENT(OUT) :: ETOTAL                    ! overall energy
-         REAL(KIND = REAL64), INTENT(OUT) :: RMS                       ! total force
+         REAL(KIND = REAL64), INTENT(IN) :: XYZ(3*NATOMS*(NIMAGES+2))   !< input coordinates
+         REAL(KIND = REAL64), INTENT(OUT) :: GGG(3*NATOMS*(NIMAGES+2))  !< gradient for each atom in each image
+         REAL(KIND = REAL64), INTENT(OUT) :: EEE(NIMAGES+2)             !< energy for each image
+         REAL(KIND = REAL64), INTENT(OUT) :: ETOTAL                    !< overall energy
+         REAL(KIND = REAL64), INTENT(OUT) :: RMS                       !< total force
 
          ! call correct congrad routine
          IF (CHECKCONINT) THEN
@@ -197,14 +197,15 @@ MODULE CONSTR_E_GRAD
          USE INTERPOLATION_KEYS, ONLY: CONACTIVE
          USE HELPER_FNCTS, ONLY: DISTANCE_SIMPLE
          IMPLICIT NONE
-         REAL(KIND = REAL64), INTENT(IN) :: XYZ(3*NATOMS*(NIMAGES+2))   ! input coordinates
-         REAL(KIND = REAL64), INTENT(OUT) :: GGG(3*NATOMS*(NIMAGES+2))  ! gradient for each atom in each image
-         REAL(KIND = REAL64), INTENT(OUT) :: EEE(NIMAGES+2), ECON       ! energy for constraints
+         REAL(KIND = REAL64), INTENT(IN) :: XYZ(3*NATOMS*(NIMAGES+2))   !< input coordinates
+         REAL(KIND = REAL64), INTENT(OUT) :: GGG(3*NATOMS*(NIMAGES+2))  !< gradient for each atom in each image
+         REAL(KIND = REAL64), INTENT(OUT) :: EEE(NIMAGES+2)             !< energy for constraints in each image
+         REAL(KIND = REAL64), INTENT(OUT) :: ECON                       !< energy for constraints
          INTEGER :: J1, J2, I
-         INTEGER :: NI1, NJ1                         ! indices for atoms A and B in XYZ and GGG
-         REAL(KIND=REAL64) :: CCLOCAL, CCLOCAL2      ! local concut
-         REAL(KIND=REAL64) :: XA(3), XB(3)           ! coordinates for atoms A and B 
-         REAL(KIND=REAL64) :: DIST, DUMMY, DUMMY2    ! distance and related measure
+         INTEGER :: NI1, NJ1                         !< indices for atoms A and B in XYZ and GGG
+         REAL(KIND=REAL64) :: CCLOCAL, CCLOCAL2      !< local concut
+         REAL(KIND=REAL64) :: XA(3), XB(3)           !< coordinates for atoms A and B 
+         REAL(KIND=REAL64) :: DIST, DUMMY, DUMMY2    !< distance and related measure
          REAL(KIND=REAL64) :: G2(3), GRADAB(3)
          REAL(KIND=REAL64) :: EMAX, FMIN, FMAX
          INTEGER :: IMAX, JMAX
@@ -244,9 +245,9 @@ MODULE CONSTR_E_GRAD
                   G2 = (XA-XB)/DIST
                   GRADAB(1:3) = 2*(DUMMY2-CCLOCAL2)*DUMMY*G2(1:3)/(CCLOCAL2**2)
                   
-                  ! V_con(d^i_AB) = (eps_con* (d^i_AB - ave(d_AB))^2 - (C^con_AB)^2 )^2 / 2*(C^con_AB)^2
+                  ! V_con(d^i_AB) = (eps_con* ((d^i_AB - ave(d_AB))^2 -(C^con_AB)^2 )^2 )/ 2*(C^con_AB)^2
                   ! QUESTION why are we squaring CCLOCAL twice? ... CCLOCAL2**2 term
-                  ! QUESTION missing eps_con - is this supposed to be INTCONSTRAINTDEL?
+                  ! QUESTION missing eps_con?
                   DUMMY = (DUMMY2-CCLOCAL2)**2/(2.0D0*CCLOCAL2**2)
                   EEE(J1) = EEE(J1) + DUMMY
                   ECON = ECON + DUMMY
@@ -283,9 +284,9 @@ MODULE CONSTR_E_GRAD
          USE DIHEDRAL_CONSTRAINTS, ONLY: DIHEDRAL, DIHEDRALS, NDIH, REFDIH, ALLDIHACTIVE, DIHACTIVE, &
                                          CHECK_DIH_ACTIVE
          IMPLICIT NONE
-         REAL(KIND = REAL64), INTENT(IN) :: XYZ(3*NATOMS*(NIMAGES+2))   ! input coordinates
-         REAL(KIND = REAL64), INTENT(OUT) :: GGG(3*NATOMS*(NIMAGES+2))  ! gradient for each atom in each image
-         REAL(KIND = REAL64), INTENT(OUT) :: EEE(NIMAGES+2), EDIH       ! energy for constraints  
+         REAL(KIND = REAL64), INTENT(IN) :: XYZ(3*NATOMS*(NIMAGES+2))   !< input coordinates
+         REAL(KIND = REAL64), INTENT(OUT) :: GGG(3*NATOMS*(NIMAGES+2))  !< gradient for each atom in each image
+         REAL(KIND = REAL64), INTENT(OUT) :: EEE(NIMAGES+2), EDIH       !< energy for constraints  
 
          INTEGER :: A, B, C, D, N, I, J
          REAL(KIND = REAL64) :: XA(3), XB(3), XC(3), XD(4) !coordinates of atoms in dihedral
@@ -342,7 +343,7 @@ MODULE CONSTR_E_GRAD
          REAL(KIND = REAL64) :: G1(3), G2(3), DSQ1, DSQ2, DINTMIN, DP_G12 ! dummy variables
          REAL(KIND = REAL64) :: CONSTGRAD(3), DUMMY
          REAL(KIND = REAL64) :: CCLOCAL
-         LOGICAL :: NOINT                                            !< do we have an internal minimum
+         LOGICAL :: NOINT                                            !< do we have an internal minimum, TRUE=we don't
          REAL(KIND = REAL64) :: DINT, DSQI, G1INT(3), G2INT(3)       !< information for internal minimum contribution
          REAL(KIND = REAL64) , PARAMETER :: DINTTEST = 1.0D-50       !< cutoff for DINTMIN to test for internal min
          REAL(KIND = REAL64) :: D1, D2, D12                         ! distances in image 1 and 2         
@@ -424,7 +425,11 @@ MODULE CONSTR_E_GRAD
                IF ((DUMMY.GT.CCLOCAL).AND.(J1.LT.NIMAGES+2)) THEN  
                   !CONSTGRAD(1:3)=2*INTCONSTRAINTDEL*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G2(1:3)
                   !DUMMY=INTCONSTRAINTDEL*(DUMMY**2-CCLOCAL**2)**2/(2.0D0*CCLOCAL**2)
+
+
+                  ! We are missing eps_con
                   CONSTGRAD(1:3)=LOCALCONFACTOR*2*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G2(1:3)
+                  ! V_con(d^i_AB) = eps_con ((d^i_AB-ave*(d^i_AB))^2 - C_con_AB^2 )^2 / 2(C_con_AB)^2
                   DUMMY=LOCALCONFACTOR*(DUMMY**2-CCLOCAL**2)**2/(2.0D0*CCLOCAL**2)                  
                   IF (DUMMY.GT.EMAX) THEN
                      IMAX=J1
@@ -441,7 +446,7 @@ MODULE CONSTR_E_GRAD
                ! here we have the internal extremum contribution
                !QUERY: Does this need to be absolute??? Or should it be the relative value? Not sure it makes sense to have this as the absolute value?
                
-               !QUESTION Used for congrad1 and no intenal minima? if so why do we use INTMINFAC here?
+               ! Used for congrad2 and have intenal minima AND d(theta*)-mean(d_AB) > C_conAB
                IF (CHECKCONINT.AND.(.NOT.NOINT).AND.(ABS(DINT-CONDISTREFLOCAL(J2)).GT.CCLOCAL)) THEN
                   DUMMY=DINT-CONDISTREFLOCAL(J2)  
                   !CONSTGRAD(1:3)=2*INTMINFAC*INTCONSTRAINTDEL*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G1INT(1:3)
@@ -471,6 +476,7 @@ MODULE CONSTR_E_GRAD
                ENDIF
             END DO
          END DO
+         !QUESTION why do we have the line below?  
          CONVERGECONTEST=EMAX/INTCONSTRAINTDEL
          IF (-FMIN.GT.FMAX) FMAX=-FMIN
          FCONTEST=FMAX
@@ -487,23 +493,24 @@ MODULE CONSTR_E_GRAD
          USE REPULSION, ONLY: NNREPULSIVE, NREPI, NREPJ, NREPCUT
          USE HELPER_FNCTS, ONLY: DISTANCE_SIMPLE, DOTP
          IMPLICIT NONE
-         REAL(KIND = REAL64), INTENT(IN) :: XYZ(3*NATOMS*(NIMAGES+2))   ! input coordinates
-         REAL(KIND = REAL64), INTENT(OUT) :: GGG(3*NATOMS*(NIMAGES+2))  ! gradient for each atom in each image
-         REAL(KIND = REAL64), INTENT(OUT) :: EEE(NIMAGES+2), EREP       ! energy for repulsions
-         
+         REAL(KIND = REAL64), INTENT(IN) :: XYZ(3*NATOMS*(NIMAGES+2))   !< input coordinates
+         REAL(KIND = REAL64), INTENT(OUT) :: GGG(3*NATOMS*(NIMAGES+2))  !< gradient for each atom in each image
+         REAL(KIND = REAL64), INTENT(OUT) :: EEE(NIMAGES+2)             !< energy for repulsions in each image
+         REAL(KIND = REAL64), INTENT(OUT) :: EREP                       !< energy for repulsions
+
          INTEGER :: J1, J2, OFFSET1, OFFSET2
-         REAL(KIND = REAL64) :: X1(3*NATOMS), X2(3*NATOMS)           ! coordinates for image 1 and 2
-         REAL(KIND = REAL64) :: GLOCAL1(3*NATOMS), GLOCAL2(3*NATOMS) ! gradients for each image
-         REAL(KIND = REAL64) :: EREP1, EREP2                         ! repulsion energy contributions
-         INTEGER :: NI, NJ                                           ! indices for atom I and J
-         REAL(KIND = REAL64) :: G1(3), G2(3), DSQ1, DSQ2             ! dummy variables
-         REAL(KIND = REAL64) :: DCUT, DINTMIN, DP_G12                ! values used to test for internal minimum
-         REAL(KIND = REAL64) , PARAMETER :: DINTTEST = 1.0D-50       ! cutoff for DINTMIN to test for internal min
-         REAL(KIND = REAL64) :: D1, D2, D12                         ! distances in image 1 and 2
+         REAL(KIND = REAL64) :: X1(3*NATOMS), X2(3*NATOMS)           !< coordinates for image 1 and 2
+         REAL(KIND = REAL64) :: GLOCAL1(3*NATOMS), GLOCAL2(3*NATOMS) !< gradients for each image
+         REAL(KIND = REAL64) :: EREP1, EREP2                         !< repulsion energy contributions
+         INTEGER :: NI, NJ                                           !< indices for atom I and J
+         REAL(KIND = REAL64) :: G1(3), G2(3), DSQ1, DSQ2             !< dummy variables
+         REAL(KIND = REAL64) :: DCUT, DINTMIN, DP_G12                !< values used to test for internal minimum
+         REAL(KIND = REAL64) , PARAMETER :: DINTTEST = 1.0D-50       !< cutoff for DINTMIN to test for internal min
+         REAL(KIND = REAL64) :: D1, D2, D12                         !< distances in image 1 and 2
          REAL(KIND = REAL64) :: RPLOCAL, RPLOCAL2, RPLOCALINV 
          REAL(KIND = REAL64) :: REPGRAD(3)
-         LOGICAL :: NOINT                                            ! do we hae an internal minimum
-         REAL(KIND = REAL64) :: DINT, DSQI, G1INT(3), G2INT(3)       ! information for internal minimum contribution
+         LOGICAL :: NOINT                                            !< do we have an internal minimum
+         REAL(KIND = REAL64) :: DINT, DSQI, G1INT(3), G2INT(3)       !< information for internal minimum contribution
          REAL(KIND=REAL64) :: EMAX, FMIN, FMAX
          REAL(KIND=REAL64) :: DUMMY, DUMMY2
          INTEGER :: IMAX, JMAX
@@ -565,7 +572,11 @@ MODULE CONSTR_E_GRAD
                RPLOCALINV = 1.0D0/RPLOCAL
 
                IF (D2.LT.RPLOCAL) THEN
-                  DUMMY = RPLOCAL2/DSQ2 + 2.0D0*D2*RPLOCALINV - 3.0D0
+                  ! QUESTION missing EPS_rep 
+                  !V_rep(d^i_AB) = eps_rep ( 1/(d^i_AB)^2 - 3/C_repAB + 2* d^i_AB / C_repAB )
+                  !DUMMY = RPLOCAL2/DSQ2 + 2.0D0*D2*RPLOCALINV - 3.0D0
+                  !WARNING changed dummy to correspond to equation above
+                  DUMMY = (RPLOCAL2/DSQ2 + 2.0D0*D2*RPLOCALINV - 3.0D0)/RPLOCAL2
                   !WRITE(*,*) " EREP1: ", DUMMY, DSQ2, D2, RPLOCAL2, RPLOCALINV
                   EREP1 = EREP1 + DUMMY
                   EREP = EREP + DUMMY
@@ -574,7 +585,10 @@ MODULE CONSTR_E_GRAD
                      JMAX = J2
                      EMAX = DUMMY
                   END IF
-                  DUMMY=-2.0D0*(RPLOCAL2/(D2*DSQ2)-RPLOCALINV)
+                  !dV/dd_AB = -2/(d^i_AB)^3 + 2/C_repAB^3 
+                  !DUMMY=-2.0D0*(RPLOCAL2/(D2*DSQ2)-RPLOCALINV)
+                  !WARNING changed to match equation above 
+                  DUMMY=(-2.0D0*(RPLOCAL2/(D2*DSQ2)-RPLOCALINV) )/RPLOCAL2
                   REPGRAD(1:3) = DUMMY*G2(1:3)
                   GLOCAL2(NI+1:NI+3)=GLOCAL2(NI+1:NI+3)+REPGRAD(1:3)
                   GLOCAL2(NJ+1:NJ+3)=GLOCAL2(NJ+1:NJ+3)-REPGRAD(1:3)
@@ -585,9 +599,12 @@ MODULE CONSTR_E_GRAD
                ! edge 1, which was assigned to image 2, and edge NIMAGES+1, which
                ! was assigned to image NIMAGES+1. 
                DUMMY = 0.0D0
+               !QUESTION why J1 NE 2 condition?
                IF ((.NOT.NOINT).AND.(DINT.LT.RPLOCAL).AND.(J1.NE.2)) THEN
                   D12 = DSQI !from call to find internal minimum
-                  DUMMY=INTMINFAC*(RPLOCAL2/D12+2.0D0*DINT*RPLOCALINV-3.0D0)
+                  !DUMMY=INTMINFAC*(RPLOCAL2/D12+2.0D0*DINT*RPLOCALINV-3.0D0)
+                  !WARNING changed equation again
+                   DUMMY = INTMINFAC*(RPLOCAL2/DSQ2 + 2.0D0*D2*RPLOCALINV - 3.0D0)/RPLOCAL2
                   !WRITE(*,*) " EREP2: ", DUMMY, DSQI, DINT, RPLOCAL2, RPLOCALINV
                   EREP2=EREP2+DUMMY
                   EREP=EREP+DUMMY
@@ -596,7 +613,9 @@ MODULE CONSTR_E_GRAD
                      JMAX=J2
                      EMAX=DUMMY
                   ENDIF
-                  DUMMY=-2.0D0*(RPLOCAL2/(DINT*D12)-RPLOCALINV)
+                  !DUMMY=-2.0D0*(RPLOCAL2/(DINT*D12)-RPLOCALINV)
+                  !WARNING changed equation again
+                  DUMMY=-2.0D0*(RPLOCAL2/(DINT*D12)-RPLOCALINV)/RPLOCAL2
                   ! Gradient contributions for image J1-1
                   REPGRAD(1:3)=INTMINFAC*DUMMY*G1INT(1:3)
                   GLOCAL1(NI+1:NI+3)=GLOCAL1(NI+1:NI+3)+REPGRAD(1:3)
@@ -634,23 +653,23 @@ MODULE CONSTR_E_GRAD
          USE REPULSION, ONLY: NNREPULSIVE, NREPI, NREPJ, NREPCUT
          USE HELPER_FNCTS, ONLY: DISTANCE_SIMPLE, DOTP
          IMPLICIT NONE
-         REAL(KIND = REAL64), INTENT(IN) :: XYZ(3*NATOMS*(NIMAGES+2))   ! input coordinates
-         REAL(KIND = REAL64), INTENT(OUT) :: GGG(3*NATOMS*(NIMAGES+2))  ! gradient for each atom in each image
-         REAL(KIND = REAL64), INTENT(OUT) :: EEE(NIMAGES+2), EREP       ! energy for repulsions
+         REAL(KIND = REAL64), INTENT(IN) :: XYZ(3*NATOMS*(NIMAGES+2))   !< input coordinates
+         REAL(KIND = REAL64), INTENT(OUT) :: GGG(3*NATOMS*(NIMAGES+2))  !< gradient for each atom in each image
+         REAL(KIND = REAL64), INTENT(OUT) :: EEE(NIMAGES+2), EREP       !< energy for repulsions
          
          INTEGER :: J1, J2, OFFSET1, OFFSET2
-         REAL(KIND = REAL64) :: X1(3*NATOMS), X2(3*NATOMS)           ! coordinates for image 1 and 2
-         REAL(KIND = REAL64) :: GLOCAL1(3*NATOMS), GLOCAL2(3*NATOMS) ! gradients for each image
-         REAL(KIND = REAL64) :: EREP1, EREP2                         ! repulsion energy contributions
-         INTEGER :: NI1, NI2, NJ1, NJ2                               ! indices for atom I and J in images 1 and 2
-         REAL(KIND = REAL64) :: G1(3), G2(3), DSQ1, DSQ2             ! dummy variables
-         REAL(KIND = REAL64) :: DCUT, DINTMIN, DP_G12                ! values used to test for internal minimum
-         REAL(KIND = REAL64) , PARAMETER :: DINTTEST = 1.0D-50       ! cutoff for DINTMIN to test for internal min
-         REAL(KIND = REAL64) :: D1, D2, D12                         ! distances in image 1 and 2
+         REAL(KIND = REAL64) :: X1(3*NATOMS), X2(3*NATOMS)           !< coordinates for image 1 and 2
+         REAL(KIND = REAL64) :: GLOCAL1(3*NATOMS), GLOCAL2(3*NATOMS) !< gradients for each image
+         REAL(KIND = REAL64) :: EREP1, EREP2                         !< repulsion energy contributions
+         INTEGER :: NI1, NI2, NJ1, NJ2                               !< indices for atom I and J in images 1 and 2
+         REAL(KIND = REAL64) :: G1(3), G2(3), DSQ1, DSQ2             !< dummy variables
+         REAL(KIND = REAL64) :: DCUT, DINTMIN, DP_G12                !< values used to test for internal minimum
+         REAL(KIND = REAL64) , PARAMETER :: DINTTEST = 1.0D-50       !< cutoff for DINTMIN to test for internal min
+         REAL(KIND = REAL64) :: D1, D2, D12                         !< distances in image 1 and 2
          REAL(KIND = REAL64) :: RPLOCAL, INTCONST, INTCONSTINV
          REAL(KIND = REAL64) :: REPGRAD(3)
-         LOGICAL :: NOINT                                            ! do we hae an internal minimum
-         REAL(KIND = REAL64) :: DINT, DSQI, G1INT(3), G2INT(3)       ! information for internal minimum contribution
+         LOGICAL :: NOINT                                            !< do we have an internal minimum
+         REAL(KIND = REAL64) :: DINT, DSQI, G1INT(3), G2INT(3)       !< information for internal minimum contribution
          REAL(KIND=REAL64) :: EMAX, FMIN, FMAX
          REAL(KIND=REAL64) :: DUMMY
          INTEGER :: IMAX, JMAX
@@ -703,6 +722,7 @@ MODULE CONSTR_E_GRAD
                END IF
                ! terms for image J1 - non-zero derivatives only for J1
                IF ((D2.LT.RPLOCAL).AND.(J1.LT.NIMAGES+2)) THEN
+                  !QUESTION what is QCICONSTRREP? 
                   DUMMY=QCICONSTRREP*(1.0D0/DSQ2+(2.0D0*D2-3.0D0*RPLOCAL)*INTCONSTINV)
                   EEE(J1)=EEE(J1)+DUMMY
                   EREP=EREP+DUMMY
@@ -747,6 +767,7 @@ MODULE CONSTR_E_GRAD
          FMAX=MAXVAL(GGG(3*NATOMS+1:3*NATOMS*(NIMAGES+1)))
          IF (-FMIN.GT.FMAX) FMAX=-FMIN
          FREPTEST=FMAX
+         !QUESTION why this convergence test?
          CONVERGEREPTEST=EMAX/QCICONSTRREP
          MAXCONIMAGE = JMAX
          MAXCONSTR = IMAX
@@ -756,9 +777,10 @@ MODULE CONSTR_E_GRAD
          USE QCIKEYS, ONLY: NIMAGES, NATOMS, KINT, KINTSCALED, QCIADJUSTKT, QCISPRINGACTIVET
          USE INTERPOLATION_KEYS, ONLY: ATOMACTIVE
          IMPLICIT NONE
-         REAL(KIND = REAL64), INTENT(IN) :: XYZ(3*NATOMS*(NIMAGES+2))   ! input coordinates
-         REAL(KIND = REAL64), INTENT(OUT) :: GGG(3*NATOMS*(NIMAGES+2))  ! gradient for each atom in each image
-         REAL(KIND = REAL64), INTENT(OUT) :: EEE(NIMAGES+2), ESPR      ! energy for repulsions
+         REAL(KIND = REAL64), INTENT(IN) :: XYZ(3*NATOMS*(NIMAGES+2))   !< input coordinates
+         REAL(KIND = REAL64), INTENT(OUT) :: GGG(3*NATOMS*(NIMAGES+2))  !< gradient for each atom in each image
+         REAL(KIND = REAL64), INTENT(OUT) :: EEE(NIMAGES+2)             !< energy for repulsions (spring?)
+         REAL(KIND = REAL64), INTENT(OUT) :: ESPR                       !< energy for repulsions  (spring?)
          
          INTEGER :: J1, J2, NI1, NI2
          REAL(KIND = REAL64) :: DPLUS, DUMMY, EMAX, SPGRAD(3)
@@ -782,6 +804,7 @@ MODULE CONSTR_E_GRAD
                ENDIF               
             END DO
             DVEC(J1) = SQRT(DPLUS)
+            ! V_QCI = 1/2 * K_SPR * |X_i - X_{i-1}|^2
             DUMMY = KINT*0.5D0*DPLUS/KINTSCALED
             EEE(J1) = EEE(J1) + 0.5D0*DUMMY
             EEE(J1+1) = EEE(J1+1) + 0.5D0*DUMMY
@@ -879,7 +902,7 @@ MODULE CONSTR_E_GRAD
       !! @param[in]     DINTMIN: |G1-G2|^2  
       !! @param[out]    NOINT: Is there internal minimum
       !! @param[out]    DSQI: d(theta*)^2 internal minimum solution 
-      !! @param[out]    DINT: d(theta*) 
+      !! @param[out]    DINT: d(theta*)
       !! @param[out]    G1INT: derivative of DSQI with respect to carthesian coords in image 1 divided by DINT  
       !! @param[out]    G2INT: derivative of DSQI with respect to carthesian coords in image 2 divided by DINT  
       SUBROUTINE INTMIN_CONSTRAINT(G1,G2,DSQ1,DSQ2,DP_G12,DINTMIN,NOINT,DSQI,DINT,G1INT,G2INT)

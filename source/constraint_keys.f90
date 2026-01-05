@@ -6,7 +6,7 @@ MODULE QCI_CONSTRAINT_KEYS
    INTEGER :: QCICONSEP = 15
    REAL(KIND=REAL64) :: QCICONSTRAINTTOL = 0.1D0
 
-   !only used for congeom
+   !> only used for congeom
    REAL(KIND=REAL64) :: QCICONCUT = 6.0D0   
    CHARACTER(LEN=30) :: GEOMFILE = "congeom.dat"
    INTEGER :: NCONGEOM = 0
@@ -25,8 +25,9 @@ MODULE QCI_CONSTRAINT_KEYS
    LOGICAL :: CONCUTABST = .FALSE.
    LOGICAL :: CONCUTFRACT = .FALSE.
 
-   !cut off for constraints
+   !> cut off for constraints
    LOGICAL :: CONCUTABSINC = .FALSE.
+   !> cut off for constraints
    REAL(KIND=REAL64) :: CONCUTABS = 0.7D0
 
    REAL(KIND=REAL64) :: CONCUTFRAC=0.1D0

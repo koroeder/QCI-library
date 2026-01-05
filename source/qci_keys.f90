@@ -17,7 +17,7 @@ MODULE QCIKEYS
    LOGICAL :: QCISBMT = .FALSE.
    LOGICAL :: QCIGEOMT = .FALSE.
 
-   LOGICAL :: QCIDOBACK = .FALSE.    ! do backbone first
+   LOGICAL :: QCIDOBACK = .FALSE.    !< do backbone first
    LOGICAL, ALLOCATABLE :: ISBBATOM(:)
    INTEGER :: NBACKBONE = 0
 
@@ -28,124 +28,124 @@ MODULE QCIKEYS
 
    INTEGER :: INTADDATOM = 1
 
-   !use minimisations directly after adding atoms
+   !> use minimisations directly after adding atoms
    LOGICAL :: OPTIMISEAFTERADDITION = .FALSE.
    INTEGER :: NMINAFTERADD = 5
 
-   !use internal coordinates for local interpolation
+   !> use internal coordinates for local interpolation
    LOGICAL :: USEINTERNALST = .FALSE.
-   !use four atom basis for local interpolation
+   !> use four atom basis for local interpolation
    LOGICAL :: USEFOURATOMST = .FALSE.
-   !use trilateration for interpolation
+   !> use trilateration for interpolation
    LOGICAL :: QCITRILATERATION = .FALSE.
 
-   LOGICAL :: CHECKCONINT = .FALSE. !<which congrad should be used?
+   LOGICAL :: CHECKCONINT = .FALSE. !<which congrad should be used? TRUE=CONGRAD2, FALSE=CONGRAD1
 
-   LOGICAL :: QCIREADGUESS = .FALSE. ! read guess for band
+   LOGICAL :: QCIREADGUESS = .FALSE. !< read guess for band
    CHARACTER(20) :: GUESSFILE = "int_guess.xyz"
    
-   LOGICAL :: USEIMAGEDENSITY = .FALSE. ! base number of images on interpolation density
-   REAL(KIND=REAL64) :: E2E_DIST = 0.D0 ! endpoint to endpoint distance after alignment
-   REAL(KIND=REAL64) :: IMAGEDENSITY = 0.5 ! Image density per unit distance
+   LOGICAL :: USEIMAGEDENSITY = .FALSE. !< base number of images on interpolation density
+   REAL(KIND=REAL64) :: E2E_DIST = 0.D0 !< endpoint to endpoint distance after alignment
+   REAL(KIND=REAL64) :: IMAGEDENSITY = 0.5 !< Image density per unit distance
    REAL(KIND = REAL64) :: IMSEPMAX=HUGE(1.0D0)
    REAL(KIND = REAL64) :: IMSEPMIN=-1.0D0
 
-   ! using linearlist
+   !> using linearlist
    LOGICAL :: QCILINEART = .FALSE.
-   ! logical list if atom is linear
+   !> logical list if atom is linear
    LOGICAL, ALLOCATABLE :: INLINLIST(:)
-   !linear nterpolation for backbone
+   !> linear nterpolation for backbone
    LOGICAL :: LINEARBBT = .FALSE.
 
-   ! Atom to residue mapping
+   !> Atom to residue mapping
    INTEGER, ALLOCATABLE :: ATOMS2RES(:)
 
-   !frozen atoms 
-   LOGICAL :: QCIFREEZET = .FALSE. ! Shall some atoms be frozen?
-   INTEGER :: NQCIFROZEN = 0 ! total number of frozen atoms
-   INTEGER :: NMINUNFROZEN = 0 ! minimum number unfrozen 
-   LOGICAL, ALLOCATABLE :: QCIFROZEN(:)  ! frozen atoms in interpolation
-   LOGICAL, ALLOCATABLE :: FREEZE(:) ! input of atoms to be frozen
-   CHARACTER(LEN=30) :: FREEZEFILE = 'qci_frozen.dat' ! input file with atoms to be frozen -> used to populate FREEZE
-   REAL(KIND=REAL64) :: QCIFREEZETOL = 1.0D-3 ! distance tolerance for atoms to be frozen
+   !> frozen atoms 
+   LOGICAL :: QCIFREEZET = .FALSE. !< Shall some atoms be frozen?
+   INTEGER :: NQCIFROZEN = 0 !< total number of frozen atoms
+   INTEGER :: NMINUNFROZEN = 0 !< minimum number unfrozen 
+   LOGICAL, ALLOCATABLE :: QCIFROZEN(:)  !< frozen atoms in interpolation
+   LOGICAL, ALLOCATABLE :: FREEZE(:) !< input of atoms to be frozen
+   CHARACTER(LEN=30) :: FREEZEFILE = 'qci_frozen.dat' !< input file with atoms to be frozen -> used to populate FREEZE
+   REAL(KIND=REAL64) :: QCIFREEZETOL = 1.0D-3 !< distance tolerance for atoms to be frozen
 
    INTEGER :: QCIIMAGECHECK = 10
 
    REAL(KIND=REAL64) :: INTMINFAC=1.0D0 !< Scaling factor for internal minima
 
-   !repulsions
+   !> repulsions
    REAL(KIND=REAL64) :: QCIREPCUT = 1.0D-3
-   REAL(KIND=REAL64) :: QCICONSTRREP=100.0D0
-   INTEGER ::  QCIINTREPMINSEP=20 !Minimum separation in atom index for internal minimum check in repulsion
+   REAL(KIND=REAL64) :: QCICONSTRREP=100.0D0 !< QUESTION Is this scaling for rep energy?
+   INTEGER ::  QCIINTREPMINSEP=20 !< Minimum separation in atom index for internal minimum check in repulsion
 
-   !used as energy scaling in convergence test only
-   REAL(KIND=REAL64) :: INTCONSTRAINTDEL=10.0D0
+   REAL(KIND=REAL64) :: INTCONSTRAINTDEL=10.0D0  !< used as energy scaling in convergence test only
 
-   !conactinact settings
+   !> conactinact settings
    LOGICAL :: USECONACTINACT = .FALSE.
+   !> conactinact settings - scale active-inactive atom interaction
    REAL(KIND = REAL64) :: CONACTINACT = 0.2D0
 
-   !use dihedral cosntraints for chiral atoms and planarity
+   !> use dihedral cosntraints for chiral atoms and planarity
    LOGICAL :: USEDIHEDRALCONST = .FALSE.
 
    !spring constants and adjustment
    !TODO: add initialisation and setting in qci setup
-   LOGICAL :: QCISPRINGACTIVET = .TRUE. !QUERY: what is this?
-   LOGICAL :: QCIADJUSTKT = .FALSE. ! adjust spring constant
+   LOGICAL :: QCISPRINGACTIVET = .TRUE. !< QUERY: what is this?
+   LOGICAL :: QCIADJUSTKT = .FALSE. !< adjust spring constant
    INTEGER :: QCIADJUSTKFRQ = 0
    REAL(KIND=REAL64) :: QCIADJUSTKTOL = 10.0D0
    REAL(KIND=REAL64) :: QCIAVDEV = 0.0D0
-   REAL(KIND=REAL64) :: KINT = 1.0D0
-   REAL(KIND=REAL64) :: KINTSCALED = 1.0D0
+   REAL(KIND=REAL64) :: KINT = 1.0D0        !< spring constant
+   REAL(KIND=REAL64) :: KINTSCALED = 1.0D0  !< QUESTION Scaling for when we adjust spring constant?
    REAL(KIND=REAL64) :: QCIKINTMIN = 1.0D-2
    REAL(KIND=REAL64) :: QCIKINTMAX = 1.0D2
    REAL(KIND=REAL64) :: QCIADJUSTKFRAC = 1.05D0
 
-   !maximum gradient component
+   !> maximum gradient component
    REAL(KIND=REAL64) :: MAXGRADCOMP = -1.0
 
-   !settings for step taking
+   !> settings for step taking
    REAL(KIND = REAL64) :: DGUESS = 1.0D-3
    INTEGER :: MUPDATE = 4
    REAL(KIND = REAL64) :: MAXQCIBFGS = 0.2D0
 
    REAL(KIND=REAL64) :: COLDFUSIONLIMIT = -1.0D15
 
-   !maximum constraint E - used for convergence
+   !> maximum constraint E - used for convergence
    REAL(KIND=REAL64) :: MAXCONE = 0.01D0
-   !convergence for RMS
+   !> convergence for RMS
    REAL(KIND=REAL64) :: QCIRMSTOL=0.01D0
 
    REAL(KIND=REAL64) :: MAXERISE = 1.0D100
 
-   !QCI resetting
+   !> QCI resetting
    LOGICAL :: QCIRESET = .TRUE.
    INTEGER :: QCIRESETINT1 = 10
 
    INTEGER :: CHECKREPINTERVAL = 1
 
-   !checking chirality
+   !> checking chirality
    LOGICAL :: CHECKCHIRAL = .FALSE.
 
-   !using groups of atoms in AMBER
+   !> using groups of atoms in AMBER
    LOGICAL :: QCIUSEGROUPS = .FALSE.
 
-   !using basepair detection
+   !> using basepair detection
    LOGICAL :: BASEPAIRDETECTION = .FALSE.
 
    INTEGER :: DUMPQCIXYZFRQS = 100
    LOGICAL :: DUMPQCIXYZ = .FALSE.
 
 
-   !permutational stuff
+   !> permutational stuff
    INTEGER :: QCIPERMCHECKINT = 100
    LOGICAL :: QCIPERMT = .FALSE.
    REAL(KIND=REAL64) :: QCIPERMCUT = 0.8D0
 
-   ! for myorient
+   !> for myorient
    REAL(KIND=REAL64) :: ORBITTOL = 0.3D0
 
-   ! for future extensions if needed
+   !> for future extensions if needed
    REAL(KIND=REAL64) :: BOXLX = 0.0D0, BOXLY = 0.0D0, BOXLZ = 0.0D0
    LOGICAL :: BULKT = .FALSE.
    LOGICAL :: TWOD = .FALSE.
