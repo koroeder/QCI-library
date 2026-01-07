@@ -7,7 +7,7 @@ MODULE QCI_CONSTRAINT_KEYS
    REAL(KIND=REAL64) :: QCICONSTRAINTTOL = 0.1D0
 
    !> only used for congeom
-   REAL(KIND=REAL64) :: QCICONCUT = 6.0D0   
+   REAL(KIND=REAL64) :: QCICONCUT = 6.0D0 !< maximum distance between two atoms to create a constraint  
    CHARACTER(LEN=30) :: GEOMFILE = "congeom.dat"
    INTEGER :: NCONGEOM = 0
    REAL(KIND=REAL64), ALLOCATABLE :: CONGEOM(:,:) 

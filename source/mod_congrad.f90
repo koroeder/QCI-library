@@ -25,8 +25,10 @@ MODULE CONSTR_E_GRAD
          ! call correct congrad routine
          IF (CHECKCONINT) THEN
             CALL CONGRAD2(ETOTAL, XYZ, GGG, EEE, RMS)
+            WRITE(*,*) "Used Congrad2"
          ELSE
             CALL CONGRAD1(ETOTAL, XYZ, GGG, EEE, RMS)
+            WRITE(*,*) "Used Congrad1"
          END IF
       END SUBROUTINE CONGRAD
 
@@ -107,9 +109,9 @@ MODULE CONSTR_E_GRAD
          END DO
          RMS = SQRT(RMS/(3*NATOMS*NIMAGES))
          ETOTAL = SUM(EEE(2:NIMAGES+1))
-         WRITE(*,*) " congrad> E total: ", ETOTAL, "RMS: ", RMS, " E rep: ", SUM(EEER), " E constr: ", SUM(EEEC)
+         WRITE(*,*) " congrad1> E total: ", ETOTAL, "RMS: ", RMS, " E rep: ", SUM(EEER), " E constr: ", SUM(EEEC)
          WRITE(*,*) "                                              E spring: ", SUM(EEES), " E dih: ", SUM(EEED)
-         WRITE(*,*) " congrad> FCONTEST: ", FCONTEST, " FREPTEST: ", FREPTEST
+         WRITE(*,*) " congrad1> FCONTEST: ", FCONTEST, " FREPTEST: ", FREPTEST
       END SUBROUTINE CONGRAD1
 
 
@@ -189,10 +191,13 @@ MODULE CONSTR_E_GRAD
          END DO
          RMS = SQRT(RMS/(3*NATOMS*NIMAGES))
          ETOTAL = SUM(EEE(2:NIMAGES+1))
+         WRITE(*,*) " congrad2> E total: ", ETOTAL, "RMS: ", RMS, " E rep: ", SUM(EEER), " E constr: ", SUM(EEEC)
+         WRITE(*,*) "                                              E spring: ", SUM(EEES), " E dih: ", SUM(EEED)
+         WRITE(*,*) " congrad2> FCONTEST: ", FCONTEST, " FREPTEST: ", FREPTEST
       END SUBROUTINE CONGRAD2    
 
       SUBROUTINE GET_CONSTRAINT_E_NOINTERNAL(XYZ,GGG,EEE,ECON)
-         USE QCIKEYS, ONLY: NIMAGES, NATOMS
+         USE QCIKEYS, ONLY: NIMAGES, NATOMS, K_CONST
          USE QCI_CONSTRAINT_KEYS, ONLY: NCONSTRAINT, CONI, CONJ, CONDISTREFLOCAL
          USE INTERPOLATION_KEYS, ONLY: CONACTIVE
          USE HELPER_FNCTS, ONLY: DISTANCE_SIMPLE
@@ -243,12 +248,10 @@ MODULE CONSTR_E_GRAD
                   CCLOCAL2 = CCLOCAL**2  
                   ! calculate gradient and energy
                   G2 = (XA-XB)/DIST
-                  GRADAB(1:3) = 2*(DUMMY2-CCLOCAL2)*DUMMY*G2(1:3)/(CCLOCAL2**2)
+                  GRADAB(1:3) = 2*K_CONST*(DUMMY2-CCLOCAL2)*DUMMY*G2(1:3)/(CCLOCAL2**2)
                   
-                  ! V_con(d^i_AB) = (eps_con* ((d^i_AB - ave(d_AB))^2 -(C^con_AB)^2 )^2 )/ 2*(C^con_AB)^2
-                  ! QUESTION why are we squaring CCLOCAL twice? ... CCLOCAL2**2 term
-                  ! QUESTION missing eps_con?
-                  DUMMY = (DUMMY2-CCLOCAL2)**2/(2.0D0*CCLOCAL2**2)
+                  ! V_con(d^i_AB) = (k_con* ((d^i_AB - ave(d_AB))^2 -(C^con_AB)^2 )^2 )/ 2*(C^con_AB)^2
+                  DUMMY = K_CONST*((DUMMY2-CCLOCAL2)**2/(2.0D0*CCLOCAL2**2))
                   EEE(J1) = EEE(J1) + DUMMY
                   ECON = ECON + DUMMY
                   !!!!!!debugging WRITE(*,*) " For image ", J1, " dist: ", DIST, " dummy: ", DIST - CONDISTREFLOCAL(J2), " energy: ", DUMMY 
@@ -330,7 +333,7 @@ MODULE CONSTR_E_GRAD
 
       SUBROUTINE GET_CONSTRAINT_E(XYZ,GGG,EEE,ECON)
          USE QCIKEYS, ONLY: NIMAGES, NATOMS, INTMINFAC, CHECKCONINT, INTCONSTRAINTDEL, &
-                            CONACTINACT, USECONACTINACT
+                            CONACTINACT, USECONACTINACT, K_CONST
          USE QCI_CONSTRAINT_KEYS, ONLY: NCONSTRAINT, CONI, CONJ, CONDISTREFLOCAL
          USE INTERPOLATION_KEYS, ONLY: CONACTIVE, ATOMACTIVE
          USE HELPER_FNCTS, ONLY: DISTANCE_SIMPLE, DOTP
@@ -428,9 +431,9 @@ MODULE CONSTR_E_GRAD
 
 
                   ! We are missing eps_con
-                  CONSTGRAD(1:3)=LOCALCONFACTOR*2*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G2(1:3)
+                  CONSTGRAD(1:3)=K_CONST*LOCALCONFACTOR*2*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G2(1:3)
                   ! V_con(d^i_AB) = eps_con ((d^i_AB-ave*(d^i_AB))^2 - C_con_AB^2 )^2 / 2(C_con_AB)^2
-                  DUMMY=LOCALCONFACTOR*(DUMMY**2-CCLOCAL**2)**2/(2.0D0*CCLOCAL**2)                  
+                  DUMMY=K_CONST*LOCALCONFACTOR*(DUMMY**2-CCLOCAL**2)**2/(2.0D0*CCLOCAL**2)                  
                   IF (DUMMY.GT.EMAX) THEN
                      IMAX=J1
                      JMAX=J2
@@ -440,6 +443,7 @@ MODULE CONSTR_E_GRAD
                   ECON=ECON+DUMMY
                   GGG(NI2+1:NI2+3)=GGG(NI2+1:NI2+3)+CONSTGRAD(1:3)
                   GGG(NJ2+1:NJ2+3)=GGG(NJ2+1:NJ2+3)-CONSTGRAD(1:3)
+
                END IF
                ! Don't add energy contributions to EEE(2) from D1, since the gradients are non-zero only for image 1.
                ! terms for image J1-1 - non-zero derivatives only for J1-1. D1 is the distance for image J1-1.
@@ -450,13 +454,13 @@ MODULE CONSTR_E_GRAD
                IF (CHECKCONINT.AND.(.NOT.NOINT).AND.(ABS(DINT-CONDISTREFLOCAL(J2)).GT.CCLOCAL)) THEN
                   DUMMY=DINT-CONDISTREFLOCAL(J2)  
                   !CONSTGRAD(1:3)=2*INTMINFAC*INTCONSTRAINTDEL*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G1INT(1:3)
-                  CONSTGRAD(1:3)=2*INTMINFAC*LOCALCONFACTOR*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G1INT(1:3)
+                  CONSTGRAD(1:3)=2*K_CONST*INTMINFAC*LOCALCONFACTOR*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G1INT(1:3)
                   GGG(NI1+1:NI1+3)=GGG(NI1+1:NI1+3)+CONSTGRAD(1:3)
                   GGG(NJ1+1:NJ1+3)=GGG(NJ1+1:NJ1+3)-CONSTGRAD(1:3)
                   !CONSTGRAD(1:3)=2*INTMINFAC*INTCONSTRAINTDEL*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G2INT(1:3)
                   !DUMMY=INTMINFAC*INTCONSTRAINTDEL*(DUMMY**2-CCLOCAL**2)**2/(2.0D0*CCLOCAL**2)
-                  CONSTGRAD(1:3)=2*INTMINFAC*LOCALCONFACTOR*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G2INT(1:3)
-                  DUMMY=INTMINFAC*LOCALCONFACTOR*(DUMMY**2-CCLOCAL**2)**2/(2.0D0*CCLOCAL**2)
+                  CONSTGRAD(1:3)=2*K_CONST*INTMINFAC*LOCALCONFACTOR*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G2INT(1:3)
+                  DUMMY=K_CONST*INTMINFAC*LOCALCONFACTOR*(DUMMY**2-CCLOCAL**2)**2/(2.0D0*CCLOCAL**2)
                   ECON=ECON+DUMMY
                   IF (DUMMY.GT.EMAX) THEN
                      IMAX=J1
@@ -473,11 +477,17 @@ MODULE CONSTR_E_GRAD
                   ENDIF
                   GGG(NI2+1:NI2+3)=GGG(NI2+1:NI2+3)+CONSTGRAD(1:3)
                   GGG(NJ2+1:NJ2+3)=GGG(NJ2+1:NJ2+3)-CONSTGRAD(1:3)
+                  !Added block yo track FMAX
+                   DUMMY=MINVAL(CONSTGRAD)
+                  IF (DUMMY.LT.FMIN) FMIN=DUMMY
+                  DUMMY=MAXVAL(CONSTGRAD)
+                  IF (DUMMY.GT.FMAX) FMAX=DUMMY
                ENDIF
             END DO
          END DO
          !QUESTION why do we have the line below?  
          CONVERGECONTEST=EMAX/INTCONSTRAINTDEL
+         
          IF (-FMIN.GT.FMAX) FMAX=-FMIN
          FCONTEST=FMAX
          MAXCONIMAGE = JMAX
@@ -489,7 +499,7 @@ MODULE CONSTR_E_GRAD
       END SUBROUTINE GET_CONSTRAINT_E
 
       SUBROUTINE GET_REPULSION_E(XYZ,GGG,EEE,EREP)
-         USE QCIKEYS, ONLY: NIMAGES, NATOMS, INTMINFAC, QCIINTREPMINSEP
+         USE QCIKEYS, ONLY: NIMAGES, NATOMS, INTMINFAC, QCIINTREPMINSEP, K_REP
          USE REPULSION, ONLY: NNREPULSIVE, NREPI, NREPJ, NREPCUT
          USE HELPER_FNCTS, ONLY: DISTANCE_SIMPLE, DOTP
          IMPLICIT NONE
@@ -576,7 +586,9 @@ MODULE CONSTR_E_GRAD
                   !V_rep(d^i_AB) = eps_rep ( 1/(d^i_AB)^2 - 3/C_repAB + 2* d^i_AB / C_repAB )
                   !DUMMY = RPLOCAL2/DSQ2 + 2.0D0*D2*RPLOCALINV - 3.0D0
                   !WARNING changed dummy to correspond to equation above
-                  DUMMY = (RPLOCAL2/DSQ2 + 2.0D0*D2*RPLOCALINV - 3.0D0)/RPLOCAL2
+                  
+                  !DUMMY = K_REP*(RPLOCAL2/DSQ2 + 2.0D0*D2*RPLOCALINV - 3.0D0)/RPLOCAL2
+                  DUMMY = K_REP*(1.0D0/DSQ2-3.0D0/RPLOCAL2+(2.0D0*D2)/(RPLOCAL*RPLOCAL2) )
                   !WRITE(*,*) " EREP1: ", DUMMY, DSQ2, D2, RPLOCAL2, RPLOCALINV
                   EREP1 = EREP1 + DUMMY
                   EREP = EREP + DUMMY
@@ -588,7 +600,8 @@ MODULE CONSTR_E_GRAD
                   !dV/dd_AB = -2/(d^i_AB)^3 + 2/C_repAB^3 
                   !DUMMY=-2.0D0*(RPLOCAL2/(D2*DSQ2)-RPLOCALINV)
                   !WARNING changed to match equation above 
-                  DUMMY=(-2.0D0*(RPLOCAL2/(D2*DSQ2)-RPLOCALINV) )/RPLOCAL2
+                  !DUMMY=K_REP*(-2.0D0*(RPLOCAL2/(D2*DSQ2)-RPLOCALINV) )/RPLOCAL2
+                  DUMMY=2.0D0*K_REP*(-1.0D0/(D2*DSQ2)+1.0D0/(RPLOCAL*RPLOCAL2) )
                   REPGRAD(1:3) = DUMMY*G2(1:3)
                   GLOCAL2(NI+1:NI+3)=GLOCAL2(NI+1:NI+3)+REPGRAD(1:3)
                   GLOCAL2(NJ+1:NJ+3)=GLOCAL2(NJ+1:NJ+3)-REPGRAD(1:3)
@@ -604,7 +617,8 @@ MODULE CONSTR_E_GRAD
                   D12 = DSQI !from call to find internal minimum
                   !DUMMY=INTMINFAC*(RPLOCAL2/D12+2.0D0*DINT*RPLOCALINV-3.0D0)
                   !WARNING changed equation again
-                   DUMMY = INTMINFAC*(RPLOCAL2/DSQ2 + 2.0D0*D2*RPLOCALINV - 3.0D0)/RPLOCAL2
+                  !DUMMY = K_REP*INTMINFAC*(RPLOCAL2/DSQ2 + 2.0D0*D2*RPLOCALINV - 3.0D0)/RPLOCAL2
+                  DUMMY = K_REP*INTMINFAC*(1.0D0/DSQ2-3.0D0/RPLOCAL2+(2.0D0*D2)/(RPLOCAL*RPLOCAL2) )
                   !WRITE(*,*) " EREP2: ", DUMMY, DSQI, DINT, RPLOCAL2, RPLOCALINV
                   EREP2=EREP2+DUMMY
                   EREP=EREP+DUMMY
@@ -615,7 +629,8 @@ MODULE CONSTR_E_GRAD
                   ENDIF
                   !DUMMY=-2.0D0*(RPLOCAL2/(DINT*D12)-RPLOCALINV)
                   !WARNING changed equation again
-                  DUMMY=-2.0D0*(RPLOCAL2/(DINT*D12)-RPLOCALINV)/RPLOCAL2
+                  !DUMMY=-2.0D0*K_REP*(RPLOCAL2/(DINT*D12)-RPLOCALINV)/RPLOCAL2
+                  DUMMY=2.0D0*K_REP*(-1.0D0/(D2*DSQ2)+1.0D0/(RPLOCAL*RPLOCAL2) )
                   ! Gradient contributions for image J1-1
                   REPGRAD(1:3)=INTMINFAC*DUMMY*G1INT(1:3)
                   GLOCAL1(NI+1:NI+3)=GLOCAL1(NI+1:NI+3)+REPGRAD(1:3)
@@ -649,7 +664,7 @@ MODULE CONSTR_E_GRAD
 
       ! should be the same as GET_REPULSION_E, but the iteration inverts the order - outer loops is repulsions
       SUBROUTINE GET_REPULSION_E2(XYZ,GGG,EEE,EREP)
-         USE QCIKEYS, ONLY: NIMAGES, NATOMS, INTMINFAC, QCICONSTRREP
+         USE QCIKEYS, ONLY: NIMAGES, NATOMS, INTMINFAC, QCICONSTRREP, K_REP
          USE REPULSION, ONLY: NNREPULSIVE, NREPI, NREPJ, NREPCUT
          USE HELPER_FNCTS, ONLY: DISTANCE_SIMPLE, DOTP
          IMPLICIT NONE
@@ -723,7 +738,10 @@ MODULE CONSTR_E_GRAD
                ! terms for image J1 - non-zero derivatives only for J1
                IF ((D2.LT.RPLOCAL).AND.(J1.LT.NIMAGES+2)) THEN
                   !QUESTION what is QCICONSTRREP? 
-                  DUMMY=QCICONSTRREP*(1.0D0/DSQ2+(2.0D0*D2-3.0D0*RPLOCAL)*INTCONSTINV)
+                  !DUMMY=QCICONSTRREP*(1.0D0/DSQ2+(2.0D0*D2-3.0D0*RPLOCAL)*INTCONSTINV)
+                  DUMMY=K_REP*(1.0D0/DSQ2+(2.0D0*D2-3.0D0*RPLOCAL)*INTCONSTINV)
+                  !WRITE(*,*) "C_AB = RPLOCAL=", RPLOCAL
+                  !WRITE(*,*) "d_AB =", D2
                   EEE(J1)=EEE(J1)+DUMMY
                   EREP=EREP+DUMMY
                   IF (DUMMY.GT.EMAX) THEN
@@ -731,14 +749,16 @@ MODULE CONSTR_E_GRAD
                      JMAX=J2
                      EMAX=DUMMY
                   ENDIF
-                  DUMMY=-2.0D0*QCICONSTRREP*(1.0D0/(D2*DSQ2)-INTCONSTINV)
+                  !DUMMY=-2.0D0*QCICONSTRREP*(1.0D0/(D2*DSQ2)-INTCONSTINV)
+                  DUMMY=-2.0D0*K_REP*(1.0D0/(D2*DSQ2)-INTCONSTINV)
                   REPGRAD(1:3)=DUMMY*G2(1:3)
                   GGG(NI2+1:NI2+3)=GGG(NI2+1:NI2+3)+REPGRAD(1:3)
                   GGG(NJ2+1:NJ2+3)=GGG(NJ2+1:NJ2+3)-REPGRAD(1:3)
                END IF
                DUMMY=0.0D0
-               IF ((.NOT.NOINT).AND.(DINT.LT.RPLOCAL)) THEN
-                  DUMMY=INTMINFAC*QCICONSTRREP*(1.0D0/DSQI+(2.0D0*DINT-3.0D0*RPLOCAL)*INTCONSTINV)
+               IF ((.NOT.NOINT).AND.(DINT.LT.RPLOCAL).AND.(J1.NE.2)) THEN
+                  !DUMMY=INTMINFAC*QCICONSTRREP*(1.0D0/DSQI+(2.0D0*DINT-3.0D0*RPLOCAL)*INTCONSTINV)
+                  DUMMY=INTMINFAC*K_REP*(1.0D0/DSQI+(2.0D0*DINT-3.0D0*RPLOCAL)*INTCONSTINV)
                   EREP=EREP+DUMMY
                   IF (DUMMY.GT.EMAX) THEN
                      IMAX=J1
@@ -753,7 +773,8 @@ MODULE CONSTR_E_GRAD
                   ELSE IF (J1.EQ.NIMAGES+2) THEN
                      EEE(J1-1)=EEE(J1-1)+DUMMY
                   ENDIF
-                  DUMMY=-2.0D0*QCICONSTRREP*(1.0D0/(DINT*DSQI)-INTCONSTINV)
+                  !DUMMY=-2.0D0*QCICONSTRREP*(1.0D0/(DINT*DSQI)-INTCONSTINV)
+                  DUMMY=-2.0D0*K_REP*(1.0D0/(DINT*DSQI)-INTCONSTINV)
                   REPGRAD(1:3)=INTMINFAC*DUMMY*G1INT(1:3)
                   GGG(NI1+1:NI1+3)=GGG(NI1+1:NI1+3)+REPGRAD(1:3)
                   GGG(NJ1+1:NJ1+3)=GGG(NJ1+1:NJ1+3)-REPGRAD(1:3)
@@ -768,7 +789,8 @@ MODULE CONSTR_E_GRAD
          IF (-FMIN.GT.FMAX) FMAX=-FMIN
          FREPTEST=FMAX
          !QUESTION why this convergence test?
-         CONVERGEREPTEST=EMAX/QCICONSTRREP
+         !CONVERGEREPTEST=EMAX/QCICONSTRREP
+         CONVERGEREPTEST=EMAX
          MAXCONIMAGE = JMAX
          MAXCONSTR = IMAX
       END SUBROUTINE GET_REPULSION_E2
@@ -877,16 +899,22 @@ MODULE CONSTR_E_GRAD
          IF ((DUMMY.GT.0.0D0).AND.(DUMMY.LT.1.0D0)) THEN
             NOINT=.FALSE.
             DP_G12_SQ = DP_G12**2
-            DUMMY2 = DP_G12_SQ - DSQ1*DSQ2
+            !DUMMY2 = DP_G12_SQ - DSQ1*DSQ2
+            !WARNING changed equation here
+            DUMMY2 =  DSQ1*DSQ2 - DP_G12_SQ 
+            !WRITE(*,*) "DP_G12_SQL ", DP_G12_SQ, "DSQ1*DSQ2", DSQ1*DSQ2, "DUMMY2: ", DUMMY2, " DINTMIN: ", DINTMIN
             DSQI = MAX(DUMMY2/DINTMIN,0.0D0)
             DINT = SQRT(DSQI)
+            !WRITE(*,*) "DSQI: ", DSQI
             IF (DINT.LE.0.0D0) THEN
                NOINT = .TRUE.
             ELSE IF (DINT.LE.QCIREPCUT) THEN
+               !WRITE(*,*) "We have internal minimum - repulsion"
                DUMMY = DINT*DINTMIN**2
-               ! to convert derivatives of distance^2 to derivative of distance.
-               G1INT(1:3)= (DUMMY2*(G1(1:3) - G2(1:3)) + DINTMIN*(G1(1:3)*DSQ2 -G2(1:3)*DP_G12))/DUMMY
-               G2INT(1:3)= (DUMMY2*(G2(1:3) - G1(1:3)) + DINTMIN*(G2(1:3)*DSQ1 -G1(1:3)*DP_G12))/DUMMY
+               ! to convert derivatives of distance^2 to derivative of distance
+               !Warning added minus here (dummy2 now changed the signs)
+               G1INT(1:3)= (-DUMMY2*(G1(1:3) - G2(1:3)) + DINTMIN*(G1(1:3)*DSQ2 -G2(1:3)*DP_G12))/DUMMY
+               G2INT(1:3)= (-DUMMY2*(G2(1:3) - G1(1:3)) + DINTMIN*(G2(1:3)*DSQ1 -G1(1:3)*DP_G12))/DUMMY
             END IF              
          END IF
       END SUBROUTINE INTMIN_REPULSION
@@ -894,6 +922,7 @@ MODULE CONSTR_E_GRAD
       ! QUERY: these functions are identical apart from use of the ondition for repulsions - is that condition required?
      
       !> @brief Calculate internal minima distance 
+      !! @details d_min = (|G1|^2|G2|^2 - |G1.G2|^2 )/ |G1-G2|^2 
       !! @param[in]     G1: normalised vector from j to i in image 1
       !! @param[in]     G2: normalised vector from j to i in image 2
       !! @param[in]     DSQ1: |G1|^2 
@@ -903,8 +932,8 @@ MODULE CONSTR_E_GRAD
       !! @param[out]    NOINT: Is there internal minimum
       !! @param[out]    DSQI: d(theta*)^2 internal minimum solution 
       !! @param[out]    DINT: d(theta*)
-      !! @param[out]    G1INT: derivative of DSQI with respect to carthesian coords in image 1 divided by DINT  
-      !! @param[out]    G2INT: derivative of DSQI with respect to carthesian coords in image 2 divided by DINT  
+      !! @param[out]    G1INT: derivative of distance with respect to carthesian coords in image 1   
+      !! @param[out]    G2INT: derivative of distance with respect to carthesian coords in image 2   
       SUBROUTINE INTMIN_CONSTRAINT(G1,G2,DSQ1,DSQ2,DP_G12,DINTMIN,NOINT,DSQI,DINT,G1INT,G2INT)
          IMPLICIT NONE
          REAL(KIND = REAL64), INTENT(IN) :: G1(3), G2(3)
@@ -928,17 +957,31 @@ MODULE CONSTR_E_GRAD
          IF ((DUMMY.GT.0.0D0).AND.(DUMMY.LT.1.0D0)) THEN
             NOINT=.FALSE.
             DP_G12_SQ = DP_G12**2
-            DUMMY2 = DP_G12_SQ - DSQ1*DSQ2
+            !QUESTION should this be other way around?  CS inequality...this will always evaluate negative
+            !d(theta*) = |G1|^2|G2|^2 - |G1*G2|^2 
+            !DUMMY2 = DP_G12_SQ - DSQ1*DSQ2
+            !WARNING changed equation here
+            DUMMY2 =  DSQ1*DSQ2 - DP_G12_SQ 
+            !WRITE(*,*) "DP_G12_SQL ", DP_G12_SQ, "DSQ1*DSQ2", DSQ1*DSQ2, "DUMMY2: ", DUMMY2, " DINTMIN: ", DINTMIN
             DSQI = MAX(DUMMY2/DINTMIN,0.0D0)
+            !WRITE(*,*) "DSQI: ", DSQI
             DINT = SQRT(DSQI)
             IF (DINT.LE.0.0D0) THEN
                NOINT = .TRUE.
             ELSE
+               !WRITE(*,*) "We have internal minimum - constraint"
+               !DUMMY = d(theta*)*|G1-G2|^4
                DUMMY = DINT*DINTMIN**2
+               
                ! to convert derivatives of distance^2 to derivative of distance.
-               ! QUESTION: Is this derivative of distance divided by the distance? 
-               G1INT(1:3)= (DUMMY2*(G1(1:3) - G2(1:3)) + DINTMIN*(G1(1:3)*DSQ2 -G2(1:3)*DP_G12))/DUMMY
-               G2INT(1:3)= (DUMMY2*(G2(1:3) - G1(1:3)) + DINTMIN*(G2(1:3)*DSQ1 -G1(1:3)*DP_G12))/DUMMY
+               !Relevant equations:
+               !dd_AB^2/dx = 2*(|G1.G2|^2-|G1|^2|G2|^2)*(G1(:) - G2(:)) / (|G1-G2|^4) + (2*G1(:)*|G2|^2 +G1.G2*(G2(:)) /(|G1-G2|^2) 
+               !dd_AB/dx = dd^2/dx /2*d_AB
+
+               !Warning added minus here (dummy2 now changed the signs)
+               G1INT(1:3)= (-DUMMY2*(G1(1:3) - G2(1:3)) + DINTMIN*(G1(1:3)*DSQ2 -G2(1:3)*DP_G12))/DUMMY
+               G2INT(1:3)= (-DUMMY2*(G2(1:3) - G1(1:3)) + DINTMIN*(G2(1:3)*DSQ1 -G1(1:3)*DP_G12))/DUMMY   
+
             END IF              
          END IF
       END SUBROUTINE INTMIN_CONSTRAINT

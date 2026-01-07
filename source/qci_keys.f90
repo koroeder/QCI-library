@@ -78,6 +78,10 @@ MODULE QCIKEYS
    REAL(KIND=REAL64) :: QCICONSTRREP=100.0D0 !< QUESTION Is this scaling for rep energy?
    INTEGER ::  QCIINTREPMINSEP=20 !< Minimum separation in atom index for internal minimum check in repulsion
 
+   REAL(KIND=REAL64) :: K_REP=1.0D0   !<scaling constant for repuslion
+   REAL(KIND=REAL64) :: K_CONST=1.0D0 !<scaling constant for constraint
+
+
    REAL(KIND=REAL64) :: INTCONSTRAINTDEL=10.0D0  !< used as energy scaling in convergence test only
 
    !> conactinact settings

@@ -311,6 +311,12 @@ MODULE QCISETUP
          !
          ELSE IF (ENTRY.EQ."CHECKREPCUTOFF") THEN
             READ(VAL,*) CHECKREPCUTOFF
+         
+         !New terms for energy scaling
+         ELSE IF (ENTRY.EQ."K_REP") THEN
+            READ(VAL,*) K_REP
+         ELSE IF (ENTRY.EQ."K_CONST") THEN
+            READ(VAL,*) K_CONST
 
          !maximum gradient component
          ELSE IF (ENTRY.EQ."MAXGRADCOMP") THEN

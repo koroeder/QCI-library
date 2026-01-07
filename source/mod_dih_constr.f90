@@ -15,8 +15,8 @@ MODULE DIHEDRAL_CONSTRAINTS
    LOGICAL :: ALLDIHACTIVE = .FALSE.
    ! activated dihedrals?
    LOGICAL, ALLOCATABLE :: DIHACTIVE(:)
-   ! spring restraint constant
-   REAL(KIND = REAL64) :: KDIH
+   !< spring restraint constant
+   REAL(KIND = REAL64) :: KDIH !QUESTION should this be in qci keys?
 
    CONTAINS
       SUBROUTINE ALLOC_DIHVARS()
