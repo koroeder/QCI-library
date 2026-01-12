@@ -474,7 +474,7 @@ MODULE DIHEDRAL_CONSTRAINTS
 
          E = KDIH*(PHI-PHIREF)**2
 
-         FE = 2*KDIH*(PHI-PHIREF)
+         FE = 2.0D0*KDIH*(PHI-PHIREF)
          ! start the derivatives here
          !derivative of cos(phi) and sin(phi) w.r.t. n1 and n2
          DCOSDN1 = (N2 - COSPHI*N1)/NORM1

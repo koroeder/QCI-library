@@ -50,6 +50,11 @@ MODULE CONSTR_E_GRAD
          REAL(KIND = REAL64) :: EEED(NIMAGES+2), GGGD(3*NATOMS*(NIMAGES+2))
          INTEGER :: J1, J2
 
+         !for get_repulsion_e test
+         REAL(KIND = REAL64) :: G1, G2, GDIFF
+         REAL(KIND = REAL64) :: EEER2(NIMAGES+2), GGGR2(3*NATOMS*(NIMAGES+2))
+         REAL(KIND = REAL64) :: EREP2, E1, E2, EDIFF
+        
          CALLN = CALLN + 1
 
          ! initiate some variables
@@ -65,6 +70,9 @@ MODULE CONSTR_E_GRAD
          GGGD(1:(3*NATOMS)*(NIMAGES+2))=0.0D0
          ECON = 0.0D0; EREP = 0.0D0; ESPR = 0.0D0; EDIH = 0.0D0
 
+         !for get_repulsion_e test
+         GGGR2(1:(3*NATOMS)*(NIMAGES+2))=0.0D0
+         EREP2 = 0.0D0
 
          ! QUERY: what is INTCONSTRAINTDEL? seems like a scaling for the potential
          IF (.NOT.(INTCONSTRAINTDEL.EQ.0.0D0)) THEN
@@ -72,7 +80,27 @@ MODULE CONSTR_E_GRAD
          END IF
          IF (.NOT.(QCICONSTRREP.EQ.0.0D0)) THEN
             CALL GET_REPULSION_E(XYZ,GGGR,EEER,EREP)
+            CALL GET_REPULSION_E2(XYZ,GGGR2,EEER2,EREP2)
+
+         G1=0.0D0
+         G2=0.0D0
+         GDIFF=0.0D0
+         E1=0.0D0; E2=0.0D0; EDIFF=0.0D0
+         DO J1=2,NIMAGES+1
+            DO J2=1,3*NATOMS
+               
+               G1 = G1 + GGGR((3*NATOMS)*(J1-1)+J2)**2
+               G2 = G2 + GGGR2((3*NATOMS)*(J1-1)+J2)**2
+            END DO
+            E1=E1 + EEER(J1)**2
+            E2=E2 + EEER2(J1)**2
+         END DO
+         GDIFF = SQRT(ABS(G2-G1))
+         EDIFF = SQRT(ABS(E2-E1))
+         WRITE(*,*) "CONGRAD_CHECK> GDIFF: ", GDIFF
+         WRITE(*,*) "CONGRAD_CHECK> EDIFF: ", EDIFF
          END IF
+
          IF (.NOT.(KINT.EQ.0.0D0)) THEN
             CALL GET_SPRING_E(XYZ, GGGS, EEES, ESPR)
          END IF
@@ -454,12 +482,12 @@ MODULE CONSTR_E_GRAD
                IF (CHECKCONINT.AND.(.NOT.NOINT).AND.(ABS(DINT-CONDISTREFLOCAL(J2)).GT.CCLOCAL)) THEN
                   DUMMY=DINT-CONDISTREFLOCAL(J2)  
                   !CONSTGRAD(1:3)=2*INTMINFAC*INTCONSTRAINTDEL*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G1INT(1:3)
-                  CONSTGRAD(1:3)=2*K_CONST*INTMINFAC*LOCALCONFACTOR*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G1INT(1:3)
+                  CONSTGRAD(1:3)=2.0D0*K_CONST*INTMINFAC*LOCALCONFACTOR*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G1INT(1:3)
                   GGG(NI1+1:NI1+3)=GGG(NI1+1:NI1+3)+CONSTGRAD(1:3)
                   GGG(NJ1+1:NJ1+3)=GGG(NJ1+1:NJ1+3)-CONSTGRAD(1:3)
                   !CONSTGRAD(1:3)=2*INTMINFAC*INTCONSTRAINTDEL*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G2INT(1:3)
                   !DUMMY=INTMINFAC*INTCONSTRAINTDEL*(DUMMY**2-CCLOCAL**2)**2/(2.0D0*CCLOCAL**2)
-                  CONSTGRAD(1:3)=2*K_CONST*INTMINFAC*LOCALCONFACTOR*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G2INT(1:3)
+                  CONSTGRAD(1:3)=2.0D0*K_CONST*INTMINFAC*LOCALCONFACTOR*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G2INT(1:3)
                   DUMMY=K_CONST*INTMINFAC*LOCALCONFACTOR*(DUMMY**2-CCLOCAL**2)**2/(2.0D0*CCLOCAL**2)
                   ECON=ECON+DUMMY
                   IF (DUMMY.GT.EMAX) THEN
@@ -517,13 +545,39 @@ MODULE CONSTR_E_GRAD
          REAL(KIND = REAL64) :: DCUT, DINTMIN, DP_G12                !< values used to test for internal minimum
          REAL(KIND = REAL64) , PARAMETER :: DINTTEST = 1.0D-50       !< cutoff for DINTMIN to test for internal min
          REAL(KIND = REAL64) :: D1, D2, D12                         !< distances in image 1 and 2
-         REAL(KIND = REAL64) :: RPLOCAL, RPLOCAL2, RPLOCALINV 
+         REAL(KIND = REAL64) :: RPLOCAL, RPLOCAL2, RPLOCAL3, RPLOCALINV 
          REAL(KIND = REAL64) :: REPGRAD(3)
          LOGICAL :: NOINT                                            !< do we have an internal minimum
          REAL(KIND = REAL64) :: DINT, DSQI, G1INT(3), G2INT(3)       !< information for internal minimum contribution
          REAL(KIND=REAL64) :: EMAX, FMIN, FMAX
          REAL(KIND=REAL64) :: DUMMY, DUMMY2
          INTEGER :: IMAX, JMAX
+
+         !variables to try make sence of indices and what goes wrong
+         INTEGER :: NI1, NI2, NJ1, NJ2 
+         INTEGER :: A, B, C, D
+         REAL(KIND = REAL64) :: G1A, G2A, GDIFF
+         REAL(KIND = REAL64) :: GGG2(3*NATOMS*(NIMAGES+2))
+         GGG2(1:(3*NATOMS)*(NIMAGES+2))=0.0D0 
+         A=0; B=0; C=0; D=0
+         G1A=0.0D0; G2A=0.0D0; GDIFF=0.0D0
+         
+      
+         J1=0; J2=0; OFFSET1=0; OFFSET2=0
+         X1(3*NATOMS)=0.0D0; X2(3*NATOMS)=0.0D0;
+         GLOCAL1(3*NATOMS)=0.0D0; GLOCAL2(3*NATOMS)=0.0D0;
+         EREP1=0.0D0; EREP2=0.0D0;
+         NI=0; NJ=0;
+         G1(3)=0.0D0; G2(3)=0.0D0; DSQ1=0.0D0; DSQ2=0.0D0 
+         DCUT=0.0D0; DINTMIN=0.0D0; DP_G12=0.0D0
+         D1=0.0D0; D2=0.0D0; D12=0.0D0;
+         RPLOCAL=0.0D0; RPLOCAL2=0.0D0; RPLOCAL3=0.0D0; RPLOCALINV=0.0D0;
+         REPGRAD(3)=0.0D0
+         
+         DINT=0.0D0; DSQI=0.0D0; G1INT(3)=0.0D0; G2INT(3)=0.0D0
+         DUMMY=0.0D0; DUMMY2=0.0D0
+        
+
 
          EMAX = -(HUGE(1.0D0))
          FMAX = -(HUGE(1.0D0))
@@ -534,7 +588,8 @@ MODULE CONSTR_E_GRAD
          IMAX = -1
          JMAX = -1
 
-         DO J1=2,NIMAGES+1
+         !WARNING chenged from NIMAGES+1 -> NIMAGES+2 = siginificant for get+repE/E2 diff
+         DO J1=2,NIMAGES+2
             ! get coordinates for images
             OFFSET2=(3*NATOMS)*(J1-1)
             OFFSET1=(3*NATOMS)*(J1-2)
@@ -545,8 +600,15 @@ MODULE CONSTR_E_GRAD
             EREP1 = 0.0D0; EREP2 = 0.0D0
             ! iterate over all repulsions
             DO J2 = 1,NNREPULSIVE
-               NI=3*(NREPI(J2)-1)
-               NJ=3*(NREPJ(J2)-1)             
+
+               NI1=(3*NATOMS)*(J1-2)+3*(NREPI(J2)-1) !atom A in image I
+               NI2=(3*NATOMS)*(J1-1)+3*(NREPI(J2)-1)
+               NJ1=(3*NATOMS)*(J1-2)+3*(NREPJ(J2)-1)
+               NJ2=(3*NATOMS)*(J1-1)+3*(NREPJ(J2)-1)
+
+
+               NI=3*(NREPI(J2)-1) !X-coord of atom I 
+               NJ=3*(NREPJ(J2)-1) !X-coord of arom J
                G1(1:3)=X1(NI+1:NI+3)-X1(NJ+1:NJ+3) !vector from j to i in image 1
                G2(1:3)=X2(NI+1:NI+3)-X2(NJ+1:NJ+3) !vector from j to i in image 2
                ! squared distance between atoms in image 1 (theta = pi/2)
@@ -579,17 +641,17 @@ MODULE CONSTR_E_GRAD
 
                RPLOCAL = NREPCUT(J2)
                RPLOCAL2 = RPLOCAL**2
+               RPLOCAL3 = RPLOCAL**3
                RPLOCALINV = 1.0D0/RPLOCAL
 
-               IF (D2.LT.RPLOCAL) THEN
+               IF ((D2.LT.RPLOCAL).AND.(J1.LT.NIMAGES+2)) THEN
                   ! QUESTION missing EPS_rep 
                   !V_rep(d^i_AB) = eps_rep ( 1/(d^i_AB)^2 - 3/C_repAB + 2* d^i_AB / C_repAB )
                   !DUMMY = RPLOCAL2/DSQ2 + 2.0D0*D2*RPLOCALINV - 3.0D0
                   !WARNING changed dummy to correspond to equation above
+   
+                  DUMMY = K_REP*(1.0D0/DSQ2-3.0D0/RPLOCAL2+(2.0D0*D2)/RPLOCAL3)
                   
-                  !DUMMY = K_REP*(RPLOCAL2/DSQ2 + 2.0D0*D2*RPLOCALINV - 3.0D0)/RPLOCAL2
-                  DUMMY = K_REP*(1.0D0/DSQ2-3.0D0/RPLOCAL2+(2.0D0*D2)/(RPLOCAL*RPLOCAL2) )
-                  !WRITE(*,*) " EREP1: ", DUMMY, DSQ2, D2, RPLOCAL2, RPLOCALINV
                   EREP1 = EREP1 + DUMMY
                   EREP = EREP + DUMMY
                   IF (DUMMY.GT.EMAX) THEN
@@ -597,14 +659,24 @@ MODULE CONSTR_E_GRAD
                      JMAX = J2
                      EMAX = DUMMY
                   END IF
+                  DUMMY = 0.0D0
+
                   !dV/dd_AB = -2/(d^i_AB)^3 + 2/C_repAB^3 
                   !DUMMY=-2.0D0*(RPLOCAL2/(D2*DSQ2)-RPLOCALINV)
+                  
                   !WARNING changed to match equation above 
-                  !DUMMY=K_REP*(-2.0D0*(RPLOCAL2/(D2*DSQ2)-RPLOCALINV) )/RPLOCAL2
-                  DUMMY=2.0D0*K_REP*(-1.0D0/(D2*DSQ2)+1.0D0/(RPLOCAL*RPLOCAL2) )
+                  
+                  DUMMY=2.0D0*K_REP*(-1.0D0/(D2*DSQ2)+1.0D0/(RPLOCAL3) )
+                  
                   REPGRAD(1:3) = DUMMY*G2(1:3)
-                  GLOCAL2(NI+1:NI+3)=GLOCAL2(NI+1:NI+3)+REPGRAD(1:3)
-                  GLOCAL2(NJ+1:NJ+3)=GLOCAL2(NJ+1:NJ+3)-REPGRAD(1:3)
+
+                  !Add gradients in image J1
+                  !Comparing direct addition vs image-by-image
+                  GGG2(NI2+1:NI2+3)=GGG2(NI2+1:NI2+3)+REPGRAD(1:3)
+                  GGG2(NJ2+1:NJ2+3)=GGG2(NJ2+1:NJ2+3)-REPGRAD(1:3)
+
+                  GLOCAL2(NI+1:NI+3)=GLOCAL2(NI+1:NI+3)+REPGRAD(1:3) !Add gradient for A
+                  GLOCAL2(NJ+1:NJ+3)=GLOCAL2(NJ+1:NJ+3)-REPGRAD(1:3) !Subtract gradient for B
                END IF  
                ! For internal minima we are counting edges. 
                ! Edge J1 is between images J1-1 and J1, starting from J1=2.
@@ -617,9 +689,9 @@ MODULE CONSTR_E_GRAD
                   D12 = DSQI !from call to find internal minimum
                   !DUMMY=INTMINFAC*(RPLOCAL2/D12+2.0D0*DINT*RPLOCALINV-3.0D0)
                   !WARNING changed equation again
-                  !DUMMY = K_REP*INTMINFAC*(RPLOCAL2/DSQ2 + 2.0D0*D2*RPLOCALINV - 3.0D0)/RPLOCAL2
-                  DUMMY = K_REP*INTMINFAC*(1.0D0/DSQ2-3.0D0/RPLOCAL2+(2.0D0*D2)/(RPLOCAL*RPLOCAL2) )
-                  !WRITE(*,*) " EREP2: ", DUMMY, DSQI, DINT, RPLOCAL2, RPLOCALINV
+                  
+                  DUMMY = K_REP*INTMINFAC*(1.0D0/DSQI-3.0D0/RPLOCAL2+(2.0D0*DINT)/(RPLOCAL3) )
+                  
                   EREP2=EREP2+DUMMY
                   EREP=EREP+DUMMY
                   IF (DUMMY.GT.EMAX) THEN
@@ -629,30 +701,65 @@ MODULE CONSTR_E_GRAD
                   ENDIF
                   !DUMMY=-2.0D0*(RPLOCAL2/(DINT*D12)-RPLOCALINV)
                   !WARNING changed equation again
-                  !DUMMY=-2.0D0*K_REP*(RPLOCAL2/(DINT*D12)-RPLOCALINV)/RPLOCAL2
-                  DUMMY=2.0D0*K_REP*(-1.0D0/(D2*DSQ2)+1.0D0/(RPLOCAL*RPLOCAL2) )
+                 
+                  DUMMY=2.0D0*K_REP*(-1.0D0/(DINT*DSQI)+1.0D0/RPLOCAL3 )
+                  
                   ! Gradient contributions for image J1-1
                   REPGRAD(1:3)=INTMINFAC*DUMMY*G1INT(1:3)
                   GLOCAL1(NI+1:NI+3)=GLOCAL1(NI+1:NI+3)+REPGRAD(1:3)
                   GLOCAL1(NJ+1:NJ+3)=GLOCAL1(NJ+1:NJ+3)-REPGRAD(1:3)
+                  
+                  GGG2(NI1+1:NI1+3)=GGG2(NI1+1:NI1+3)+REPGRAD(1:3)
+                  GGG2(NJ1+1:NJ1+3)=GGG2(NJ1+1:NJ1+3)-REPGRAD(1:3)
+                  
+                  
                   DUMMY2=MINVAL(REPGRAD)
+                  
                   ! Gradient contributions for image J1
                   REPGRAD(1:3)=INTMINFAC*DUMMY*G2INT(1:3)
                   GLOCAL2(NI+1:NI+3)=GLOCAL2(NI+1:NI+3)+REPGRAD(1:3)
                   GLOCAL2(NJ+1:NJ+3)=GLOCAL2(NJ+1:NJ+3)-REPGRAD(1:3)
+
+                  GGG2(NI2+1:NI2+3)=GGG2(NI2+1:NI2+3)+REPGRAD(1:3)
+                  GGG2(NJ2+1:NJ2+3)=GGG2(NJ2+1:NJ2+3)-REPGRAD(1:3)
+
                END IF
                !WRITE(*,*) " EREP1: ", EREP1, " EREP2: ", EREP2
             END DO
             GGG(OFFSET1+1:OFFSET1+3*NATOMS)=GGG(OFFSET1+1:OFFSET1+3*NATOMS)+GLOCAL1(1:3*NATOMS)
             GGG(OFFSET2+1:OFFSET2+3*NATOMS)=GGG(OFFSET2+1:OFFSET2+3*NATOMS)+GLOCAL2(1:3*NATOMS)
+            
             EEE(J1)=EEE(J1)+EREP1
+            
             IF (J1.EQ.2) THEN
+               EEE(J1)=EEE(J1)+EREP2
+            !WARNING Added extra condition for J1=NIMAGES+1
+            ELSE IF (J1.EQ.NIMAGES+1) THEN
                EEE(J1)=EEE(J1)+EREP2
             ELSE
                EEE(J1)=EEE(J1)+EREP2/2.0D0
                EEE(J1-1)=EEE(J1-1)+EREP2/2.0D0
             ENDIF
          END DO
+
+         !Compare difference in gradients
+         DO J1=2,NIMAGES+1
+            DO J2=1,3*NATOMS
+               
+               G1A = G1A + GGG((3*NATOMS)*(J1-1)+J2)**2
+               G2A = G2A + GGG2((3*NATOMS)*(J1-1)+J2)**2
+            END DO
+   
+         END DO
+         GDIFF = SQRT(ABS(G2A-G1A))
+   
+         WRITE(*,*) "GET_REPULSION_CHECK> GDIFF: ", GDIFF
+         
+        
+
+
+
+
          FMIN=MINVAL(GGG(3*NATOMS+1:3*NATOMS*(NIMAGES+1)))
          FMAX=MAXVAL(GGG(3*NATOMS+1:3*NATOMS*(NIMAGES+1)))
          IF (-FMIN.GT.FMAX) FMAX=-FMIN
@@ -664,7 +771,7 @@ MODULE CONSTR_E_GRAD
 
       ! should be the same as GET_REPULSION_E, but the iteration inverts the order - outer loops is repulsions
       SUBROUTINE GET_REPULSION_E2(XYZ,GGG,EEE,EREP)
-         USE QCIKEYS, ONLY: NIMAGES, NATOMS, INTMINFAC, QCICONSTRREP, K_REP
+         USE QCIKEYS, ONLY: NIMAGES, NATOMS, INTMINFAC, QCICONSTRREP, QCIINTREPMINSEP, K_REP
          USE REPULSION, ONLY: NNREPULSIVE, NREPI, NREPJ, NREPCUT
          USE HELPER_FNCTS, ONLY: DISTANCE_SIMPLE, DOTP
          IMPLICIT NONE
@@ -681,7 +788,8 @@ MODULE CONSTR_E_GRAD
          REAL(KIND = REAL64) :: DCUT, DINTMIN, DP_G12                !< values used to test for internal minimum
          REAL(KIND = REAL64) , PARAMETER :: DINTTEST = 1.0D-50       !< cutoff for DINTMIN to test for internal min
          REAL(KIND = REAL64) :: D1, D2, D12                         !< distances in image 1 and 2
-         REAL(KIND = REAL64) :: RPLOCAL, INTCONST, INTCONSTINV
+         REAL(KIND = REAL64) :: INTCONST, INTCONSTINV
+         REAL(KIND = REAL64) :: RPLOCAL, RPLOCAL2, RPLOCAL3, RPLOCALINV
          REAL(KIND = REAL64) :: REPGRAD(3)
          LOGICAL :: NOINT                                            !< do we have an internal minimum
          REAL(KIND = REAL64) :: DINT, DSQI, G1INT(3), G2INT(3)       !< information for internal minimum contribution
@@ -689,7 +797,23 @@ MODULE CONSTR_E_GRAD
          REAL(KIND=REAL64) :: DUMMY
          INTEGER :: IMAX, JMAX
 
+      
          
+         J1=0; J2=0; OFFSET1=0; OFFSET2=0
+         X1(3*NATOMS)=0.0D0; X2(3*NATOMS)=0.0D0;
+         GLOCAL1(3*NATOMS)=0.0D0; GLOCAL2(3*NATOMS)=0.0D0;
+         EREP1=0.0D0; EREP2=0.0D0;
+         NI1=0; NJ1=0; NJ1=0; NJ2=0;
+         G1(3)=0.0D0; G2(3)=0.0D0; DSQ1=0.0D0; DSQ2=0.0D0 
+         DCUT=0.0D0; DINTMIN=0.0D0; DP_G12=0.0D0
+         D1=0.0D0; D2=0.0D0; D12=0.0D0;
+         RPLOCAL=0.0D0; RPLOCAL2=0.0D0; RPLOCAL3=0.0D0; RPLOCALINV=0.0D0;
+         REPGRAD(3)=0.0D0
+         
+         DINT=0.0D0; DSQI=0.0D0; G1INT(3)=0.0D0; G2INT(3)=0.0D0
+         DUMMY=0.0D0
+
+
          EMAX = -(HUGE(1.0D0))
          FMAX = -(HUGE(1.0D0))
          FMIN = HUGE(1.0D0)
@@ -701,11 +825,13 @@ MODULE CONSTR_E_GRAD
 
          DO J2=1,NNREPULSIVE
             RPLOCAL = NREPCUT(J2)
+            RPLOCAL2 = RPLOCAL**2
+            RPLOCAL3 = RPLOCAL**3
             INTCONST = RPLOCAL**3
             INTCONSTINV = 1.0D0/INTCONST
 
             DO J1=2,NIMAGES+2
-               NI1=(3*NATOMS)*(J1-2)+3*(NREPI(J2)-1) !atom 1 in image I
+               NI1=(3*NATOMS)*(J1-2)+3*(NREPI(J2)-1) !atom A in image I
                NI2=(3*NATOMS)*(J1-1)+3*(NREPI(J2)-1)
                NJ1=(3*NATOMS)*(J1-2)+3*(NREPJ(J2)-1)
                NJ2=(3*NATOMS)*(J1-1)+3*(NREPJ(J2)-1)
@@ -720,10 +846,18 @@ MODULE CONSTR_E_GRAD
                DCUT=NREPCUT(J2)**2
                ! don't look for an internal minimum if both repulsions outside cutoff
                IF ((DSQ1.GT.DCUT).AND.(DSQ2.GT.DCUT)) CYCLE 
+               
                !QUERY: in the other repulsion routine we use an additional cutoff with QCIINTREPMINSEP - why not here?
-               DP_G12 = DOTP(3,G1,G2)
-               DINTMIN = DSQ1+DSQ2-2.0D0*DP_G12
-
+               !WARNING Added this condition
+               !DP_G12 = DOTP(3,G1,G2)
+               !DINTMIN = DSQ1+DSQ2-2.0D0*DP_G12
+                IF (ABS(NREPI(J2)-NREPJ(J2)).LT.QCIINTREPMINSEP) THEN
+                  DINTMIN = 0.0D0
+               ELSE 
+                  !internal minimum (theta*)?
+                  DP_G12 = DOTP(3,G1,G2)
+                  DINTMIN = DSQ1+DSQ2-2.0D0*DP_G12
+               END IF
                ! Convert derivatives of distance^2 to derivative of distance.
                ! We have cancelled a factor of two above and below
                D1 = SQRT(DSQ1); D2 = SQRT(DSQ2)
@@ -739,7 +873,10 @@ MODULE CONSTR_E_GRAD
                IF ((D2.LT.RPLOCAL).AND.(J1.LT.NIMAGES+2)) THEN
                   !QUESTION what is QCICONSTRREP? 
                   !DUMMY=QCICONSTRREP*(1.0D0/DSQ2+(2.0D0*D2-3.0D0*RPLOCAL)*INTCONSTINV)
-                  DUMMY=K_REP*(1.0D0/DSQ2+(2.0D0*D2-3.0D0*RPLOCAL)*INTCONSTINV)
+                  !DUMMY=K_REP*(1.0D0/DSQ2+(2.0D0*D2-3.0D0*RPLOCAL)*INTCONSTINV)
+                  
+                  DUMMY = K_REP*(1.0D0/DSQ2-3.0D0/RPLOCAL2+(2.0D0*D2)/RPLOCAL3)
+
                   !WRITE(*,*) "C_AB = RPLOCAL=", RPLOCAL
                   !WRITE(*,*) "d_AB =", D2
                   EEE(J1)=EEE(J1)+DUMMY
@@ -750,7 +887,9 @@ MODULE CONSTR_E_GRAD
                      EMAX=DUMMY
                   ENDIF
                   !DUMMY=-2.0D0*QCICONSTRREP*(1.0D0/(D2*DSQ2)-INTCONSTINV)
-                  DUMMY=-2.0D0*K_REP*(1.0D0/(D2*DSQ2)-INTCONSTINV)
+                  !DUMMY=-2.0D0*K_REP*(1.0D0/(D2*DSQ2)-INTCONSTINV)
+                  DUMMY=2.0D0*K_REP*(-1.0D0/(D2*DSQ2)+1.0D0/(RPLOCAL3) )
+                  
                   REPGRAD(1:3)=DUMMY*G2(1:3)
                   GGG(NI2+1:NI2+3)=GGG(NI2+1:NI2+3)+REPGRAD(1:3)
                   GGG(NJ2+1:NJ2+3)=GGG(NJ2+1:NJ2+3)-REPGRAD(1:3)
@@ -758,7 +897,8 @@ MODULE CONSTR_E_GRAD
                DUMMY=0.0D0
                IF ((.NOT.NOINT).AND.(DINT.LT.RPLOCAL).AND.(J1.NE.2)) THEN
                   !DUMMY=INTMINFAC*QCICONSTRREP*(1.0D0/DSQI+(2.0D0*DINT-3.0D0*RPLOCAL)*INTCONSTINV)
-                  DUMMY=INTMINFAC*K_REP*(1.0D0/DSQI+(2.0D0*DINT-3.0D0*RPLOCAL)*INTCONSTINV)
+                  !DUMMY=INTMINFAC*K_REP*(1.0D0/DSQI+(2.0D0*DINT-3.0D0*RPLOCAL)*INTCONSTINV)
+                  DUMMY = K_REP*INTMINFAC*(1.0D0/DSQI-3.0D0/RPLOCAL2+(2.0D0*DINT)/(RPLOCAL3) )
                   EREP=EREP+DUMMY
                   IF (DUMMY.GT.EMAX) THEN
                      IMAX=J1
@@ -767,18 +907,23 @@ MODULE CONSTR_E_GRAD
                   ENDIF
                   IF (J1.EQ.2) THEN
                      EEE(J1)=EEE(J1)+DUMMY         
-                  ELSE IF (J1.LT.NIMAGES+2) THEN
+                  !WARNING changed condition to NIMAGES+1 here
+                  ELSE IF (J1.LT.NIMAGES+1) THEN
                      EEE(J1)=EEE(J1)+DUMMY/2.0D0
                      EEE(J1-1)=EEE(J1-1)+DUMMY/2.0D0
-                  ELSE IF (J1.EQ.NIMAGES+2) THEN
+                  ELSE IF (J1.EQ.NIMAGES+1) THEN
                      EEE(J1-1)=EEE(J1-1)+DUMMY
                   ENDIF
                   !DUMMY=-2.0D0*QCICONSTRREP*(1.0D0/(DINT*DSQI)-INTCONSTINV)
-                  DUMMY=-2.0D0*K_REP*(1.0D0/(DINT*DSQI)-INTCONSTINV)
+                  !DUMMY=-2.0D0*K_REP*(1.0D0/(DINT*DSQI)-INTCONSTINV)
+                 
+                  DUMMY=2.0D0*K_REP*(-1.0D0/(DINT*DSQI)+1.0D0/RPLOCAL3 )
                   REPGRAD(1:3)=INTMINFAC*DUMMY*G1INT(1:3)
                   GGG(NI1+1:NI1+3)=GGG(NI1+1:NI1+3)+REPGRAD(1:3)
                   GGG(NJ1+1:NJ1+3)=GGG(NJ1+1:NJ1+3)-REPGRAD(1:3)
+                  
                   REPGRAD(1:3)=INTMINFAC*DUMMY*G2INT(1:3)
+                  
                   GGG(NI2+1:NI2+3)=GGG(NI2+1:NI2+3)+REPGRAD(1:3)
                   GGG(NJ2+1:NJ2+3)=GGG(NJ2+1:NJ2+3)-REPGRAD(1:3)
                ENDIF
@@ -794,6 +939,8 @@ MODULE CONSTR_E_GRAD
          MAXCONIMAGE = JMAX
          MAXCONSTR = IMAX
       END SUBROUTINE GET_REPULSION_E2
+
+
 
       SUBROUTINE GET_SPRING_E(XYZ, GGG, EEE, ESPR)
          USE QCIKEYS, ONLY: NIMAGES, NATOMS, KINT, KINTSCALED, QCIADJUSTKT, QCISPRINGACTIVET
@@ -892,6 +1039,7 @@ MODULE CONSTR_E_GRAD
          !initliase all output variables
          NOINT = .TRUE.
          DSQI = LARGEDIST; DINT = LARGEDIST
+         DUMMY = 0.0D0; DUMMY2=0.0D0; DP_G12_SQ=0.0D0
          G1INT(1:3)=0.0D0; G2INT(1:3)=0.0D0
 
          ! are we having an internal minimum?
@@ -910,11 +1058,12 @@ MODULE CONSTR_E_GRAD
                NOINT = .TRUE.
             ELSE IF (DINT.LE.QCIREPCUT) THEN
                !WRITE(*,*) "We have internal minimum - repulsion"
+               DUMMY2 = DP_G12_SQ - DSQ1*DSQ2
                DUMMY = DINT*DINTMIN**2
                ! to convert derivatives of distance^2 to derivative of distance
-               !Warning added minus here (dummy2 now changed the signs)
-               G1INT(1:3)= (-DUMMY2*(G1(1:3) - G2(1:3)) + DINTMIN*(G1(1:3)*DSQ2 -G2(1:3)*DP_G12))/DUMMY
-               G2INT(1:3)= (-DUMMY2*(G2(1:3) - G1(1:3)) + DINTMIN*(G2(1:3)*DSQ1 -G1(1:3)*DP_G12))/DUMMY
+               !Warning (dummy2 now changed the signs)
+               G1INT(1:3)= (DUMMY2*(G1(1:3) - G2(1:3)) + DINTMIN*(G1(1:3)*DSQ2 -G2(1:3)*DP_G12))/DUMMY
+               G2INT(1:3)= (DUMMY2*(G2(1:3) - G1(1:3)) + DINTMIN*(G2(1:3)*DSQ1 -G1(1:3)*DP_G12))/DUMMY
             END IF              
          END IF
       END SUBROUTINE INTMIN_REPULSION
@@ -922,7 +1071,7 @@ MODULE CONSTR_E_GRAD
       ! QUERY: these functions are identical apart from use of the ondition for repulsions - is that condition required?
      
       !> @brief Calculate internal minima distance 
-      !! @details d_min = (|G1|^2|G2|^2 - |G1.G2|^2 )/ |G1-G2|^2 
+      !> @details d_min = (|G1|^2|G2|^2 - |G1.G2|^2 )/ |G1-G2|^2 
       !! @param[in]     G1: normalised vector from j to i in image 1
       !! @param[in]     G2: normalised vector from j to i in image 2
       !! @param[in]     DSQ1: |G1|^2 
@@ -948,6 +1097,7 @@ MODULE CONSTR_E_GRAD
          !initliase all output variables
          NOINT = .TRUE.
          DSQI = LARGEDIST; DINT = LARGEDIST
+         DUMMY = 0.0D0; DUMMY2=0.0D0; DP_G12_SQ=0.0D0
          G1INT(1:3)=0.0D0; G2INT(1:3)=0.0D0
 
          ! are we having an internal minimum?

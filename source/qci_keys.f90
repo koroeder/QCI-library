@@ -46,7 +46,7 @@ MODULE QCIKEYS
    
    LOGICAL :: USEIMAGEDENSITY = .FALSE. !< base number of images on interpolation density
    REAL(KIND=REAL64) :: E2E_DIST = 0.D0 !< endpoint to endpoint distance after alignment
-   REAL(KIND=REAL64) :: IMAGEDENSITY = 0.5 !< Image density per unit distance
+   REAL(KIND=REAL64) :: IMAGEDENSITY = 0.5D0 !< Image density per unit distance
    REAL(KIND = REAL64) :: IMSEPMAX=HUGE(1.0D0)
    REAL(KIND = REAL64) :: IMSEPMIN=-1.0D0
 
@@ -106,7 +106,7 @@ MODULE QCIKEYS
    REAL(KIND=REAL64) :: QCIADJUSTKFRAC = 1.05D0
 
    !> maximum gradient component
-   REAL(KIND=REAL64) :: MAXGRADCOMP = -1.0
+   REAL(KIND=REAL64) :: MAXGRADCOMP = -1.0D0
 
    !> settings for step taking
    REAL(KIND = REAL64) :: DGUESS = 1.0D-3
