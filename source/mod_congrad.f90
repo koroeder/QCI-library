@@ -72,12 +72,15 @@ MODULE CONSTR_E_GRAD
 
          !for get_repulsion_e test
          GGGR2(1:(3*NATOMS)*(NIMAGES+2))=0.0D0
+         EEER2(1:NIMAGES+2)=0.0D0
          EREP2 = 0.0D0
 
          ! QUERY: what is INTCONSTRAINTDEL? seems like a scaling for the potential
          IF (.NOT.(INTCONSTRAINTDEL.EQ.0.0D0)) THEN
             CALL GET_CONSTRAINT_E_NOINTERNAL(XYZ,GGGC,EEEC,ECON)
          END IF
+         
+         
          IF (.NOT.(QCICONSTRREP.EQ.0.0D0)) THEN
             CALL GET_REPULSION_E(XYZ,GGGR,EEER,EREP)
             CALL GET_REPULSION_E2(XYZ,GGGR2,EEER2,EREP2)
@@ -684,9 +687,9 @@ MODULE CONSTR_E_GRAD
                ! edge 1, which was assigned to image 2, and edge NIMAGES+1, which
                ! was assigned to image NIMAGES+1. 
                DUMMY = 0.0D0
-               !QUESTION why J1 NE 2 condition?
+               !QUESTION why J1 NE 2 condition and/or should it also be J1 NE NIMAGES+2?
                IF ((.NOT.NOINT).AND.(DINT.LT.RPLOCAL).AND.(J1.NE.2)) THEN
-                  D12 = DSQI !from call to find internal minimum
+                  !D12 = DSQI !from call to find internal minimum
                   !DUMMY=INTMINFAC*(RPLOCAL2/D12+2.0D0*DINT*RPLOCALINV-3.0D0)
                   !WARNING changed equation again
                   
@@ -712,8 +715,8 @@ MODULE CONSTR_E_GRAD
                   GGG2(NI1+1:NI1+3)=GGG2(NI1+1:NI1+3)+REPGRAD(1:3)
                   GGG2(NJ1+1:NJ1+3)=GGG2(NJ1+1:NJ1+3)-REPGRAD(1:3)
                   
-                  
-                  DUMMY2=MINVAL(REPGRAD)
+                  !QUESTION what is this?
+                  !DUMMY2=MINVAL(REPGRAD)
                   
                   ! Gradient contributions for image J1
                   REPGRAD(1:3)=INTMINFAC*DUMMY*G2INT(1:3)
@@ -731,14 +734,18 @@ MODULE CONSTR_E_GRAD
             
             EEE(J1)=EEE(J1)+EREP1
             
+            !QUESTION do we actually need if/else if here ... ?
             IF (J1.EQ.2) THEN
+               !in this case EREP2 is always 0
                EEE(J1)=EEE(J1)+EREP2
-            !WARNING Added extra condition for J1=NIMAGES+1
-            ELSE IF (J1.EQ.NIMAGES+1) THEN
-               EEE(J1)=EEE(J1)+EREP2
-            ELSE
+            ELSE IF (J1.LT.NIMAGES+2) THEN
                EEE(J1)=EEE(J1)+EREP2/2.0D0
-               EEE(J1-1)=EEE(J1-1)+EREP2/2.0D0
+               EEE(J1-1)=EEE(J1-1)+EREP2/2.0D0   
+            
+            !WARNING extra condition added
+            ELSE IF (J1.EQ.NIMAGES+2) THEN
+               !EREP not zero, but should it be? 
+               EEE(J1-1)=EEE(J1-1)+EREP2
             ENDIF
          END DO
 
@@ -832,7 +839,7 @@ MODULE CONSTR_E_GRAD
 
             DO J1=2,NIMAGES+2
                NI1=(3*NATOMS)*(J1-2)+3*(NREPI(J2)-1) !atom A in image I
-               NI2=(3*NATOMS)*(J1-1)+3*(NREPI(J2)-1)
+               NI2=(3*NATOMS)*(J1-1)+3*(NREPI(J2)-1) !atom B in image I 
                NJ1=(3*NATOMS)*(J1-2)+3*(NREPJ(J2)-1)
                NJ2=(3*NATOMS)*(J1-1)+3*(NREPJ(J2)-1)
          
@@ -906,12 +913,13 @@ MODULE CONSTR_E_GRAD
                      EMAX=DUMMY
                   ENDIF
                   IF (J1.EQ.2) THEN
+                     !This condition never evaluates true
                      EEE(J1)=EEE(J1)+DUMMY         
-                  !WARNING changed condition to NIMAGES+1 here
-                  ELSE IF (J1.LT.NIMAGES+1) THEN
+                  ELSE IF (J1.LT.NIMAGES+2) THEN
                      EEE(J1)=EEE(J1)+DUMMY/2.0D0
                      EEE(J1-1)=EEE(J1-1)+DUMMY/2.0D0
-                  ELSE IF (J1.EQ.NIMAGES+1) THEN
+                  ELSE IF (J1.EQ.NIMAGES+2) THEN
+                     !WARNING source of difference, should this condition even be here?
                      EEE(J1-1)=EEE(J1-1)+DUMMY
                   ENDIF
                   !DUMMY=-2.0D0*QCICONSTRREP*(1.0D0/(DINT*DSQI)-INTCONSTINV)
