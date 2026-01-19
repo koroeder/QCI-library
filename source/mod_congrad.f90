@@ -2,6 +2,15 @@
 !
 ! version 1 (congrad1) - tests for internal minimum in repulsions only
 ! version 2 (congrad2) - tests for internal minimum in repulsion and constraints
+!
+! @Note on energy addition for internal minimum
+! For internal minima the energy contribution is shared between J-1 and J images 
+! In practice this looks like EEE(J1)=EEE(J1)+DUMMY/2 & EEE(J1-1)=EEE(J1-1)+DUMMY/2
+! However, use EEE(J1-1)=EEE(J1-1)+DUMMY/2 causes error at the order of epsilon every time we do this 
+! This is due to the compiler 
+! Insted we sum all the energies into EEE2 term, chsift at the end and add back to EEE array.
+! Similiar thing needs to be done for gradients, but here the cshif it 3*NATOMS
+
 MODULE CONSTR_E_GRAD
    USE QCIPREC
    IMPLICIT NONE
@@ -372,6 +381,8 @@ MODULE CONSTR_E_GRAD
          REAL(KIND = REAL64), INTENT(IN) :: XYZ(3*NATOMS*(NIMAGES+2))   !< input coordinates
          REAL(KIND = REAL64), INTENT(OUT) :: GGG(3*NATOMS*(NIMAGES+2))  !< gradient for each atom in each image
          REAL(KIND = REAL64), INTENT(OUT) :: EEE(NIMAGES+2), ECON       !< energy for constraints         
+         REAL(KIND = REAL64) :: EEE2(NIMAGES+2)
+         REAL(KIND = REAL64) :: GGG2(3*NATOMS*(NIMAGES+2))
          INTEGER :: J1, J2       
          INTEGER :: NI1, NI2, NJ1, NJ2                                 ! indices for atom I and J in images 1 and 2
          REAL(KIND = REAL64) :: G1(3), G2(3), DSQ1, DSQ2, DINTMIN, DP_G12 ! dummy variables
@@ -387,6 +398,8 @@ MODULE CONSTR_E_GRAD
 
          EEE(1:NIMAGES+2)=0.0D0
          GGG(1:(3*NATOMS)*(NIMAGES+2))=0.0D0
+         EEE2 = 0.0D0
+         GGG2 = 0.0D0
          ECON = 0.0D0
          EMAX = -(HUGE(1.0D0))
          FMAX = -(HUGE(1.0D0))
@@ -394,7 +407,7 @@ MODULE CONSTR_E_GRAD
          IMAX = -1
          JMAX = -1
 
-         !  Constraint energy and forces.
+         ! Constraint energy and forces.
          !
          ! For J1 we consider the line segment between image J1-1 and J1.
          ! There are NIMAGES+1 line segments in total, with an energy contribution
@@ -484,13 +497,23 @@ MODULE CONSTR_E_GRAD
                ! Used for congrad2 and have intenal minima AND d(theta*)-mean(d_AB) > C_conAB
                IF (CHECKCONINT.AND.(.NOT.NOINT).AND.(ABS(DINT-CONDISTREFLOCAL(J2)).GT.CCLOCAL)) THEN
                   DUMMY=DINT-CONDISTREFLOCAL(J2)  
+                  
+                  !Image J1-1 
                   !CONSTGRAD(1:3)=2*INTMINFAC*INTCONSTRAINTDEL*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G1INT(1:3)
                   CONSTGRAD(1:3)=2.0D0*K_CONST*INTMINFAC*LOCALCONFACTOR*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G1INT(1:3)
-                  GGG(NI1+1:NI1+3)=GGG(NI1+1:NI1+3)+CONSTGRAD(1:3)
-                  GGG(NJ1+1:NJ1+3)=GGG(NJ1+1:NJ1+3)-CONSTGRAD(1:3)
+                  !GGG(NI1+1:NI1+3)=GGG(NI1+1:NI1+3)+CONSTGRAD(1:3)
+                  !GGG(NJ1+1:NJ1+3)=GGG(NJ1+1:NJ1+3)-CONSTGRAD(1:3)
+
+                  GGG2(NI1+1:NI1+3)=GGG2(NI1+1:NI1+3)+CONSTGRAD(1:3)
+                  GGG2(NJ1+1:NJ1+3)=GGG2(NJ1+1:NJ1+3)-CONSTGRAD(1:3)
+                  
+                  !Image J1 - we add this one normally
                   !CONSTGRAD(1:3)=2*INTMINFAC*INTCONSTRAINTDEL*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G2INT(1:3)
-                  !DUMMY=INTMINFAC*INTCONSTRAINTDEL*(DUMMY**2-CCLOCAL**2)**2/(2.0D0*CCLOCAL**2)
                   CONSTGRAD(1:3)=2.0D0*K_CONST*INTMINFAC*LOCALCONFACTOR*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G2INT(1:3)
+                  GGG(NI2+1:NI2+3)=GGG(NI2+1:NI2+3)+CONSTGRAD(1:3)
+                  GGG(NJ2+1:NJ2+3)=GGG(NJ2+1:NJ2+3)-CONSTGRAD(1:3)
+
+                  !DUMMY=INTMINFAC*INTCONSTRAINTDEL*(DUMMY**2-CCLOCAL**2)**2/(2.0D0*CCLOCAL**2)
                   DUMMY=K_CONST*INTMINFAC*LOCALCONFACTOR*(DUMMY**2-CCLOCAL**2)**2/(2.0D0*CCLOCAL**2)
                   ECON=ECON+DUMMY
                   IF (DUMMY.GT.EMAX) THEN
@@ -502,13 +525,14 @@ MODULE CONSTR_E_GRAD
                      EEE(J1)=EEE(J1)+DUMMY
                   ELSE IF (J1.LT.NIMAGES+2) THEN
                      EEE(J1)=EEE(J1)+DUMMY/2.0D0
-                     EEE(J1-1)=EEE(J1-1)+DUMMY/2.0D0
+                     EEE2(J1)=EEE2(J1)+DUMMY/2.0D0
+                     !EEE(J1-1)=EEE(J1-1)+DUMMY/2.0D0
                   ELSE IF (J1.EQ.NIMAGES+2) THEN
-                     EEE(J1-1)=EEE(J1-1)+DUMMY
+                     !EEE(J1-1)=EEE(J1-1)+DUMMY
+                     EEE2(J1)=EEE2(J1)+DUMMY
                   ENDIF
-                  GGG(NI2+1:NI2+3)=GGG(NI2+1:NI2+3)+CONSTGRAD(1:3)
-                  GGG(NJ2+1:NJ2+3)=GGG(NJ2+1:NJ2+3)-CONSTGRAD(1:3)
-                  !Added block yo track FMAX
+                  
+                  !Added block to track FMAX
                    DUMMY=MINVAL(CONSTGRAD)
                   IF (DUMMY.LT.FMIN) FMIN=DUMMY
                   DUMMY=MAXVAL(CONSTGRAD)
@@ -516,6 +540,14 @@ MODULE CONSTR_E_GRAD
                ENDIF
             END DO
          END DO
+
+         !Changed the way we add to J-1 images
+         EEE2 = CSHIFT(EEE2,SHIFT=1)
+         EEE(1:NIMAGES+2)=EEE(1:NIMAGES+2)+EEE2(1:NIMAGES+2) 
+
+         GGG2 = CSHIFT(GGG2,SHIFT=3*NATOMS)
+         GGG(1:3*NATOMS*(NIMAGES+2)) = GGG(1:3*NATOMS*(NIMAGES+2))+ GGG2(1:3*NATOMS*(NIMAGES+2))
+
          !QUESTION why do we have the line below?  
          CONVERGECONTEST=EMAX/INTCONSTRAINTDEL
          
@@ -568,7 +600,7 @@ MODULE CONSTR_E_GRAD
          GGG2(1:(3*NATOMS)*(NIMAGES+2))=0.0D0 
          
          G1A=0.0D0; G2A=0.0D0; GDIFF=0.0D0
-         IFTEST = .FALSE.
+         
          NOINT = .TRUE.
          J1=0; J2=0; OFFSET1=0; OFFSET2=0
          X1(3*NATOMS)=0.0D0; X2(3*NATOMS)=0.0D0;
@@ -957,11 +989,15 @@ MODULE CONSTR_E_GRAD
          REAL(KIND = REAL64), INTENT(OUT) :: EEE(NIMAGES+2)             !< energy for repulsions (spring?)
          REAL(KIND = REAL64), INTENT(OUT) :: ESPR                       !< energy for repulsions  (spring?)
          
+         REAL(KIND = REAL64) :: EEE2(NIMAGES+2)  
+         REAL(KIND = REAL64) :: GGG2(3*NATOMS*(NIMAGES+2))
          INTEGER :: J1, J2, NI1, NI2
          REAL(KIND = REAL64) :: DPLUS, DUMMY, EMAX, SPGRAD(3)
-         REAL(KIND = REAL64) :: DVEC(NIMAGES+1)
+         REAL(KIND = REAL64) :: DVEC(NIMAGES+1)                          !< QUESTION: what is this?  
          INTEGER :: IMAX
 
+         EEE = 0.0D0; EEE2 = 0.0D0
+         GGG=0.0D0; GGG2 = 0.0D0
          ESPR = 0.0D0
          EMAX = -(HUGE(1.0D0))
          IMAX = -1
@@ -981,15 +1017,17 @@ MODULE CONSTR_E_GRAD
             DVEC(J1) = SQRT(DPLUS)
             ! V_QCI = 1/2 * K_SPR * |X_i - X_{i-1}|^2
             DUMMY = KINT*0.5D0*DPLUS/KINTSCALED
-            !QUESTION this adds energy to X_0 and X_n+1
+            !QUESTION this adds energy to X_0 and X_n+1? How should the energy be divided? 
             !WARNING adding if statement to make sure E(1) & E(NIMAGES+2) = 0 ... not sure this is right
             IF (J1.EQ.1) THEN
-               EEE(J1+1) = EEE(J1+1) + 0.5D0*DUMMY
+               !EEE(J1+1) = EEE(J1+1) + 0.5D0*DUMMY
+               EEE2(J1) = EEE2(J1) + DUMMY
             ELSE IF (J1.LT.NIMAGES+1) THEN
                EEE(J1) = EEE(J1) + 0.5D0*DUMMY
-               EEE(J1+1) = EEE(J1+1) + 0.5D0*DUMMY
+               !EEE(J1+1) = EEE(J1+1) + 0.5D0*DUMMY
+               EEE2(J1) = EEE2(J1) + 0.5D0*DUMMY
             ELSE IF (J1.EQ.(NIMAGES+1)) THEN
-               EEE(J1) = EEE(J1) + 0.5D0*DUMMY
+               EEE(J1) = EEE(J1) + DUMMY
             ENDIF
             
             IF (DUMMY.GT.EMAX) THEN
@@ -1008,6 +1046,13 @@ MODULE CONSTR_E_GRAD
                ENDIF
             ENDDO
          END DO
+
+         ! Changed the way summation is done
+         WRITE(*,*) "EEE2 before CSHIF: ", EEE2
+         EEE2 = CSHIFT(EEE2,SHIFT=-1)
+         WRITE(*,*) "EEE2 after CSHIF: ", EEE2
+         EEE(1:NIMAGES+2)=EEE(1:NIMAGES+2)+EEE2(1:NIMAGES+2) 
+
          MAXSPRIMAGE = IMAX
          EMAXSPR = EMAX
          IF (QCIADJUSTKT) CALL GET_AV_DEV(DVEC)
