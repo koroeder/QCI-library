@@ -253,7 +253,7 @@ MODULE QCISETUP
          ! minimum distacne in sequence for internal minima
          ELSE IF (ENTRY.EQ."REPINTMINSEP") THEN 
             READ(VAL,*) QCIINTREPMINSEP      
-         ! ????
+         ! constraint constant?
          ELSE IF (ENTRY.EQ."INTCONSTRAINTDEL") THEN 
             READ(VAL,*) INTCONSTRAINTDEL   
          ! image control

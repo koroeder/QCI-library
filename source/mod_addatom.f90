@@ -288,12 +288,12 @@ MODULE ADDINGATOM
          INTEGER , INTENT(IN) :: NEWATOM
          REAL(KIND=REAL64), INTENT(OUT) :: LOCALDIST(4)
          INTEGER , INTENT(OUT) :: NLOCAL, LOCALIDX(4)
-         REAL(KIND=REAL64) :: BESTDIST(NATOMS)              !list of sorted average distance to newatom
-         INTEGER :: BESTIDX(NATOMS), NDISTNEWATOM           !associated ids and total number found
-         REAL(KIND=REAL64) :: BESTCONDIST(NATOMS)           !list of sorted average constraint distances to newatom
-         INTEGER :: BESTCONIDX(NATOMS), NCONNEWATOM         !associated ids and total number found
-         REAL(KIND=REAL64) :: SECCONDIST(NATOMS)            !list of sorted average constraint distances to newatom
-         INTEGER :: SECCONIDX(NATOMS), NSECCONSTR           !associated ids and total number found
+         REAL(KIND=REAL64) :: BESTDIST(NATOMS)              !<list of sorted average distance to newatom
+         INTEGER :: BESTIDX(NATOMS), NDISTNEWATOM           !<associated ids and total number found
+         REAL(KIND=REAL64) :: BESTCONDIST(NATOMS)           !<list of sorted average constraint distances to newatom
+         INTEGER :: BESTCONIDX(NATOMS), NCONNEWATOM         !<associated ids and total number found
+         REAL(KIND=REAL64) :: SECCONDIST(NATOMS)            !<list of sorted average constraint distances to newatom
+         INTEGER :: SECCONIDX(NATOMS), NSECCONSTR           !<associated ids and total number found
 
          INTEGER :: NCONST, NDISTS, NCOUNT, NSEC
          INTEGER :: IDX1, IDX2, IDX3, IDX4, J
@@ -308,6 +308,8 @@ MODULE ADDINGATOM
          NCONST = MIN(4,NCONNEWATOM)
          NDISTS = MIN(4,NDISTNEWATOM)
          NCOUNT = 0
+         !WARNING/QUESTION what this NLOCAL & should this be 0?
+         NLOCAL = 0
          LOCALDIST(1:4) = 0.0D0
          LOCALIDX(1:4) = -1
          IF (NCONST.NE.0) THEN

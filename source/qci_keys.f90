@@ -70,8 +70,9 @@ MODULE QCIKEYS
    REAL(KIND=REAL64) :: QCIFREEZETOL = 1.0D-3 !< distance tolerance for atoms to be frozen
 
    INTEGER :: QCIIMAGECHECK = 10
-
-   REAL(KIND=REAL64) :: INTMINFAC=1.0D0 !< Scaling factor for internal minima
+   
+   !> Scaling factor for internal minima
+   REAL(KIND=REAL64) :: INTMINFAC=1.0D0 
 
    !> repulsions
    REAL(KIND=REAL64) :: QCIREPCUT = 1.0D-3
@@ -81,8 +82,8 @@ MODULE QCIKEYS
    REAL(KIND=REAL64) :: K_REP=1.0D0   !<scaling constant for repuslion
    REAL(KIND=REAL64) :: K_CONST=1.0D0 !<scaling constant for constraint
 
-
-   REAL(KIND=REAL64) :: INTCONSTRAINTDEL=10.0D0  !< used as energy scaling in convergence test only
+   !> used as energy scaling in convergence test only + does congrad run constraint
+   REAL(KIND=REAL64) :: INTCONSTRAINTDEL=10.0D0 
 
    !> conactinact settings
    LOGICAL :: USECONACTINACT = .FALSE.
