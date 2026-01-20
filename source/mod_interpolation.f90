@@ -584,6 +584,7 @@ MODULE QCIINTERPOLATION
 
       ! Subroutine to sclae excessive gradient components
       SUBROUTINE SCALEGRAD(DIMS,G,RMS,MAXGRADCOMP)
+         !QUESTION not used atm - when do we want to use this?
          IMPLICIT NONE
          INTEGER, INTENT(IN) :: DIMS
          REAL(KIND=REAL64), INTENT(IN) :: MAXGRADCOMP

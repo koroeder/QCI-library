@@ -87,32 +87,31 @@ MODULE CONSTR_E_GRAD
          ! QUERY: what is INTCONSTRAINTDEL? seems like a scaling for the potential
          IF (.NOT.(INTCONSTRAINTDEL.EQ.0.0D0)) THEN
             CALL GET_CONSTRAINT_E_NOINTERNAL(XYZ,GGGC,EEEC,ECON)
+            CALL GET_CONSTRAINT_E(XYZ,GGGR2,EEER2,ECON)
          END IF
          
-         
-         IF (.NOT.(QCICONSTRREP.EQ.0.0D0)) THEN
-            CALL GET_REPULSION_E(XYZ,GGGR,EEER,EREP)
-            CALL GET_REPULSION_E2(XYZ,GGGR2,EEER2,EREP2)
-
          G1=0.0D0
          G2=0.0D0
          GDIFF=0.0D0
          E1=0.0D0; E2=0.0D0; EDIFF=0.0D0
-         DO J1=2,NIMAGES+1
+         DO J1=2,NIMAGES+2
             DO J2=1,3*NATOMS
                
-               G1 = G1 + GGGR((3*NATOMS)*(J1-1)+J2)**2
-               G2 = G2 + GGGR2((3*NATOMS)*(J1-1)+J2)**2
+               G1 = G1 +  ABS(GGGC((3*NATOMS)*(J1-1)+J2))
+               G2 = G2 + ABS(GGGR2((3*NATOMS)*(J1-1)+J2))
             END DO
-            E1=E1 + EEER(J1)**2
-            E2=E2 + EEER2(J1)**2
+            !E1=E1 + EEEC(J1)**2
+            !E2=E2 + EEER2(J1)**2
          END DO
-         GDIFF = SQRT(ABS(G2-G1))
-         EDIFF = SQRT(ABS(E2-E1))
+         GDIFF = G2-G1
+         !EDIFF = EEEC - EEER2
          WRITE(*,*) "CONGRAD_CHECK> GDIFF: ", GDIFF
-         WRITE(*,*) "CONGRAD_CHECK> EDIFF: ", EDIFF
-         END IF
+         WRITE(*,*) "CONGRAD_CHECK> EDIFF: ", SUM( ABS(EEEC - EEER2))
+         
 
+         IF (.NOT.(QCICONSTRREP.EQ.0.0D0)) THEN
+            CALL GET_REPULSION_E(XYZ,GGGR,EEER,EREP)
+         END IF
          IF (.NOT.(KINT.EQ.0.0D0)) THEN
             CALL GET_SPRING_E(XYZ, GGGS, EEES, ESPR)
          END IF
@@ -152,6 +151,7 @@ MODULE CONSTR_E_GRAD
          WRITE(*,*) " congrad1> E total: ", ETOTAL, "RMS: ", RMS, " E rep: ", SUM(EEER), " E constr: ", SUM(EEEC)
          WRITE(*,*) "                                              E spring: ", SUM(EEES), " E dih: ", SUM(EEED)
          WRITE(*,*) " congrad1> FCONTEST: ", FCONTEST, " FREPTEST: ", FREPTEST
+         WRITE(*,*) " congrad1> CONVERGECONTEST: ", CONVERGECONTEST, " CONVERGEREPTEST: ", CONVERGEREPTEST 
       END SUBROUTINE CONGRAD1
 
 
@@ -234,12 +234,14 @@ MODULE CONSTR_E_GRAD
          WRITE(*,*) " congrad2> E total: ", ETOTAL, "RMS: ", RMS, " E rep: ", SUM(EEER), " E constr: ", SUM(EEEC)
          WRITE(*,*) "                                              E spring: ", SUM(EEES), " E dih: ", SUM(EEED)
          WRITE(*,*) " congrad2> FCONTEST: ", FCONTEST, " FREPTEST: ", FREPTEST
+         WRITE(*,*) " congrad2> CONVERGECONTEST: ", CONVERGECONTEST, " CONVERGEREPTEST: ", CONVERGEREPTEST
       END SUBROUTINE CONGRAD2    
 
       SUBROUTINE GET_CONSTRAINT_E_NOINTERNAL(XYZ,GGG,EEE,ECON)
-         USE QCIKEYS, ONLY: NIMAGES, NATOMS, K_CONST
+         USE QCIKEYS, ONLY: NIMAGES, NATOMS, K_CONST, INTMINFAC, CHECKCONINT, INTCONSTRAINTDEL, &
+                            CONACTINACT, USECONACTINACT
          USE QCI_CONSTRAINT_KEYS, ONLY: NCONSTRAINT, CONI, CONJ, CONDISTREFLOCAL
-         USE INTERPOLATION_KEYS, ONLY: CONACTIVE
+         USE INTERPOLATION_KEYS, ONLY: CONACTIVE, ATOMACTIVE
          USE HELPER_FNCTS, ONLY: DISTANCE_SIMPLE
          IMPLICIT NONE
          REAL(KIND = REAL64), INTENT(IN) :: XYZ(3*NATOMS*(NIMAGES+2))   !< input coordinates
@@ -253,7 +255,13 @@ MODULE CONSTR_E_GRAD
          REAL(KIND=REAL64) :: DIST, DUMMY, DUMMY2    !< distance and related measure
          REAL(KIND=REAL64) :: G2(3), GRADAB(3)
          REAL(KIND=REAL64) :: EMAX, FMIN, FMAX
+         REAL(KIND=REAL64) :: LOCALCONFACTOR 
          INTEGER :: IMAX, JMAX
+
+         !Test vars
+         REAL(KIND=REAL64) :: GRADAB2(3)   
+         REAL(KIND=REAL64) :: E1, E2
+         E1=0.0D0; E2=0.0D0
 
          EMAX = -(HUGE(1.0D0))
          FMAX = -(HUGE(1.0D0))
@@ -265,33 +273,65 @@ MODULE CONSTR_E_GRAD
          ECON = 0.0D0
          DO J2=1,NCONSTRAINT
             ! only active constraints contribute
-            IF (.NOT.CONACTIVE(J2)) CYCLE
+            !IF (.NOT.CONACTIVE(J2)) CYCLE
             ! get constraint cut off for this contraint
+            
+            !WARNING added extra conditions for active-inactive           
+            IF (.NOT.USECONACTINACT) THEN
+               ! only active constraints contribute
+               IF (.NOT.CONACTIVE(J2)) CYCLE
+            END IF
+
+            IF (ATOMACTIVE(CONI(J2)).AND.ATOMACTIVE(CONJ(J2))) THEN
+               !both atoms active:
+               LOCALCONFACTOR = 1.0D0
+            ELSE IF ((ATOMACTIVE(CONI(J2)).AND.(.NOT.ATOMACTIVE(CONJ(J2)))).OR.((.NOT.ATOMACTIVE(CONI(J2))).AND.ATOMACTIVE(CONJ(J2)))) THEN
+               ! one atom active
+               LOCALCONFACTOR = CONACTINACT
+            ELSE
+               CYCLE
+            END IF
+                  
+            
             CALL GET_CCLOCAL(J2,CCLOCAL)
             !!!!!Debugging WRITE(*,*) " Constraint: ", J2, " reference: ", CONDISTREFLOCAL(J2), " cut: ", CCLOCAL
             ! go through all images
-            DO J1=2,NIMAGES+1
+            DO J1=2,NIMAGES+2
                NI1=(3*NATOMS)*(J1-1)+3*(CONI(J2)-1)
                NJ1=(3*NATOMS)*(J1-1)+3*(CONJ(J2)-1)
                ! get coordinates for atoms involved in constraint
-               DO I=1,3
-                  XA(I) = XYZ(NI1+I)
-                  XB(I) = XYZ(NJ1+I)
-               END DO
+               
+               XA(1:3) = XYZ(NI1+1:NI1+3) 
+               XB(1:3) = XYZ(NJ1+1:NJ1+3)            
+              
                ! get distance and various related measures
                CALL DISTANCE_SIMPLE(XA, XB, DIST)
+               G2 = (XA-XB)/DIST
                DUMMY = DIST - CONDISTREFLOCAL(J2)
+               DUMMY2 = DUMMY**2
+               CCLOCAL2 = CCLOCAL**2 
                ! now check whether we are beyond the constraint cutoff
-               ! d^i_AB - ave(d_AB) > C^con_AB
-               IF (DUMMY.GT.CCLOCAL) THEN
-                  DUMMY2 = DUMMY**2
-                  CCLOCAL2 = CCLOCAL**2  
+               ! Condition: |G2| - mean(d_AB) > C_AB
+               IF ((DUMMY.GT.CCLOCAL).AND.(J1.LT.NIMAGES+2)) THEN
+                    
+
                   ! calculate gradient and energy
-                  G2 = (XA-XB)/DIST
-                  GRADAB(1:3) = 2*K_CONST*(DUMMY2-CCLOCAL2)*DUMMY*G2(1:3)/(CCLOCAL2**2)
-                  
+                 
+                   GRADAB(1:3)=2.0D0*K_CONST*LOCALCONFACTOR*((DUMMY2-CCLOCAL2)/CCLOCAL2)*DUMMY*G2(1:3)
+                  GRADAB2(1:3)=2.0D0*K_CONST*LOCALCONFACTOR*(DUMMY/CCLOCAL-1.0D0)*(DUMMY/CCLOCAL+1.0D0)*DUMMY*G2(1:3)
+                  !GRADAB2(1:3)=2.0D0*K_CONST*LOCALCONFACTOR*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G2(1:3)
+                  !Check 
+                  WRITE(*,*) "GRADAB: ", GRADAB- GRADAB2 
+                  ! Eq(8) J.Chem.Theory Comput. 2012, 8, 5020-5034
                   ! V_con(d^i_AB) = (k_con* ((d^i_AB - ave(d_AB))^2 -(C^con_AB)^2 )^2 )/ 2*(C^con_AB)^2
-                  DUMMY = K_CONST*((DUMMY2-CCLOCAL2)**2/(2.0D0*CCLOCAL2**2))
+                  
+                  
+                  !E1 = K_CONST*LOCALCONFACTOR*((DUMMY2-CCLOCAL2)**2/(2.0D0*CCLOCAL2))
+                  !E2=K_CONST*LOCALCONFACTOR*((DUMMY**2-CCLOCAL**2)**2)/(2.0D0*CCLOCAL**2) 
+                  !WRITE(*,*) "CONSTRAINT_DIFF> EDIFF: ", E1-E2
+                  
+                  DUMMY = K_CONST*LOCALCONFACTOR*((DUMMY2-CCLOCAL2)**2/(2.0D0*CCLOCAL2))
+
                   EEE(J1) = EEE(J1) + DUMMY
                   ECON = ECON + DUMMY
                   !!!!!!debugging WRITE(*,*) " For image ", J1, " dist: ", DIST, " dummy: ", DIST - CONDISTREFLOCAL(J2), " energy: ", DUMMY 
@@ -301,6 +341,7 @@ MODULE CONSTR_E_GRAD
                      JMAX = J2
                      EMAX = DUMMY
                   END IF
+                  
                   GGG(NI1+1:NI1+3)=GGG(NI1+1:NI1+3)+GRADAB(1:3)
                   GGG(NJ1+1:NJ1+3)=GGG(NJ1+1:NJ1+3)-GRADAB(1:3)
                   DUMMY2=MINVAL(GRADAB)
@@ -396,6 +437,8 @@ MODULE CONSTR_E_GRAD
          REAL(KIND=REAL64) :: LOCALCONFACTOR                          !< scaling factor if active-inactive atom interaction
          INTEGER :: IMAX, JMAX
 
+         
+        
          EEE(1:NIMAGES+2)=0.0D0
          GGG(1:(3*NATOMS)*(NIMAGES+2))=0.0D0
          EEE2 = 0.0D0
@@ -406,6 +449,7 @@ MODULE CONSTR_E_GRAD
          FMIN = HUGE(1.0D0)
          IMAX = -1
          JMAX = -1
+         DUMMY = 0.0D0
 
          ! Constraint energy and forces.
          !
@@ -472,22 +516,28 @@ MODULE CONSTR_E_GRAD
                IF ((DUMMY.GT.CCLOCAL).AND.(J1.LT.NIMAGES+2)) THEN  
                   !CONSTGRAD(1:3)=2*INTCONSTRAINTDEL*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G2(1:3)
                   !DUMMY=INTCONSTRAINTDEL*(DUMMY**2-CCLOCAL**2)**2/(2.0D0*CCLOCAL**2)
-
-
                   ! We are missing eps_con
-                  CONSTGRAD(1:3)=K_CONST*LOCALCONFACTOR*2*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G2(1:3)
+                  CONSTGRAD(1:3)=2.0D0*K_CONST*LOCALCONFACTOR*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G2(1:3)
                   ! V_con(d^i_AB) = eps_con ((d^i_AB-ave*(d^i_AB))^2 - C_con_AB^2 )^2 / 2(C_con_AB)^2
-                  DUMMY=K_CONST*LOCALCONFACTOR*(DUMMY**2-CCLOCAL**2)**2/(2.0D0*CCLOCAL**2)                  
+                  DUMMY=K_CONST*LOCALCONFACTOR*((DUMMY**2-CCLOCAL**2)**2)/(2.0D0*CCLOCAL**2)                  
+                  
+                  EEE(J1) = EEE(J1) + DUMMY
+                  ECON=ECON+DUMMY
                   IF (DUMMY.GT.EMAX) THEN
                      IMAX=J1
                      JMAX=J2
                      EMAX=DUMMY
                   ENDIF
-                  EEE(J1)=EEE(J1)+DUMMY
-                  ECON=ECON+DUMMY
+                  
                   GGG(NI2+1:NI2+3)=GGG(NI2+1:NI2+3)+CONSTGRAD(1:3)
                   GGG(NJ2+1:NJ2+3)=GGG(NJ2+1:NJ2+3)-CONSTGRAD(1:3)
 
+                  !Added block to track FMAX
+                   DUMMY=MINVAL(CONSTGRAD)
+                  IF (DUMMY.LT.FMIN) FMIN=DUMMY
+                  DUMMY=MAXVAL(CONSTGRAD)
+                  IF (DUMMY.GT.FMAX) FMAX=DUMMY
+              
                END IF
                ! Don't add energy contributions to EEE(2) from D1, since the gradients are non-zero only for image 1.
                ! terms for image J1-1 - non-zero derivatives only for J1-1. D1 is the distance for image J1-1.
@@ -495,10 +545,15 @@ MODULE CONSTR_E_GRAD
                !QUERY: Does this need to be absolute??? Or should it be the relative value? Not sure it makes sense to have this as the absolute value?
                
                ! Used for congrad2 and have intenal minima AND d(theta*)-mean(d_AB) > C_conAB
-               IF (CHECKCONINT.AND.(.NOT.NOINT).AND.(ABS(DINT-CONDISTREFLOCAL(J2)).GT.CCLOCAL)) THEN
+               ! Warning added J1.NE.2 to match repulsions
+               !NOINT = .TRUE.
+               IF (CHECKCONINT.AND.(.NOT.NOINT).AND.(ABS(DINT-CONDISTREFLOCAL(J2)).GT.CCLOCAL).AND.(J1.NE.2)) THEN
+                  WRITE(*,*) "WARNING - We are not supposed to look for internal min atm"
+
                   DUMMY=DINT-CONDISTREFLOCAL(J2)  
                   
                   !Image J1-1 
+
                   !CONSTGRAD(1:3)=2*INTMINFAC*INTCONSTRAINTDEL*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G1INT(1:3)
                   CONSTGRAD(1:3)=2.0D0*K_CONST*INTMINFAC*LOCALCONFACTOR*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G1INT(1:3)
                   !GGG(NI1+1:NI1+3)=GGG(NI1+1:NI1+3)+CONSTGRAD(1:3)
@@ -1048,9 +1103,9 @@ MODULE CONSTR_E_GRAD
          END DO
 
          ! Changed the way summation is done
-         WRITE(*,*) "EEE2 before CSHIF: ", EEE2
+         !WRITE(*,*) "EEE2 before CSHIF: ", EEE2
          EEE2 = CSHIFT(EEE2,SHIFT=-1)
-         WRITE(*,*) "EEE2 after CSHIF: ", EEE2
+         !WRITE(*,*) "EEE2 after CSHIF: ", EEE2
          EEE(1:NIMAGES+2)=EEE(1:NIMAGES+2)+EEE2(1:NIMAGES+2) 
 
          MAXSPRIMAGE = IMAX

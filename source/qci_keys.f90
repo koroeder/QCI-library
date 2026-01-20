@@ -116,9 +116,9 @@ MODULE QCIKEYS
 
    REAL(KIND=REAL64) :: COLDFUSIONLIMIT = -1.0D15
 
-   !> maximum constraint E - used for convergence
+   !> Convergence test for energy
    REAL(KIND=REAL64) :: MAXCONE = 0.01D0
-   !> convergence for RMS
+   !> convergence test for RMS
    REAL(KIND=REAL64) :: QCIRMSTOL=0.01D0
 
    REAL(KIND=REAL64) :: MAXERISE = 1.0D100
