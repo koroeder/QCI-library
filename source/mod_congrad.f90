@@ -316,21 +316,17 @@ MODULE CONSTR_E_GRAD
                     
 
                   ! calculate gradient and energy
-                 
-                   GRADAB(1:3)=2.0D0*K_CONST*LOCALCONFACTOR*((DUMMY2-CCLOCAL2)/CCLOCAL2)*DUMMY*G2(1:3)
-                  GRADAB2(1:3)=2.0D0*K_CONST*LOCALCONFACTOR*(DUMMY/CCLOCAL-1.0D0)*(DUMMY/CCLOCAL+1.0D0)*DUMMY*G2(1:3)
-                  !GRADAB2(1:3)=2.0D0*K_CONST*LOCALCONFACTOR*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G2(1:3)
-                  !Check 
-                  WRITE(*,*) "GRADAB: ", GRADAB- GRADAB2 
+                  ! WARNING changed expression for better numberical stability 
+                  ! (A^2-B^2)/B^2 -> ((A/B)-1)*((A/B)+1)  
+                                    
+                  GRADAB(1:3)=2.0D0*K_CONST*LOCALCONFACTOR*(DUMMY/CCLOCAL-1.0D0)*(DUMMY/CCLOCAL+1.0D0)*DUMMY*G2(1:3)
+                  !GRADAB(1:3)=2.0D0*K_CONST*LOCALCONFACTOR*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G2(1:3)
+               
                   ! Eq(8) J.Chem.Theory Comput. 2012, 8, 5020-5034
                   ! V_con(d^i_AB) = (k_con* ((d^i_AB - ave(d_AB))^2 -(C^con_AB)^2 )^2 )/ 2*(C^con_AB)^2
-                  
-                  
-                  !E1 = K_CONST*LOCALCONFACTOR*((DUMMY2-CCLOCAL2)**2/(2.0D0*CCLOCAL2))
-                  !E2=K_CONST*LOCALCONFACTOR*((DUMMY**2-CCLOCAL**2)**2)/(2.0D0*CCLOCAL**2) 
-                  !WRITE(*,*) "CONSTRAINT_DIFF> EDIFF: ", E1-E2
-                  
-                  DUMMY = K_CONST*LOCALCONFACTOR*((DUMMY2-CCLOCAL2)**2/(2.0D0*CCLOCAL2))
+                              
+                  !DUMMY = K_CONST*LOCALCONFACTOR*((DUMMY2-CCLOCAL2)**2/(2.0D0*CCLOCAL2))
+                  DUMMy = 0.5D0*K_CONST*LOCALCONFACTOR*((DUMMY/CCLOCAL)-1.0D0)*((DUMMY/CCLOCAL)+1.0D0)*CCLOCAL2
 
                   EEE(J1) = EEE(J1) + DUMMY
                   ECON = ECON + DUMMY
@@ -511,16 +507,22 @@ MODULE CONSTR_E_GRAD
                ! terms for image J1 - non-zero derivatives only for J1. D2 is the distance for image J1.
                ! these are the constraint energies as in get_constraint_e_nointernal
                
-               ! condition: |G2| - mean(d_AB) < C_AB
+               ! condition: |G2| - mean(d_AB) > C_AB
                DUMMY = D2-CONDISTREFLOCAL(J2)
                IF ((DUMMY.GT.CCLOCAL).AND.(J1.LT.NIMAGES+2)) THEN  
                   !CONSTGRAD(1:3)=2*INTCONSTRAINTDEL*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G2(1:3)
                   !DUMMY=INTCONSTRAINTDEL*(DUMMY**2-CCLOCAL**2)**2/(2.0D0*CCLOCAL**2)
                   ! We are missing eps_con
-                  CONSTGRAD(1:3)=2.0D0*K_CONST*LOCALCONFACTOR*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G2(1:3)
+                 
+                  !CONSTGRAD(1:3)=2.0D0*K_CONST*LOCALCONFACTOR*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G2(1:3)
+                  CONSTGRAD(1:3)=2.0D0*K_CONST*LOCALCONFACTOR*((DUMMY/CCLOCAL)-1.0D0)*((DUMMY/CCLOCAL)+1.0D0)*DUMMY*G2(1:3)
+                               
                   ! V_con(d^i_AB) = eps_con ((d^i_AB-ave*(d^i_AB))^2 - C_con_AB^2 )^2 / 2(C_con_AB)^2
-                  DUMMY=K_CONST*LOCALCONFACTOR*((DUMMY**2-CCLOCAL**2)**2)/(2.0D0*CCLOCAL**2)                  
-                  
+                  !WARNING changing DUMMY here to (hopefully) improve numerical stability
+                  !DUMMY=K_CONST*LOCALCONFACTOR*((DUMMY**2-CCLOCAL**2)**2)/(2.0D0*CCLOCAL**2)                  
+                  !DUMMY=0.5D0*K_CONST*LOCALCONFACTOR*((DUMMY**2/CCLOCAL**2)-1.0D0)*CCLOCAL**2
+                  DUMMY=0.5D0*K_CONST*LOCALCONFACTOR*((DUMMY/CCLOCAL)-1.0D0)*((DUMMY/CCLOCAL)+1.0D0)*CCLOCAL**2
+
                   EEE(J1) = EEE(J1) + DUMMY
                   ECON=ECON+DUMMY
                   IF (DUMMY.GT.EMAX) THEN
@@ -547,15 +549,15 @@ MODULE CONSTR_E_GRAD
                ! Used for congrad2 and have intenal minima AND d(theta*)-mean(d_AB) > C_conAB
                ! Warning added J1.NE.2 to match repulsions
                !NOINT = .TRUE.
-               IF (CHECKCONINT.AND.(.NOT.NOINT).AND.(ABS(DINT-CONDISTREFLOCAL(J2)).GT.CCLOCAL).AND.(J1.NE.2)) THEN
-                  WRITE(*,*) "WARNING - We are not supposed to look for internal min atm"
-
-                  DUMMY=DINT-CONDISTREFLOCAL(J2)  
-                  
+               DUMMY=DINT-CONDISTREFLOCAL(J2) 
+               IF (CHECKCONINT.AND.(.NOT.NOINT).AND.(ABS(DUMMY).GT.CCLOCAL).AND.(J1.NE.2)) THEN
+       
                   !Image J1-1 
 
                   !CONSTGRAD(1:3)=2*INTMINFAC*INTCONSTRAINTDEL*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G1INT(1:3)
-                  CONSTGRAD(1:3)=2.0D0*K_CONST*INTMINFAC*LOCALCONFACTOR*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G1INT(1:3)
+                  !CONSTGRAD(1:3)=2.0D0*K_CONST*INTMINFAC*LOCALCONFACTOR*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G1INT(1:3)
+                  CONSTGRAD(1:3)=2.0D0*K_CONST*INTMINFAC*LOCALCONFACTOR*((DUMMY/CCLOCAL)-1.0D0)*((DUMMY/CCLOCAL)+1.0D0)*DUMMY*G1INT(1:3)
+                  
                   !GGG(NI1+1:NI1+3)=GGG(NI1+1:NI1+3)+CONSTGRAD(1:3)
                   !GGG(NJ1+1:NJ1+3)=GGG(NJ1+1:NJ1+3)-CONSTGRAD(1:3)
 
@@ -564,12 +566,18 @@ MODULE CONSTR_E_GRAD
                   
                   !Image J1 - we add this one normally
                   !CONSTGRAD(1:3)=2*INTMINFAC*INTCONSTRAINTDEL*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G2INT(1:3)
-                  CONSTGRAD(1:3)=2.0D0*K_CONST*INTMINFAC*LOCALCONFACTOR*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G2INT(1:3)
+                  !CONSTGRAD(1:3)=2.0D0*K_CONST*INTMINFAC*LOCALCONFACTOR*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G2INT(1:3)
+                  CONSTGRAD(1:3)=2.0D0*K_CONST*INTMINFAC*LOCALCONFACTOR*((DUMMY/CCLOCAL)-1.0D0)*((DUMMY/CCLOCAL)+1.0D0)*DUMMY*G2INT(1:3)
                   GGG(NI2+1:NI2+3)=GGG(NI2+1:NI2+3)+CONSTGRAD(1:3)
                   GGG(NJ2+1:NJ2+3)=GGG(NJ2+1:NJ2+3)-CONSTGRAD(1:3)
 
                   !DUMMY=INTMINFAC*INTCONSTRAINTDEL*(DUMMY**2-CCLOCAL**2)**2/(2.0D0*CCLOCAL**2)
-                  DUMMY=K_CONST*INTMINFAC*LOCALCONFACTOR*(DUMMY**2-CCLOCAL**2)**2/(2.0D0*CCLOCAL**2)
+                  !DUMMY=K_CONST*INTMINFAC*LOCALCONFACTOR*(DUMMY**2-CCLOCAL**2)**2/(2.0D0*CCLOCAL**2)
+                  
+                  !Note not much difference between expressions below 
+                  !DUMMY=0.5D0*K_CONST*INTMINFAC*LOCALCONFACTOR*((DUMMY**2/CCLOCAL**2)-1.0D0)*CCLOCAL**2
+                  DUMMY=0.5D0*K_CONST*INTMINFAC*LOCALCONFACTOR*((DUMMY/CCLOCAL)-1.0D0)*((DUMMY/CCLOCAL)+1.0D0)*CCLOCAL**2
+                  !WRITE(*,*) "CONSTRAINT_E> DUMMY", DUMMY
                   ECON=ECON+DUMMY
                   IF (DUMMY.GT.EMAX) THEN
                      IMAX=J1
@@ -597,15 +605,19 @@ MODULE CONSTR_E_GRAD
          END DO
 
          !Changed the way we add to J-1 images
+         !WRITE(*,*) "EEE2 Before CSHIF ", EEE2
          EEE2 = CSHIFT(EEE2,SHIFT=1)
+         !WRITE(*,*) "EEE2 After CSHIF ", EEE2
          EEE(1:NIMAGES+2)=EEE(1:NIMAGES+2)+EEE2(1:NIMAGES+2) 
 
          GGG2 = CSHIFT(GGG2,SHIFT=3*NATOMS)
+
          GGG(1:3*NATOMS*(NIMAGES+2)) = GGG(1:3*NATOMS*(NIMAGES+2))+ GGG2(1:3*NATOMS*(NIMAGES+2))
 
          !QUESTION why do we have the line below?  
-         CONVERGECONTEST=EMAX/INTCONSTRAINTDEL
-         
+         !CONVERGECONTEST=EMAX/INTCONSTRAINTDEL
+         CONVERGECONTEST=EMAX
+
          IF (-FMIN.GT.FMAX) FMAX=-FMIN
          FCONTEST=FMAX
          MAXCONIMAGE = JMAX
@@ -1243,7 +1255,7 @@ MODULE CONSTR_E_GRAD
                !dd_AB^2/dx = 2*(|G1.G2|^2-|G1|^2|G2|^2)*(G1(:) - G2(:)) / (|G1-G2|^4) + (2*G1(:)*|G2|^2 +G1.G2*(G2(:)) /(|G1-G2|^2) 
                !dd_AB/dx = dd^2/dx /2*d_AB
                
-               DUMMY2 =  DSQ1*DSQ2 - DP_G12_SQ 
+               DUMMY2 = DP_G12_SQ - DSQ1*DSQ2 
                !Warning added minus here (dummy2 now changed the signs)
                G1INT(1:3)= (DUMMY2*(G1(1:3) - G2(1:3)) + DINTMIN*(G1(1:3)*DSQ2 -G2(1:3)*DP_G12))/DUMMY
                G2INT(1:3)= (DUMMY2*(G2(1:3) - G1(1:3)) + DINTMIN*(G2(1:3)*DSQ1 -G1(1:3)*DP_G12))/DUMMY   
