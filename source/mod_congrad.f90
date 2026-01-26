@@ -550,7 +550,7 @@ MODULE CONSTR_E_GRAD
                ! Warning added J1.NE.2 to match repulsions
                !NOINT = .TRUE.
                DUMMY=DINT-CONDISTREFLOCAL(J2) 
-               IF (CHECKCONINT.AND.(.NOT.NOINT).AND.(ABS(DUMMY).GT.CCLOCAL).AND.(J1.NE.2)) THEN
+               IF (CHECKCONINT.AND.(.NOT.NOINT).AND.(ABS(DUMMY).GT.CCLOCAL).AND.(J1.NE.2).AND.(J1.LT.(NIMAGES+2))) THEN
        
                   !Image J1-1 
 
@@ -988,7 +988,8 @@ MODULE CONSTR_E_GRAD
                   GGG(NJ2+1:NJ2+3)=GGG(NJ2+1:NJ2+3)-REPGRAD(1:3)
                END IF
                DUMMY=0.0D0
-               IF ((.NOT.NOINT).AND.(DINT.LT.RPLOCAL).AND.(J1.NE.2)) THEN
+               !WARNING not calculating internal minima involving end images
+               IF ((.NOT.NOINT).AND.(DINT.LT.RPLOCAL).AND.(J1.NE.2).AND.(J1.LT.(NIMAGES+2))) THEN
                   !DUMMY=INTMINFAC*QCICONSTRREP*(1.0D0/DSQI+(2.0D0*DINT-3.0D0*RPLOCAL)*INTCONSTINV)
                   !DUMMY=INTMINFAC*K_REP*(1.0D0/DSQI+(2.0D0*DINT-3.0D0*RPLOCAL)*INTCONSTINV)
                   DUMMY = K_REP*INTMINFAC*(1.0D0/DSQI-3.0D0/RPLOCAL2+(2.0D0*DINT)/(RPLOCAL3) )
@@ -1070,8 +1071,8 @@ MODULE CONSTR_E_GRAD
          IMAX = -1
 
          DO J1=1,NIMAGES+1
-            NI1 = (3*NATOMS)*(J1-1)
-            NI2 = (3*NATOMS)*J1
+            NI1 = (3*NATOMS)*(J1-1) !Image J-1
+            NI2 = (3*NATOMS)*J1     !Image J
             DPLUS = 0.0D0
             ! get energy for springs
             DO J2=1,NATOMS
@@ -1082,6 +1083,7 @@ MODULE CONSTR_E_GRAD
                ENDIF               
             END DO
             DVEC(J1) = SQRT(DPLUS)
+            
             ! V_QCI = 1/2 * K_SPR * |X_i - X_{i-1}|^2
             DUMMY = KINT*0.5D0*DPLUS/KINTSCALED
             !QUESTION this adds energy to X_0 and X_n+1? How should the energy be divided? 
@@ -1108,7 +1110,10 @@ MODULE CONSTR_E_GRAD
                SPGRAD = 0.0D0
                IF ((.NOT.QCISPRINGACTIVET).OR.ATOMACTIVE(J2)) THEN 
                   SPGRAD(1:3)=DUMMY*(XYZ(NI1+3*(J2-1)+1:NI1+3*(J2-1)+3)-XYZ(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3))
+                  !Image J-1
                   GGG(NI1+3*(J2-1)+1:NI1+3*(J2-1)+3)=GGG(NI1+3*(J2-1)+1:NI1+3*(J2-1)+3)+SPGRAD(1:3)
+                  !GGG2(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)=GGG2(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)+SPGRAD(1:3)
+                  !Image J
                   GGG(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)=GGG(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)-SPGRAD(1:3)
                ENDIF
             ENDDO
@@ -1119,6 +1124,9 @@ MODULE CONSTR_E_GRAD
          EEE2 = CSHIFT(EEE2,SHIFT=-1)
          !WRITE(*,*) "EEE2 after CSHIF: ", EEE2
          EEE(1:NIMAGES+2)=EEE(1:NIMAGES+2)+EEE2(1:NIMAGES+2) 
+
+         !GGG2 = CSHIFT(GGG2, SHIFT=3*NATOMS)
+         !GGG(1:3*NATOMS*(NIMAGES+2))=GGG(1:3*NATOMS*(NIMAGES+2))+GGG2(1:3*NATOMS*(NIMAGES+2))
 
          MAXSPRIMAGE = IMAX
          EMAXSPR = EMAX

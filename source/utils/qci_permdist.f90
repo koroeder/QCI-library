@@ -395,8 +395,8 @@ MODULE QCIPERMDIST
          NDUMMY=1
 
          ! Loops to assign permutable atoms for book keeping
-         ! This block is needed to allow associated permutational atoms to ve recognised as permutable later.
-         ! This is not necessary of the associated permutable atons appear in perm.allow in their own list,
+         ! This block is needed to allow associated permutational atoms to be recognised as permutable later.
+         ! This is not necessary of the associated permutable atoms appear in perm.allow in their own list,
          ! as for methy and amine hydrogens, but it is necessary for associated H atoms in phenylalanine,
          ! as these cannot permute without the associated C atoms, etc. The choice of primary and associated
          ! sets for phenylalanine is arbitrary.
