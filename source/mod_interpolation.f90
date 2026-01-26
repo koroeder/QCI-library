@@ -47,8 +47,9 @@ MODULE QCIINTERPOLATION
          REAL(KIND = REAL64) :: RHO1(MUPDATE), ALPHA(MUPDATE)
          REAL(KIND = REAL64) :: STPMIN ! minimum step-size
          REAL(KIND = REAL64) :: CURRMAXSEP, CURRMINSEP ! current minimum and maximum image separation
-         INTEGER :: IDXMIN, IDXMAX ! id for minimum and maximum distance images
-         !!DEGBUG
+         INTEGER :: IDXMIN, IDXMAX !< id for minimum and maximum distance images
+         
+         !DEGBUG
          INTEGER :: UNITCONSTR
 
          !initiate variables for the interpolation, including image density set nimage
@@ -209,8 +210,11 @@ MODULE QCIINTERPOLATION
                   DO I2=1,NMINAFTERADD
                      GTMP(1:DIMS)=0.0D0
                      ! the variables needed for step taking are either module variables in this module or saved in mod_intcoords
+                     
                      CALL MAKESTEP(NITERUSE,NPT,POINT,RHO1,ALPHA)          
-           
+                     !MAKESTEP updates GTMP
+
+                     !  <G,R_k> / (|G|*|R_k|) 
                      IF ((DOTP(DIMS,G,GTMP)/MAX(1.0-100,SQRT(DOTP(DIMS,G,G))*SQRT(DOTP(DIMS,GTMP,GTMP)))).GT.0.0D0) THEN
                         IF (DEBUG) WRITE(*,*) ' QCIinterp - Search direction has positive projection onto gradient - reversing step'
                         GTMP(1:DIMS)=-GTMP(1:DIMS)
@@ -221,6 +225,7 @@ MODULE QCIINTERPOLATION
                      ! Take the minimum scale factor for all images for LBFGS step to avoid discontinuities
                      STPMIN = 1.0D0
                      DO J1=1,NIMAGES
+                        ! |SEARCHSTEP| along dimension POINT
                         STEPIMAGE(J1) = SQRT(DOTP(3*NATOMS,SEARCHSTEP(POINT,(3*NATOMS)*(J1-1)+1:(3*NATOMS)*J1), &
                                                          SEARCHSTEP(POINT,(3*NATOMS)*(J1-1)+1:(3*NATOMS)*J1)))
                         IF (STEPIMAGE(J1).GT.MAXQCIBFGS) THEN
@@ -235,6 +240,8 @@ MODULE QCIINTERPOLATION
                        
                      DO WHILE(.NOT.ACCEPTEDSTEP)
                         !apply our step to our coordinates
+                        !r_{i+1} = r_i + step*s_i
+                        !QUESTION does SEARCHSTEP need to be unit vector? 
                         X(1:DIMS) = X(1:DIMS) + STP(1:DIMS)*SEARCHSTEP(POINT,1:DIMS)
          
                         ! call congrad routine
@@ -298,6 +305,7 @@ MODULE QCIINTERPOLATION
                   END IF
                END IF
             END IF
+            !End of atom adding part
 
             GTMP(1:DIMS)=0.0D0
             ! the variables needed for step taking are either module variables in this module or saved in mod_intcoords
@@ -518,6 +526,8 @@ MODULE QCIINTERPOLATION
 
       END SUBROUTINE GET_STATISTIC_INTERP
 
+      !> Calculate min and max image separations.    
+      !! The separation is defined as sum of all the distances 
       SUBROUTINE GET_IMAGE_SEPARATION(DMIN,DMAX,JMIN,JMAX)
          USE QCIKEYS, ONLY: NATOMS, NIMAGES
          USE HELPER_FNCTS, ONLY: DISTANCE_ATOM_DIFF_IMAGES
@@ -535,8 +545,8 @@ MODULE QCIINTERPOLATION
 
          DO J1=1,NIMAGES+1
             DISTTOTAL = 0.0D0
-            X1(1:3*NATOMS) = XYZ((J1-1)*3*NATOMS+1:J1*3*NATOMS)
-            X2(1:3*NATOMS) = XYZ(J1*3*NATOMS+1:(J1+1)*3*NATOMS)
+            X1(1:3*NATOMS) = XYZ((J1-1)*3*NATOMS+1:J1*3*NATOMS) !Image J
+            X2(1:3*NATOMS) = XYZ(J1*3*NATOMS+1:(J1+1)*3*NATOMS) !Image J+1
             DO J2=1,NATOMS
                IF (ATOMACTIVE(J2)) THEN
                   CALL DISTANCE_ATOM_DIFF_IMAGES(NATOMS, X1, X2, J2, DISTATOM)
@@ -648,6 +658,10 @@ MODULE QCIINTERPOLATION
             RETURN
          END IF
 
+         !QUESTION: MUPDATE is number of stored information about previous step, so we don't go above this number 
+         !BOUND is the current number of prev info?
+         
+         !Step1
          IF (NITERDONE.GT.MUPDATE) THEN
             BOUND = MUPDATE
          ELSE
