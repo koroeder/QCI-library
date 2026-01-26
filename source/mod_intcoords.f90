@@ -66,7 +66,8 @@ MODULE MOD_INTCOORDS
          CURRSMALLEST = 1.0D100
          CURRBBDIST = 1.0D100
 
-         !adjust inlinlist to account for frozen atoms, these are active by default, so we don't need them in the linear interpolation
+         !adjust inlinlist to account for frozen atoms, 
+         !these are active by default, so we don't need them in the linear interpolation
          DO J1=1,NATOMS
             IF (QCIFROZEN(J1)) INLINLIST(J1) = .FALSE.
          END DO

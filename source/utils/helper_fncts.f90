@@ -120,9 +120,9 @@ MODULE HELPER_FNCTS
       SUBROUTINE DISTANCE_ATOM_DIFF_IMAGES(NATOMS, X1, X2, IDX, DIST)
          IMPLICIT NONE
          INTEGER, INTENT(IN) :: NATOMS
-         REAL(KIND = REAL64), INTENT(IN) :: X1(3*NATOMS), X2(3*NATOMS)
-         INTEGER, INTENT(IN) :: IDX
-         REAL(KIND = REAL64), INTENT(OUT) :: DIST
+         REAL(KIND = REAL64), INTENT(IN) :: X1(3*NATOMS), X2(3*NATOMS) !< all atoms in the image 
+         INTEGER, INTENT(IN) :: IDX !< atom ID 
+         REAL(KIND = REAL64), INTENT(OUT) :: DIST !< distance 
          INTEGER :: I
 
          DIST = 0.0D0

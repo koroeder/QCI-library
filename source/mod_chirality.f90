@@ -4,23 +4,24 @@ MODULE CHIRALITY
    USE AMBER_CONSTRAINTS, ONLY: NRES, NBOND, BONDS, RESNAMES, RES_START, RES_END, AMBER_NAMES, ELEMENT
    IMPLICIT NONE
    INTEGER, SAVE :: NCHIRAL = -1
+   
    !!DEBUG
    INTEGER, SAVE :: NCHIRALBANDS = 0
    CHARACTER(LEN=4) :: NBAND
-   INTEGER :: NCSP2                                          !number of sp2 hybridised carbons
-   INTEGER :: NDOUBLE                                        !number of double bonds
-   INTEGER, ALLOCATABLE :: CSP2(:)                           !list of sp2 hybridised carbon
-   INTEGER, ALLOCATABLE :: DOUBLEB(:,:)                                !array to store double bonds
-   INTEGER, DIMENSION(:,:), ALLOCATABLE, SAVE :: CHIR_INFO   !array for chiral centres
-   INTEGER, ALLOCATABLE, SAVE :: NBONDED(:)                  !number of bonds for each atom 
-   INTEGER, ALLOCATABLE, SAVE :: NNEIGHBOURS(:)              !number of bonded atoms 
-   INTEGER, DIMENSION(:,:), ALLOCATABLE, SAVE :: BONDEDATS   !atoms bonded by atomid (up to 6)
-   INTEGER, DIMENSION(:,:), ALLOCATABLE, SAVE :: BONDEDELS   !atoms bonded by element (up to 6) 
-   LOGICAL, ALLOCATABLE, SAVE :: POSSIBLE_CC(:)              !potential chiral centres
-   INTEGER, ALLOCATABLE, SAVE :: POSSIBLE_IDS(:,:)           !ids of bonded atoms   
-   LOGICAL, ALLOCATABLE :: POTENTIAL_SWAPT(:)                ! Can we use a swap of atoms to change the chirality later?
-   INTEGER, PARAMETER :: NSWAPCUT = 4                        ! Cut off for largest swap size - currently this is capped at methyl group size.  
-   INTEGER, ALLOCATABLE :: SWAPGROUPS(:,:,:)                   ! Atom ids to be swapped (dim1: chiral centre, dim2: groups, dim3: atoms to be swapped)
+   INTEGER :: NCSP2                                          !<number of sp2 hybridised carbons
+   INTEGER :: NDOUBLE                                        !<number of double bonds
+   INTEGER, ALLOCATABLE :: CSP2(:)                           !<list of sp2 hybridised carbon
+   INTEGER, ALLOCATABLE :: DOUBLEB(:,:)                      !<array to store double bonds
+   INTEGER, DIMENSION(:,:), ALLOCATABLE, SAVE :: CHIR_INFO   !<array for chiral centres
+   INTEGER, ALLOCATABLE, SAVE :: NBONDED(:)                  !<number of bonds for each atom 
+   INTEGER, ALLOCATABLE, SAVE :: NNEIGHBOURS(:)              !<number of bonded atoms 
+   INTEGER, DIMENSION(:,:), ALLOCATABLE, SAVE :: BONDEDATS   !<atoms bonded by atomid (up to 6)
+   INTEGER, DIMENSION(:,:), ALLOCATABLE, SAVE :: BONDEDELS   !<atoms bonded by element (up to 6) 
+   LOGICAL, ALLOCATABLE, SAVE :: POSSIBLE_CC(:)              !<potential chiral centres
+   INTEGER, ALLOCATABLE, SAVE :: POSSIBLE_IDS(:,:)           !<ids of bonded atoms   
+   LOGICAL, ALLOCATABLE :: POTENTIAL_SWAPT(:)                !< Can we use a swap of atoms to change the chirality later?
+   INTEGER, PARAMETER :: NSWAPCUT = 4                        !< Cut off for largest swap size - currently this is capped at methyl group size.  
+   INTEGER, ALLOCATABLE :: SWAPGROUPS(:,:,:)                 !< Atom ids to be swapped (dim1: chiral centre, dim2: groups, dim3: atoms to be swapped)
 
    CONTAINS
       SUBROUTINE DEALLOC_CHIR_INTERNALS()
@@ -279,7 +280,7 @@ MODULE CHIRALITY
          USE AMBER_CONSTRAINTS, ONLY: RES_START, RES_END
          USE QCIMINDIST, ONLY: ALIGNXBTOA
          IMPLICIT NONE
-         REAL(KIND = REAL64), INTENT(INOUT) :: XYZ((3*NATOMS)*(NIMAGES+2))
+         REAL(KIND = REAL64), INTENT(INOUT) :: XYZ((3*NATOMS)*(NIMAGES+2)) !< all atom coordinates
          REAL(KIND = REAL64) :: NEIGHBOUR_COORDS(12), CENTRE_COORDS(3) !intent needed?
          REAL(KIND = REAL64) :: COORDSA(3*NATOMS), COORDSB(3*NATOMS)
          INTEGER :: CHIRALCENTRE
@@ -305,6 +306,7 @@ MODULE CHIRALITY
             CHIRALCENTRE = CHIR_INFO(J1,1)
             !check whether the chiral centre and connected atoms are active
             IF (.NOT.ATOMACTIVE(CHIRALCENTRE)) CENTREACTIVE = .FALSE.
+            !QUESTION what is J2 here?
             DO J2=2,5
                IF (.NOT.ATOMACTIVE(CHIR_INFO(J1,J2))) CENTREACTIVE = .FALSE.
             END DO
@@ -830,7 +832,8 @@ MODULE CHIRALITY
          RETURN
       END SUBROUTINE CREATE_GHOST_ATOMS
 
-      !get the number of bonds for each atom and initialise the arrays for bonded atoms and their elements
+      !> get the number of bonds for each atom and initialise the arrays for bonded atoms and their elements
+      !> If atoms is bonded to 4 atoms, label it potential chiral centre
       SUBROUTINE NBONDED_ATOMS()
          IMPLICIT NONE
          INTEGER :: J1, ATOMID1, ATOMID2
@@ -895,7 +898,7 @@ MODULE CHIRALITY
          IF ((N1.NE.N2).AND.(N2.NE.N3).AND.(N3.NE.N4)) CHIRALT = .TRUE.
       END SUBROUTINE TEST_NEIGHBOURS
 
-      !check whether atoms are bonded
+      !> check whether atoms are bonded
       SUBROUTINE CHECK_BOND(ATOM1,ATOM2,BONDEDT)
          IMPLICIT NONE
          INTEGER, INTENT(IN) :: ATOM1, ATOM2

@@ -1392,8 +1392,8 @@ MODULE QCIPERMDIST
 
       PURE REAL(KIND=REAL64) FUNCTION PERMDIST(P, Q, S, PBC)
          IMPLICIT NONE
-         REAL(KIND=REAL64), INTENT(IN) :: P(3), Q(3) ! coordinates
-         REAL(KIND=REAL64), INTENT(IN) :: S(3) ! box coordinates
+         REAL(KIND=REAL64), INTENT(IN) :: P(3), Q(3) !< coordinates
+         REAL(KIND=REAL64), INTENT(IN) :: S(3) !< box coordinates
          LOGICAL, INTENT(IN) :: PBC
 
          REAL(KIND=REAL64) :: T, D
