@@ -15,13 +15,32 @@ MODULE QCISETUP
          LOGICAL, INTENT(IN) :: ALIGNT
 
          ! parse settings
+         WRITE(*,*) "qci_init> Reading parameter file ..."
          CALL PARSE_SETTINGS(PARAMETERFILE)
          ! starting permutational setup perm.allow
-         IF (QCIPERMT) CALL INIT_PERMALLOW(NATOMS)
+         IF (QCIPERMT) THEN 
+            CALL INIT_PERMALLOW(NATOMS)
+            WRITE(*,*) "qci_init> Reading perm.allow file ..."
+         ENDIF
+         !Need to get frozen atoms before aligning the endpoints for loperdist to work atm. 
+         IF (QCIFREEZET) THEN
+            WRITE(*,*) "qci_init> Calling GET_FROZEN_ATOMS ..."
+            CALL GET_FROZEN_ATOMS()
+         ENDIF
+         
          ! align endpoints
-         IF (ALIGNT.OR.USEIMAGEDENSITY) CALL ALIGN_ENDPOINTS()
-         ! get frozen atoms setup
-         IF (QCIFREEZET) CALL GET_FROZEN_ATOMS()
+          IF (ALIGNT.OR.USEIMAGEDENSITY) THEN 
+            WRITE(*,*) "qci_init> Running ALIGN_ENDOINTS" 
+            CALL ALIGN_ENDPOINTS()
+            WRITE(*,*) "qci_init> Aligned endpoints"
+         ENDIF
+
+         !Need to get frozen atoms before aligning the endpoints for loperdist to work atm. 
+         IF (QCIFREEZET) THEN
+            WRITE(*,*) "qci_init> Calling GET_FROZEN_ATOMS ..."
+            CALL GET_FROZEN_ATOMS()
+         ENDIF
+         
          ! get constraints
          CALL CREATE_CONSTRAINTS()
          ! get atoms for linear interpolation
@@ -113,9 +132,12 @@ MODULE QCISETUP
          INTEGER :: NMOVE, NEWPERM(NATOMS)
 
          !QUERY: will lopermdist actually change coordinates or do we need a wrapper to do so?
+         ! -> lopermdist outputs xfinal and xstart
          IF (QCIPERMT) THEN
+            WRITE(*,*) "Call LOPERMDIST: DOGROUP=0" 
             CALL LOPERMDIST(XFINAL,XSTART,E2E_DIST,DIST2,RMATBEST,0,NMOVE,NEWPERM)
-            WRITE(*,*) " align_endpoints> Distance between endpoints is ", E2E_DIST
+            WRITE(*,*) " align_endpoints> Total distance between endpoints is    ", E2E_DIST
+            WRITE(*,*) " align_endpoints> Per atom distance between endpoints is ", E2E_DIST/NATOMS
          ELSE
             CALL ALIGNXBTOA(XSTART, XFINAL, NATOMS)
          END IF
@@ -233,7 +255,8 @@ MODULE QCISETUP
             READ(VAL, *) QCIPERMCHECKINT
          ELSE IF (ENTRY.EQ."QCIPERMCUT") THEN
             READ(VAL, *) QCIPERMCUT
-         ! use of frozen atoms
+         
+            ! use of frozen atoms
          ELSE IF (ENTRY.EQ."FREEZEFILE") THEN
             QCIFREEZET = .TRUE.            
             FREEZEFILE = VAL
@@ -244,7 +267,8 @@ MODULE QCISETUP
          ELSE IF (ENTRY.EQ."QCIFREEZE") THEN
             QCIFREEZET = .TRUE.
             READ(VAL, *) QCIFREEZETOL
-         ! check for internal minima in constraints?
+         
+            ! check for internal minima in constraints?
          ELSE IF (ENTRY.EQ."CHECKINTMINCONSTR") THEN
             CHECKCONINT = .TRUE.
          ! scaling factor for internal minima

@@ -1,5 +1,6 @@
 MODULE QCIPERMDIST
    USE QCIPREC
+   USE QCIKEYS, ONLY: QCIFROZEN
    IMPLICIT NONE
    ! number of permutational groups
    INTEGER :: NPERMGROUP = 0
@@ -28,24 +29,24 @@ MODULE QCIPERMDIST
    INTEGER, ALLOCATABLE :: ORDERNUM(:)
 
    ! common constraints
-   INTEGER :: NCOMMONMAX = -1
+   INTEGER :: NCOMMONMAX = -1 ! unused?
    INTEGER, ALLOCATABLE :: NCONCOMMON(:)
    INTEGER, ALLOCATABLE :: CONCOMMON(:,:)
 
    !variables in keys
-   INTEGER :: LOCALPERMNEIGH = 11
-   INTEGER :: LOCALPERMMAXSEP = 3
+   INTEGER :: LOCALPERMNEIGH = 11 ! used - what is considered local for local permutations
+   !INTEGER :: LOCALPERMMAXSEP = 3 ! unused
 
-   LOGICAL :: PERMDISTINIT = .FALSE.
-   LOGICAL :: PERMGUESS = .FALSE.
-   LOGICAL :: LPERMOFF=.FALSE.
+   !LOGICAL :: PERMDISTINIT = .FALSE. ! This seems unused?
+   !LOGICAL :: PERMGUESS = .FALSE.  ! This seems unused? 
+   LOGICAL :: LPERMOFF=.TRUE. !.FALSE. !< QUESTION This is always seems off with no way to assign it/ manually changing to true causes glibc (memory) crash 
 
-   LOGICAL :: PBETTER = .FALSE.
+   LOGICAL :: PBETTER = .FALSE.! Used
     
    REAL(KIND=REAL64) :: LOCALPERMCUT = 0.5D0
    REAL(KIND=REAL64) :: LOCALPERMCUT2 = 5.0D0
    ! is this ever used or initialised?
-   REAL(KIND=REAL64) :: LOCALPERMCUTINC
+   REAL(KIND=REAL64) :: LOCALPERMCUTINC ! unused?
 
    REAL(KIND=REAL64) :: PDISTANCE
    REAL(KIND=REAL64) :: NOPDISTANCE
@@ -53,7 +54,16 @@ MODULE QCIPERMDIST
    ! minperm variables
    ! Save the largest arrays between iterations to reduce allocations.
    ! cc, kk: Sparse matrix of distances
-   INTEGER(KIND=INT64), ALLOCATABLE :: CC(:), KK(:)
+   !
+   ! kk(first(i)..first(i+1)-1):
+       !       Column indexes of existing elements in row i
+        !     cc(first(i)..first(i+1)-1):
+       !       Matrix elements of row i
+   !QUESTION why do we use INTEGER(KIND=INT64 here?
+   !
+   INTEGER(KIND=INT64), ALLOCATABLE :: CC(:) !< cc(first(i)..first(i+1)-1): Vector containing ditances == weigths
+   INTEGER(KIND=INT64), ALLOCATABLE :: KK(:) !< kk(first(i)..first(i+1)-1): Column indexes of existing elements in row i
+   
 
    !start and end indices and active groups
    LOGICAL, ALLOCATABLE :: GROUPACTIVE(:)
@@ -101,6 +111,7 @@ MODULE QCIPERMDIST
          IF (ALLOCATED(GROUPACTIVE)) DEALLOCATE(GROUPACTIVE)
       END SUBROUTINE DEALLOC_QCIPERM
 
+      !> Reads perm.allow file
       SUBROUTINE INIT_PERMALLOW(NATOMS)
          USE QCIFILEHANDLER, ONLY: GETUNIT
          IMPLICIT NONE
@@ -176,9 +187,9 @@ MODULE QCIPERMDIST
          USE QCIKEYS, ONLY: DEBUG, NATOMS, NIMAGES
          USE MOD_INTCOORDS, ONLY: XYZ
          IMPLICIT NONE
-         INTEGER, INTENT(IN) :: PERMGROUPIDX !number of permutational group
-         INTEGER, INTENT(IN) :: FIRSTATOM !first atom id in permutational group
-         LOGICAL, INTENT(IN) :: REVERSET  !stepping direction through images
+         INTEGER, INTENT(IN) :: PERMGROUPIDX !<number of permutational group
+         INTEGER, INTENT(IN) :: FIRSTATOM !<first atom id in permutational group
+         LOGICAL, INTENT(IN) :: REVERSET  !<stepping direction through images
 
          INTEGER :: J1, J2, IDX, FIRSTIMAGE, SECONDIMAGE
          INTEGER :: STARTIDX, ENDIDX, STEP
@@ -213,11 +224,12 @@ MODULE QCIPERMDIST
             ! We are running J1 from 1 to NIMAGES/NIMAGES to 1 and need to get the right coordinates for the above images.
             ! For the forward direction J=J1 and J=J1+1 for the two images, for the reverse it is J=J1+2 and J=J1+1.
             IF (STEP.EQ.1) THEN
-               FIRSTIMAGE = J1
+               FIRSTIMAGE = J1     !1
             ELSE
-               FIRSTIMAGE = J1 + 2
+               FIRSTIMAGE = J1 + 2 !NIMAGES+2
             END IF 
-            SECONDIMAGE = J1+1
+            SECONDIMAGE = J1+1     !2 or NIMAGES+1
+            
             !WRITE(*,*) "Checking images ", FIRSTIMAGE, SECONDIMAGE
             !coordinates for image 1
             COORDSB(1:3*NATOMS) = XYZ((3*NATOMS*(FIRSTIMAGE-1)+1):3*NATOMS*FIRSTIMAGE)
@@ -232,18 +244,20 @@ MODULE QCIPERMDIST
             END IF
 
             !swap atoms if we found a better permutational alignment
+            !LOPERMIST assigns PBETTER
             IF ((NMOVEP.GT.0).AND.PBETTER) THEN
                WRITE(*,*) " Moving ", NMOVEP, " atoms in image ", SECONDIMAGE
-               COORDSA(1:3*NATOMS) = XYZ((3*NATOMS*(SECONDIMAGE-1)+1):3*NATOMS*SECONDIMAGE) 
+               COORDSA(1:3*NATOMS) = XYZ((3*NATOMS*(SECONDIMAGE-1)+1):3*NATOMS*SECONDIMAGE) !we are going back to original coordsA
                DO J2=1,NPERMSIZE(PERMGROUPIDX)
                   IDX = PERMGROUP(FIRSTATOM+J2-1)
                   IF (PERMP(IDX).NE.IDX) THEN
-                     !WRITE(*,*) ' check_perm_band> image ',SECONDIMAGE,' move atom ',PERMP(IDX),' to position ',IDX
+                     WRITE(*,*) ' check_perm_band> image ',SECONDIMAGE,' move atom ',PERMP(IDX),' to position ',IDX
                      COORDSA(3*(IDX-1)+1)=XYZ(3*NATOMS*(SECONDIMAGE-1)+3*(PERMP(IDX)-1)+1)
                      COORDSA(3*(IDX-1)+2)=XYZ(3*NATOMS*(SECONDIMAGE-1)+3*(PERMP(IDX)-1)+2)
                      COORDSA(3*(IDX-1)+3)=XYZ(3*NATOMS*(SECONDIMAGE-1)+3*(PERMP(IDX)-1)+3)
                   ENDIF
                ENDDO
+          
                XYZ((3*NATOMS*(SECONDIMAGE-1)+1):3*NATOMS*SECONDIMAGE) = COORDSA(1:3*NATOMS)
             ENDIF
          END DO
@@ -348,36 +362,36 @@ MODULE QCIPERMDIST
          USE QCIMINDIST, ONLY: FIND_ALIGNMENT
          IMPLICIT NONE
          ! input and output variables
-         REAL(KIND = REAL64), INTENT(INOUT) :: COORDSA(3*NATOMS), COORDSB(3*NATOMS) ! coordinates for structure A and B
-         REAL(KIND = REAL64), INTENT(OUT) :: DISTANCE ! distance between A and B
-         REAL(KIND = REAL64), INTENT(OUT) :: DIST2 ! distance squared between A and B
-         REAL(KIND = REAL64), INTENT(OUT) :: RMATBEST(3,3) ! best rotational matrix
-         INTEGER, INTENT(IN) :: DOGROUP ! do group number for QCI
-         INTEGER, INTENT(OUT) :: NMOVE ! number of permutational moves
-         INTEGER, INTENT(OUT) :: NEWPERM(NATOMS) ! new permutation of atoms
+         REAL(KIND = REAL64), INTENT(INOUT) :: COORDSA(3*NATOMS), COORDSB(3*NATOMS) !< coordinates for structure A and B
+         REAL(KIND = REAL64), INTENT(OUT) :: DISTANCE !< distance between A and B
+         REAL(KIND = REAL64), INTENT(OUT) :: DIST2 !< distance squared between A and B
+         REAL(KIND = REAL64), INTENT(OUT) :: RMATBEST(3,3) !< best rotational matrix
+         INTEGER, INTENT(IN) :: DOGROUP !< do group number for QCI = permutational group ID
+         INTEGER, INTENT(OUT) :: NMOVE !< number of permutational moves
+         INTEGER, INTENT(OUT) :: NEWPERM(NATOMS) !< new permutation of atoms
 
          ! local variables
          INTEGER :: MAXREGION
          REAL(KIND = REAL64) :: XA, YA, ZA, XB, YB, ZB
          REAL(KIND = REAL64) :: CMXA, CMYA, CMZA, CMXB, CMYB, CMZB
          INTEGER :: NPERM
-         LOGICAL :: PERMUTABLE(NATOMS), PERMUTABLE2(NATOMS) ! lists of permutable atoms
-         INTEGER :: NDUMMY, NDUMMY2, J1, J2, J3, J4 !counters etc
-         REAL(KIND = REAL64) :: DUMMY(3*NATOMS), DUMMYA(3*NATOMS), DUMMYB(3*NATOMS), TEMPB(3*NATOMS) ! coordinates copies 
-         REAL(KIND = REAL64) :: PDUMMYA(3*NATOMS), PDUMMYB(3*NATOMS), SPDUMMYA(3*NATOMS), SPDUMMYB(3*NATOMS) ! coordinates copies used in the bipartite matching
+         LOGICAL :: PERMUTABLE(NATOMS), PERMUTABLE2(NATOMS) !< lists of permutable atoms
+         INTEGER :: NDUMMY, NDUMMY2, J1, J2, J3, J4 !<counters etc
+         REAL(KIND = REAL64) :: DUMMY(3*NATOMS), DUMMYA(3*NATOMS), DUMMYB(3*NATOMS), TEMPB(3*NATOMS) !< coordinates copies 
+         REAL(KIND = REAL64) :: PDUMMYA(3*NATOMS), PDUMMYB(3*NATOMS), SPDUMMYA(3*NATOMS), SPDUMMYB(3*NATOMS) !< coordinates copies used in the bipartite matching
          REAL(KIND = REAL64) :: XBEST(3*NATOMS)
-         REAL(KIND = REAL64) :: DSUM, LDISTANCE, DWORST ! Sum of local distances, local distance for this group and distance from newmindist
-         INTEGER :: PATOMS ! size of group currently under consideration
-         INTEGER :: TRIED(NATOMS) ! atoms tried in current permutation set
-         INTEGER :: LPERMBEST(NATOMS), LPERM(NATOMS), LPERMBESTATOM(NATOMS) ! tracking of local permutations
-         INTEGER :: INGROUP(NATOMS) ! tracking what is in the group
-         REAL(KIND = REAL64) :: DMEAN(NATOMS) !mean distance trackign used in bipartite matching
-         INTEGER :: NDMEAN ! counter for dmean
-         REAL(KIND = REAL64) :: XDUMMY, DA, DB ! average for DA, DB, which are the distances after permutation
+         REAL(KIND = REAL64) :: DSUM, LDISTANCE, DWORST !< Sum of local distances, local distance for this group and distance from newmindist
+         INTEGER :: PATOMS !< size of group currently under consideration
+         INTEGER :: TRIED(NATOMS) !< atoms tried in current permutation set
+         INTEGER :: LPERMBEST(NATOMS), LPERM(NATOMS), LPERMBESTATOM(NATOMS) !< tracking of local permutations
+         INTEGER :: INGROUP(NATOMS) !< tracking what is in the group
+         REAL(KIND = REAL64) :: DMEAN(NATOMS) !< mean distance trackign used in bipartite matching
+         INTEGER :: NDMEAN !< counter for dmean
+         REAL(KIND = REAL64) :: XDUMMY, DA, DB !< average for DA, DB, which are the distances after permutation
          REAL(KIND = REAL64) :: ROTA(3,3), ROTINVA(3,3), ROTB(3,3), ROTINVB(3,3)
-         LOGICAL :: DONE !are we finished in the matching routine?
+         LOGICAL :: DONE !<are we finished in the matching routine?
          LOGICAL :: USEATOM
-         INTEGER :: SORTLIST(NATOMS) ! tracking in bipartite routine
+         INTEGER :: SORTLIST(NATOMS) !< tracking in bipartite routine
          INTEGER :: DLIST(NATOMS), NOTHER
          REAL(KIND = REAL64) :: LDBEST(NPERMGROUP), LDBESTATOM
          INTEGER :: NADDED
@@ -434,6 +448,7 @@ MODULE QCIPERMDIST
          !  The maximum number of pair exchanges associated with a group is two.
          NDUMMY = 1 ! Reset dummy counter
 
+         WRITE(*,*) "lopermdist> NPERMGROUP = ", NPERMGROUP 
          DO J1=1,NPERMGROUP  ! Loop for bipartite matching
             ! are we doing this group?
             IF (DOGROUP.GT.0) THEN
@@ -442,6 +457,7 @@ MODULE QCIPERMDIST
             ENDIF
             !get information for this group to be used
             PATOMS=NPERMSIZE(J1)
+            WRITE(*,*) "lopermdist> J1 = ", J1, " PATOMS = ", PATOMS 
             LDBEST(J1)=1.0D100
             TRIED(1:NATOMS)=0
             DO J2=1,PATOMS
@@ -535,7 +551,7 @@ MODULE QCIPERMDIST
             ! This setup means that such atoms can appear in the list of candidates sorted by distance above.
             ! They will not be used with a tried value of 1.
             ! We still include everything in the cutoff, but it would be more efficient not to include these
-            ! atoms in the sorted candidayes list
+            ! atoms in the sorted candidates list
 
             ! J1 is the permutable group
             ! J2 is counting the sets of extra swaps for group J1
@@ -660,6 +676,7 @@ MODULE QCIPERMDIST
                   LPERM(J2)=J2
                ENDDO
             ELSE
+               !WRITE(*,*) "LOPERMDIST We call MINPERM", "BOX: ", BOXLX, BOXLY, BOXLZ, "PBC logical: ", BULKT
                CALL MINPERM(PATOMS+NOTHER, PDUMMYB, PDUMMYA, BOXLX, BOXLY, BOXLZ, BULKT, LPERM, LDISTANCE, DIST2, WORSTRAD) 
             ENDIF
 
@@ -841,11 +858,26 @@ MODULE QCIPERMDIST
          IF (DEBUG) PRINT '(A,G20.10)',' lopermdist> after overall alignment distance=',DISTANCE
          RMATBEST(1:3,1:3)=RMAT(1:3,1:3)
          
-         IF (LPERMOFF) THEN ! align COORDSB instead
-            COORDSB(1:3*NATOMS)=TEMPB(1:3*NATOMS)
-         ELSE
-            COORDSA(1:3*NATOMS)=XBEST(1:3*NATOMS) ! finally, best COORDSA should include permutations for DNEB input!
-         ENDIF
+         !IF (LPERMOFF) THEN ! align COORDSB instead
+         !   COORDSB(1:3*NATOMS)=TEMPB(1:3*NATOMS)
+         !ELSE
+         !   COORDSA(1:3*NATOMS)=XBEST(1:3*NATOMS) ! finally, best COORDSA should include permutations for DNEB input!
+         !ENDIF
+
+         !Copied fix from OPTIM
+         ! Fix frozen atoms. DJW 17.5.2025
+
+         DO J1=1,NATOMS
+            IF (LPERMOFF) THEN ! align COORDSB instead
+               IF (.NOT.QCIFROZEN(J1)) COORDSB(3*(J1-1)+1:3*(J1-1)+3)=TEMPB(3*(J1-1)+1:3*(J1-1)+3)
+            ELSE
+         ! finally, best COORDSA should include permutations for DNEB input!
+         IF (.NOT.QCIFROZEN(J1)) COORDSA(3*(J1-1)+1:3*(J1-1)+3)=XBEST(3*(J1-1)+1:3*(J1-1)+3) 
+            ENDIF
+         ENDDO
+
+
+
       END SUBROUTINE LOPERMDIST
 
       ! TODO add routines below
@@ -1144,8 +1176,16 @@ MODULE QCIPERMDIST
             QMAT(3,4)=QMAT(3,4)+YM*ZM-YP*ZP
             QMAT(4,4)=QMAT(4,4)+XP**2+YP**2+ZM**2
          ENDDO
-         QMAT(2,1)=QMAT(1,2); QMAT(3,1)=QMAT(1,3); QMAT(3,2)=QMAT(2,3); QMAT(4,1)=QMAT(1,4); QMAT(4,2)=QMAT(2,4); QMAT(4,3)=QMAT(3,4)
+         
+         QMAT(2,1)=QMAT(1,2)
+         QMAT(3,1)=QMAT(1,3)
+         QMAT(3,2)=QMAT(2,3)
+         QMAT(4,1)=QMAT(1,4)
+         QMAT(4,2)=QMAT(2,4)
+         QMAT(4,3)=QMAT(3,4)
+        
          CALL DSYEV('V','U',4,QMAT,4,DIAG,TEMPA,9*NATOMS,INFO)
+         
          IF (INFO.NE.0) PRINT '(A,I6,A)',' newmindist2> WARNING - INFO=',INFO,' in DSYEV'
 
          MINV=1.0D200
@@ -1190,21 +1230,24 @@ MODULE QCIPERMDIST
          ENDDO
          DISTANCE=SQRT(DISTANCE)
          DWORST=SQRT(DWORST)
+         WRITE(*,*) "newmindist2> "
       END SUBROUTINE NEWMINDIST2
 
       SUBROUTINE MINPERM(N, P, Q, SX, SY, SZ, PBC, PERM, DIST, WORSTDIST, WORSTRADIUS)
          IMPLICIT NONE
-         INTEGER, INTENT(IN) :: N ! system size
-         REAL(KIND = REAL64), INTENT(IN) :: P(3*N), Q(3*N) ! coordinates
-         REAL(KIND = REAL64), INTENT(IN) :: SX, SY, SZ ! box length
+         INTEGER, INTENT(IN) :: N !< system size (number of atoms)
+         REAL(KIND = REAL64), INTENT(IN) :: P(3*N) !< coordinates
+         REAL(KIND = REAL64), INTENT(IN) :: Q(3*N) !< coordinates
+         REAL(KIND = REAL64), INTENT(IN) :: SX, SY, SZ !< box length
          REAL(KIND = REAL64), INTENT(OUT) :: WORSTDIST, WORSTRADIUS
-         LOGICAL, INTENT(IN) :: PBC ! periodic boundary conditions?
-         INTEGER, INTENT(OUT) :: PERM(N) ! Permutation so that p(i) <--> q(perm(i))
-         REAL(KIND = REAL64), INTENT(OUT) :: DIST ! Minimum attainable distance
+         LOGICAL, INTENT(IN) :: PBC !< periodic boundary conditions?
+         INTEGER, INTENT(OUT) :: PERM(N) !< Permutation so that p(i) <--> q(perm(i)) (solution we want?)
+         REAL(KIND = REAL64), INTENT(OUT) :: DIST !< Minimum attainable distance
 
-         REAL(KIND = REAL64) :: S(3), DUMMY
-         DOUBLE PRECISION, PARAMETER :: SCALE = 1.0D6 ! Precision
-         INTEGER, PARAMETER :: MAXNEI = 60 ! Maximum number of closest neighbours
+         REAL(KIND = REAL64) :: S(3) !box size vector 
+         REAL(KIND = REAL64) :: DUMMY
+         DOUBLE PRECISION, PARAMETER :: SCALE = 1.0D6 !< Precision
+         INTEGER, PARAMETER :: MAXNEI = 60 !< Maximum number of closest neighbours
          !     Internal variables
          !     first:
          !       Sparse matrix of distances
@@ -1215,11 +1258,12 @@ MODULE QCIPERMDIST
          !     cc(first(i)..first(i+1)-1):
          !       Matrix elements of row i
          ! These integers might need to be be INT64 - but we try INT32 for now
-         INTEGER :: FIRST(N+1), X(N), Y(N)
+         INTEGER :: FIRST(N+1) !< Sparse matrix of distances?
+         INTEGER :: X(N), Y(N)
          INTEGER :: U(N), V(N), H
-         INTEGER :: M, I, J, K, L, L2, T, A, I3, J3
+         INTEGER :: M, I, J, K, L, L2, T, A     !I3, J3 - unused variables 
          INTEGER :: N8, SZ8, D
-         INTEGER :: NDONE, J1, J2
+         INTEGER :: J1                          !NDONE, J2 - unused variables 
 
          ! allocate KK and CC
          IF (.NOT. ALLOCATED(KK)) ALLOCATE(KK(N*MAXNEI))
@@ -1247,7 +1291,8 @@ MODULE QCIPERMDIST
             DO I=1,N
                K = FIRST(I) - 1
                DO J=1,N
-                  CC(K+J) = PERMDIST(P(3*I-2), Q(3*J-2), S, PBC) * SCALE
+                  ! WARNING  converted PERMDIST to int! 
+                  CC(K+J) = INT( PERMDIST(P(3*I-2), Q(3*J-2), S, PBC) * SCALE, KIND=INT64)
                   KK(K+J) = J
                END DO
             END DO
@@ -1260,7 +1305,8 @@ MODULE QCIPERMDIST
             DO I=1,N
                K=FIRST(I)-1
                DO J=1,M
-                  CC(K+J) = PERMDIST(P(3*I-2), Q(3*J-2), S, PBC) * SCALE
+                   ! WARNING  converted to PERMDIST to int! 
+                  CC(K+J) = INT(PERMDIST(P(3*I-2), Q(3*J-2), S, PBC) * SCALE)
                   KK(K+J) = J
                   L = J
 10                IF (L.LE.1) GOTO 11
@@ -1278,7 +1324,8 @@ MODULE QCIPERMDIST
 11             ENDDO
 
                DO J=M+1,N
-                  D = PERMDIST(P(3*I-2), Q(3*J-2), S, PBC) * SCALE
+                  !WARNING converting real to int
+                  D = INT(PERMDIST(P(3*I-2), Q(3*J-2), S, PBC) * SCALE)
                   IF (D.LT.CC(K+1)) THEN
                      CC(K+1) = D
                      KK(K+1) = J
@@ -1317,7 +1364,10 @@ MODULE QCIPERMDIST
 
 
          ! Call bipartite matching routine
-         CALL JOVOSAP(N8, SZ8, CC, KK, FIRST, X, Y, U, V, H)
+         
+         ! CC and KK are declared as global (module) variables, so we shouldn't pass them as agument to jovosap  
+         !CALL JOVOSAP(N8, SZ8, CC, KK, FIRST, X, Y, U, V, H)
+         CALL JOVOSAP(N8, SZ8, FIRST, X, Y, U, V, H)
          ! If initial guess correct, deduce solution distance, which is not done in jovosap
          IF (H.LT.0) THEN
             H = 0
@@ -1343,6 +1393,7 @@ MODULE QCIPERMDIST
             IF (PERM(I).LT.1) PERM(I) = 1
          ENDDO
 
+         !convert from interger to double 
          DIST = DBLE(H)/SCALE
    
          WORSTDIST=-1.0D0
@@ -1357,6 +1408,8 @@ MODULE QCIPERMDIST
          WORSTRADIUS=MAX(SQRT(WORSTRADIUS),1.0D0)
       END SUBROUTINE MINPERM
 
+      !> Translate coords by -CX(y/z), apply rotation matrix and translate back
+      !! Return rotated coordinaes  
       SUBROUTINE NEWROTGEOM(NATOMS,COORDS,MYROTMAT,CX,CY,CZ)
          IMPLICIT NONE
          INTEGER, INTENT(IN) :: NATOMS
@@ -1382,19 +1435,20 @@ MODULE QCIPERMDIST
          ENDDO
       END SUBROUTINE NEWROTGEOM
 
-      !     permdist is the distance or weight function. It is coded
-!     separately for clarity. Just hope that the compiler
-!     knows how to to do proper inlining!
-!     Input
-!       p,q: Coordinates
-!       s  : Boxlengths (or dummy if open B.C.)
-!       pbc: Periodic boundary conditions?
-
+      !>    permdist is the distance or weight function. It is coded
+      !! separately for clarity. Just hope that the compiler
+      !!knows how to to do proper inlining!
+      !!Input
+      !!  p,q: Coordinates
+      !!  s  : Boxlengths (or dummy if open B.C.)
+      !!  pbc: Periodic boundary conditions?
+      !!
+      !! Currently returns |PQ|^2  
       PURE REAL(KIND=REAL64) FUNCTION PERMDIST(P, Q, S, PBC)
          IMPLICIT NONE
          REAL(KIND=REAL64), INTENT(IN) :: P(3), Q(3) !< coordinates
-         REAL(KIND=REAL64), INTENT(IN) :: S(3) !< box coordinates
-         LOGICAL, INTENT(IN) :: PBC
+         REAL(KIND=REAL64), INTENT(IN) :: S(3) !< box coordinates (unused atm==0,0,0)
+         LOGICAL, INTENT(IN) :: PBC !< are PBCS on (atm always off)
 
          REAL(KIND=REAL64) :: T, D
          INTEGER :: I
@@ -1418,17 +1472,19 @@ MODULE QCIPERMDIST
 !     "A Shortest Augmenting Path Algorithm for Dense and Sparse Linear Assignment Problems," Computing 38, 325-340, 1987
 !     by R. Jonker and A. Volgenant, University of Amsterdam.
 
-      SUBROUTINE JOVOSAP(N,SZ,CC,KK,FIRST,X,Y,U,V,H)
+      ! CC and KK are global (module) variables, so shouldn't be passed as subroutine argument
+      !SUBROUTINE JOVOSAP(N,SZ,CC,KK,FIRST,X,Y,U,V,H)
+      SUBROUTINE JOVOSAP(N,SZ,FIRST,X,Y,U,V,H)
          IMPLICIT NONE
-         INTEGER, INTENT(IN) :: N ! number of rows and columns
+         INTEGER, INTENT(IN) :: N !< number of rows and columns
          INTEGER, INTENT(IN) :: SZ
-         INTEGER(KIND = INT64), INTENT(INOUT) :: CC(SZ), KK(SZ)
+         !INTEGER(KIND = INT64), INTENT(INOUT) :: CC(SZ), KK(SZ)
          INTEGER, INTENT(INOUT) :: FIRST(N+1)
-         INTEGER, INTENT(OUT) :: X(N)   ! X = COL ASSIGNED TO ROW
-         INTEGER, INTENT(OUT) :: Y(N)   ! Y = ROW ASSIGNED TO COL
-         INTEGER, INTENT(OUT) :: U(N)   ! U = DUAL ROW VARIABLE
-         INTEGER, INTENT(OUT) :: V(N)   ! V = DUAL COLUMN VARIABLE
-         INTEGER, INTENT(OUT) :: H   ! H = VALUE OF OPTIMAL SOLUTION
+         INTEGER, INTENT(OUT) :: X(N)   !< X = COL ASSIGNED TO ROW
+         INTEGER, INTENT(OUT) :: Y(N)   !< Y = ROW ASSIGNED TO COL
+         INTEGER, INTENT(OUT) :: U(N)   !< U = DUAL ROW VARIABLE
+         INTEGER, INTENT(OUT) :: V(N)   !< V = DUAL COLUMN VARIABLE
+         INTEGER, INTENT(OUT) :: H   !< H = VALUE OF OPTIMAL SOLUTION
 
          INTEGER, PARAMETER :: BIGINT = HUGE(1)
          INTEGER :: J, J0, J1, I, I0, K, L, L0, T, T0, CNT
@@ -1436,9 +1492,11 @@ MODULE QCIPERMDIST
          INTEGER(KIND = INT64) :: V0, VJ
          LOGICAL :: OK(N)
 
-
-         INTEGER*8 TD,DJ
-         INTEGER*8 LAB(N)
+         !QUESTION what is this? 
+         !INTEGER*8 TD,DJ
+         !INTEGER*8 LAB(N)
+         INTEGER(KIND=INT64) :: TD,DJ
+         INTEGER(KIND=INT64) :: LAB(N)
 
          ! INITIALIZATION
          Y(1:N) = 0
@@ -1447,6 +1505,7 @@ MODULE QCIPERMDIST
          H = -1
          J1 = 0
          V(1:N) = BIGINT
+
          DO I=1,N
             X(I) = 0
             DO T=FIRST(I),FIRST(I+1)-1

@@ -7,9 +7,9 @@ MODULE QCIMINDIST
          USE QCIKEYS, ONLY: NATOMS
          USE QCIPREC
          IMPLICIT NONE 
-         REAL(KIND = REAL64), INTENT(IN) :: XA(3*NATOMS)
-         REAL(KIND = REAL64), INTENT(INOUT) :: XB(3*NATOMS)
-         INTEGER, INTENT(IN) :: NSIZE
+         REAL(KIND = REAL64), INTENT(IN) :: XA(3*NATOMS)    !< reference coords
+         REAL(KIND = REAL64), INTENT(INOUT) :: XB(3*NATOMS) !< coords to be aligned
+         INTEGER, INTENT(IN) :: NSIZE                       !< number of atoms in XA and XB
          REAL(KIND = REAL64) :: RA(3*NSIZE), RB(3*NSIZE)
          REAL(KIND = REAL64) :: CXA(3), CXB(3), RMAT(3,3)
          REAL(KIND = REAL64) :: DIST, R0(3), R1
@@ -20,10 +20,11 @@ MODULE QCIMINDIST
          !centre RA
          CALL FIND_ORIGIN(NSIZE,RA,CXA)
          CALL MOVE_COORDS(NSIZE,RA,CXA)
-         !centre RB
+         !centre RB around origin
          CALL FIND_ORIGIN(NSIZE,RB,CXB)
          CALL MOVE_COORDS(NSIZE,RB,CXB)
 
+         
          !align coordinates
          CALL FIND_ALIGNMENT(NSIZE, RB, RA, DIST, RMAT)
 
@@ -48,9 +49,9 @@ MODULE QCIMINDIST
 
       SUBROUTINE FIND_ORIGIN(NATOMS,X,CX)
          IMPLICIT NONE
-         INTEGER, INTENT(IN) :: NATOMS
-         REAL(KIND = REAL64), INTENT(IN) :: X(3*NATOMS)
-         REAL(KIND = REAL64), INTENT(OUT) :: CX(3)
+         INTEGER, INTENT(IN) :: NATOMS 
+         REAL(KIND = REAL64), INTENT(IN) :: X(3*NATOMS) !<coordinates
+         REAL(KIND = REAL64), INTENT(OUT) :: CX(3) !< Geometric centre of coords
          INTEGER :: I, J
 
          CX(1:3) = 0.0D0
@@ -63,11 +64,12 @@ MODULE QCIMINDIST
          CX(1:3) = CX(1:3)/DBLE(NATOMS)
       END SUBROUTINE FIND_ORIGIN
 
+      !> Translate image by vector -CX
       SUBROUTINE MOVE_COORDS(NATOMS,X,CX)
          IMPLICIT NONE
          INTEGER, INTENT(IN) :: NATOMS
          REAL(KIND = REAL64), INTENT(INOUT) :: X(3*NATOMS)
-         REAL(KIND = REAL64), INTENT(IN) :: CX(3)
+         REAL(KIND = REAL64), INTENT(IN) :: CX(3) !< translational vector
          INTEGER :: I, J, IDX
          
          DO I=1,NATOMS
@@ -78,15 +80,16 @@ MODULE QCIMINDIST
          END DO
       END SUBROUTINE MOVE_COORDS 
       
+      !Get rotational matrix RMAT to align X to refx and DIST - minimise sum of distances between the atoms
       SUBROUTINE FIND_ALIGNMENT(NATOMS, X, REFX, DIST, RMAT)
          IMPLICIT NONE
          INTEGER, INTENT(IN) :: NATOMS
-         REAL(KIND = REAL64), INTENT(INOUT) :: X(3*NATOMS) 
+         REAL(KIND = REAL64), INTENT(INOUT) :: X(3*NATOMS) !< Should this be INOUT or just IN? 
          REAL(KIND = REAL64), INTENT(IN) :: REFX(3*NATOMS) 
          REAL(KIND = REAL64), INTENT(OUT) :: DIST
          REAL(KIND = REAL64), INTENT(OUT) :: RMAT(3,3)   
          INTEGER, PARAMETER :: LWORK=12       
-         REAL(KIND = REAL64) :: CX(3)
+         !REAL(KIND = REAL64) :: CX(3)  !unused? 
          REAL(KIND = REAL64) :: QMAT(4,4) , XM, YM, ZM, XP, YP, ZP, DIAG(4), TEMPA(LWORK), MINV
          REAL(KIND = REAL64) :: Q1, Q2, Q3, Q4
          INTEGER :: I, J, JMIN, INFO
@@ -104,6 +107,7 @@ MODULE QCIMINDIST
             XP=REFX(3*(I-1)+1)+X(3*(I-1)+1)
             YP=REFX(3*(I-1)+2)+X(3*(I-1)+2)
             ZP=REFX(3*(I-1)+3)+X(3*(I-1)+3)
+
             QMAT(1,1)=QMAT(1,1)+XM**2+YM**2+ZM**2
             QMAT(1,2)=QMAT(1,2)+YP*ZM-YM*ZP
             QMAT(1,3)=QMAT(1,3)+XM*ZP-XP*ZM
@@ -115,14 +119,32 @@ MODULE QCIMINDIST
             QMAT(3,4)=QMAT(3,4)+YM*ZM-YP*ZP
             QMAT(4,4)=QMAT(4,4)+XP**2+YP**2+ZM**2
          ENDDO
+         
          QMAT(2,1)=QMAT(1,2)
          QMAT(3,1)=QMAT(1,3)
          QMAT(3,2)=QMAT(2,3)
          QMAT(4,1)=QMAT(1,4)
          QMAT(4,2)=QMAT(2,4)
          QMAT(4,3)=QMAT(3,4)
-         !Eigendecomposition fo the quarternion
+        
+         !Eigendecomposition fo the quarternion (Lapack function) 
+         !
+         ! DSYEV parameters:
+         ! 'V' = get eigenvectors
+         ! 'U' = get upper triangle part of matrix
+         !  N = 4 = order of the matrix
+         ! QMAT = input/output matrix
+         ! LDA = 4 = leading dimension of QMAT 
+         ! DIAG =  array to store eigenvalues 
+         ! TEMPA = workspace array 
+         ! LWORK = 12 = length of work array 
+         ! INFO = output integer  (0 = success)
+
          CALL DSYEV('V','U',4,QMAT,4,DIAG,TEMPA,LWORK,INFO)
+
+         !Check if we calculated eigenvalues ...
+         IF (INFO.NE.0) WRITE(*,*) "WARNING find_alignment> we failed to get all the eigenvalues"
+
          MINV=1.0D100
          DO J=1,4
             IF (DIAG(J).LT.MINV) THEN

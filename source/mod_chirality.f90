@@ -311,11 +311,16 @@ MODULE CHIRALITY
                IF (.NOT.ATOMACTIVE(CHIR_INFO(J1,J2))) CENTREACTIVE = .FALSE.
             END DO
             IF (.NOT.CENTREACTIVE) CYCLE
-            !now apply the actual check            
+            !now apply the actual check   
+            !QUESTION here we go from J3=1 to NIMAGES+2?  
             DO J3=1,NIMAGES+2
-               CENTRE_COORDS(1) = XYZ(3*NATOMS*(J3-1)+3*CHIRALCENTRE-2)
-               CENTRE_COORDS(2) = XYZ(3*NATOMS*(J3-1)+3*CHIRALCENTRE-1)
-               CENTRE_COORDS(3) = XYZ(3*NATOMS*(J3-1)+3*CHIRALCENTRE)
+
+               NEIGHBOUR_COORDS = 0.0D0
+               CENTRE_COORDS = 0.0D0
+
+               CENTRE_COORDS(1) = XYZ(3*NATOMS*(J3-1)+3*CHIRALCENTRE-2) !x
+               CENTRE_COORDS(2) = XYZ(3*NATOMS*(J3-1)+3*CHIRALCENTRE-1) !y
+               CENTRE_COORDS(3) = XYZ(3*NATOMS*(J3-1)+3*CHIRALCENTRE)   !z
 
                DO J4=1,4
                   ATOMID = CHIR_INFO(J1,J4+1)
@@ -350,6 +355,7 @@ MODULE CHIRALITY
                      THISIMAGE = 3*NATOMS*(J3-1)
                      PREVIMAGE = 3*NATOMS*(J3-2)
                      DO J4=RES_START(ACID),RES_END(ACID)
+                        !J4 is different now
                         IF (.NOT.ATOMACTIVE(J4)) CYCLE
                         ! WRITE(*,*) " chirality_check> Changing active atom ", J4, " in image ", J3
                         NCHANGE=NCHANGE+1
@@ -358,6 +364,7 @@ MODULE CHIRALITY
                         OFFSET2 = 3*(J4-1)
                         COORDSA(OFFSET+1:OFFSET+3)=XYZ(THISIMAGE+OFFSET2+1:THISIMAGE+OFFSET2+3)
                         COORDSB(OFFSET+1:OFFSET+3)=XYZ(PREVIMAGE+OFFSET2+1:PREVIMAGE+OFFSET2+3)
+                        !WRITE(*,*) "WARNING: ", "THIS_IMAGE: ", THISIMAGE+OFFSET2+1, "PREV_IMAGE: ", PREVIMAGE+OFFSET2+1
                      END DO
 
                      ! Align the replacement atoms with the original atoms as far as possible
@@ -376,10 +383,10 @@ MODULE CHIRALITY
       END SUBROUTINE CHIRALITY_CHECK
 
 
-      ! Works out whether a molecule is left- or right-handed (i.e. S or R)
-      ! This is calculated by applying the CIP rules to the system and working out the
-      ! dihedral angle between the atoms formed by:
-      ! 1 - centre - 4 - 2
+      !> Works out whether a molecule is left- or right-handed (i.e. S or R)
+      !! This is calculated by applying the CIP rules to the system and working out the
+      !! dihedral angle between the atoms formed by:
+      !! 1 - centre - 4 - 2
       LOGICAL FUNCTION ASSIGNMENT_SR(COORDS,CENTRE) RESULT(RIGHT_HANDED)
          USE HELPER_FNCTS, ONLY: DIHEDRAL
          IMPLICIT NONE
@@ -882,8 +889,8 @@ MODULE CHIRALITY
          RETURN
        END SUBROUTINE DISCOUNT_H       
 
-      !test whether the four neighbours are different elements
-      SUBROUTINE TEST_NEIGHBOURS(ATOMID,CHIRALT) 
+      !> test whether the four neighbours are different elements using bondedls
+      SUBROUTINE TEST_NEIGHBOURS(ATOMID,CHIRALT)       
          IMPLICIT NONE
          INTEGER, INTENT(IN) :: ATOMID
          LOGICAL, INTENT(OUT) :: CHIRALT

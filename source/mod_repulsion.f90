@@ -53,6 +53,7 @@ MODULE REPULSION
          INTEGER :: J, K, NI, NJ
          REAL(KIND = REAL64) :: COMPARE, LDIST
 
+         !QUESTION we always call function with NNSTART=0, do we need this as input var?
          NNREPULSIVE = NNSTART
 
          ! loop over part of the repulsion list

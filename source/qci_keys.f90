@@ -46,7 +46,7 @@ MODULE QCIKEYS
    
    LOGICAL :: USEIMAGEDENSITY = .FALSE. !< base number of images on interpolation density
    REAL(KIND=REAL64) :: E2E_DIST = 0.D0 !< endpoint to endpoint distance after alignment
-   REAL(KIND=REAL64) :: IMAGEDENSITY = 0.5D0 !< Image density per unit distance
+   REAL(KIND=REAL64) :: IMAGEDENSITY = 0.5D0 !< Image density per unit distance (unused atm)
    REAL(KIND = REAL64) :: IMSEPMAX=HUGE(1.0D0)
    REAL(KIND = REAL64) :: IMSEPMIN=-1.0D0
 
@@ -75,7 +75,7 @@ MODULE QCIKEYS
    REAL(KIND=REAL64) :: INTMINFAC=1.0D0 
 
    !> repulsions
-   REAL(KIND=REAL64) :: QCIREPCUT = 1.0D-3
+   REAL(KIND=REAL64) :: QCIREPCUT = 1.0D-3   !< only used for checking if we have internal minima in 
    REAL(KIND=REAL64) :: QCICONSTRREP=100.0D0 !< QUESTION Is this scaling for rep energy?
    INTEGER ::  QCIINTREPMINSEP=20 !< Minimum separation in atom index for internal minimum check in repulsion
 
@@ -145,7 +145,7 @@ MODULE QCIKEYS
    !> permutational stuff
    INTEGER :: QCIPERMCHECKINT = 100
    LOGICAL :: QCIPERMT = .FALSE.
-   REAL(KIND=REAL64) :: QCIPERMCUT = 0.8D0
+   REAL(KIND=REAL64) :: QCIPERMCUT = 0.8D0 !< QUESTION? is this used anywhere?
 
    !> for myorient
    REAL(KIND=REAL64) :: ORBITTOL = 0.3D0

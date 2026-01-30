@@ -45,8 +45,8 @@ MODULE QCIINTERPOLATION
          REAL(KIND = REAL64), PARAMETER :: STPREDUCTION = 10.0D0
          INTEGER :: NITERUSE, POINT, NPT ! variables needed for lbfgs steps
          REAL(KIND = REAL64) :: RHO1(MUPDATE), ALPHA(MUPDATE)
-         REAL(KIND = REAL64) :: STPMIN ! minimum step-size
-         REAL(KIND = REAL64) :: CURRMAXSEP, CURRMINSEP ! current minimum and maximum image separation
+         REAL(KIND = REAL64) :: STPMIN !< minimum step-size
+         REAL(KIND = REAL64) :: CURRMAXSEP, CURRMINSEP !< current minimum and maximum image separation
          INTEGER :: IDXMIN, IDXMAX !< id for minimum and maximum distance images
          
          !DEGBUG
@@ -183,6 +183,8 @@ MODULE QCIINTERPOLATION
                   END IF
                   FIRSTATOM = FIRSTATOM + NPERMSIZE(J1)
                END DO
+               !we check repulsions before we continue
+               CALL CHECKREP(XYZ,0,1)
             END IF
             !end of permutational checks of band
 
@@ -307,22 +309,26 @@ MODULE QCIINTERPOLATION
             END IF
             !End of atom adding part
 
+            !L-BFGS start
+
             GTMP(1:DIMS)=0.0D0
             ! the variables needed for step taking are either module variables in this module or saved in mod_intcoords
             CALL MAKESTEP(NITERUSE,NPT,POINT,RHO1,ALPHA)          
-
+            
+            !  <G,R_k> / (|G|*|R_k|) 
             IF ((DOTP(DIMS,G,GTMP)/MAX(1.0-100,SQRT(DOTP(DIMS,G,G))*SQRT(DOTP(DIMS,GTMP,GTMP)))).GT.0.0D0) THEN
-               IF (DEBUG) WRITE(*,*) ' QCIinterp - Search direction has positive projection onto gradient - reversing step'
+               !IF (DEBUG) 
+               WRITE(*,*) ' QCIinterp - Search direction has positive projection onto gradient - reversing step'
                GTMP(1:DIMS)=-GTMP(1:DIMS)
                SEARCHSTEP(POINT,1:DIMS)=GTMP(1:DIMS)
             END IF
-
+            
             GTMP(1:DIMS)=G(1:DIMS)
             ! Take the minimum scale factor for all images for LBFGS step to avoid discontinuities
             STPMIN = 1.0D0
             DO J1=1,NIMAGES
                STEPIMAGE(J1) = SQRT(DOTP(3*NATOMS,SEARCHSTEP(POINT,(3*NATOMS)*(J1-1)+1:(3*NATOMS)*J1), &
-                                                SEARCHSTEP(POINT,(3*NATOMS)*(J1-1)+1:(3*NATOMS)*J1)))
+                                                  SEARCHSTEP(POINT,(3*NATOMS)*(J1-1)+1:(3*NATOMS)*J1)))
                IF (STEPIMAGE(J1).GT.MAXQCIBFGS) THEN
                   STP((3*NATOMS)*(J1-1)+1:(3*NATOMS)*J1) = MAXQCIBFGS/STEPIMAGE(J1)
                   STPMIN=MIN(STPMIN,STP((3*NATOMS)*(J1-1)+1))
@@ -410,6 +416,9 @@ MODULE QCIINTERPOLATION
 
             ! set DGUESS to a reasonable guess
             DGUESS=DIAG(1)
+
+            !L-BFGS start
+
             !get exit status
             CALL SET_EXIT_STATUS(NITERDONE,EXITSTATUS)
             !first check if we should add an atom
@@ -569,9 +578,14 @@ MODULE QCIINTERPOLATION
                JMIN = J1
             END IF
          END DO
-         WRITE(*,'(A,F15.5)') " get_image_separation> The largest distance between images is ", DMAX
-         WRITE(*,'(A,F15.5)') "                       The smallest distance between images is ", DMIN
+         !WRITE(*,'(A,F15.5)') " get_image_separation> The largest distance between images is ", DMAX
+         !WRITE(*,'(A,F15.5)') "                       The smallest distance between images is ", DMIN
+         !WRITE(*,'(A,I6,A,I4,A,I4)') "                       The largest distance by atom is for atom ",JAMAX_ATOM," between images", JAMAX_IMG," and ", JAMAX_IMG+1
+
+         WRITE(*,'(A,F15.5)') " get_image_separation> The largest distance between images is ", DMAX/NATOMS
+         WRITE(*,'(A,F15.5)') "                       The smallest distance between images is ", DMIN/NATOMS
          WRITE(*,'(A,I6,A,I4,A,I4)') "                       The largest distance by atom is for atom ",JAMAX_ATOM," between images", JAMAX_IMG," and ", JAMAX_IMG+1
+
       END SUBROUTINE GET_IMAGE_SEPARATION
 
 
@@ -636,7 +650,7 @@ MODULE QCIINTERPOLATION
 
       SUBROUTINE MAKESTEP(NITERDONE,NPT,POINT, RHO1, ALPHA)
          USE HELPER_FNCTS, ONLY: DOTP
-         USE QCIKEYS, ONLY: MUPDATE, DGUESS, NATOMS, NIMAGES
+         USE QCIKEYS, ONLY: MUPDATE, DGUESS !, NATOMS, NIMAGES
          USE MOD_INTCOORDS, ONLY: G, DIMS
          IMPLICIT NONE         
          INTEGER, INTENT(IN) :: NITERDONE

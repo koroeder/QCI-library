@@ -61,6 +61,8 @@ MODULE MOD_INTCOORDS
          INTEGER :: J1, BACKBEST
          REAL(KIND = REAL64) :: DF, D1, D2, CURRLARGEST, CURRSMALLEST, CURRBBDIST
 
+         NBEST = -1
+
          BACKBEST = -1
          CURRLARGEST = -1.0D100
          CURRSMALLEST = 1.0D100
@@ -71,7 +73,7 @@ MODULE MOD_INTCOORDS
          DO J1=1,NATOMS
             IF (QCIFROZEN(J1)) INLINLIST(J1) = .FALSE.
          END DO
-
+         WRITE(*,*) "DEBUGGING: NCONSTRAINT: " , NCONSTRAINT
          DO J1=1,NCONSTRAINT
             IF (QCILINEART.AND.(.NOT.INLINLIST(CONI(J1)).OR.(.NOT.INLINLIST(CONJ(J1))))) CYCLE            
             ! we want to collect the change in atom positions between the endpoints
@@ -96,6 +98,13 @@ MODULE MOD_INTCOORDS
          IF (QCIDOBACK.AND.(BACKBEST.GT.0)) THEN
             NCONSMALLEST=BACKBEST  ! ensures NBEST is set if there are frozen atoms and DOBACK is set 
          END IF
+         
+         !TODO THIS NEEDS FIXING!
+         IF (NCONSMALLEST.EQ.0) THEN
+            WRITE(*,*) "WARNING: D1 ", D1, "D2 ", D2, "DF ", DF
+            NCONSMALLEST = 1
+         ENDIF
+         
          NBEST = NCONSMALLEST
          IF (DEBUG) THEN
             WRITE(*,*) ' get_dists_constr> Smallest overall motion for constraint ',NBEST, ' atoms ', &

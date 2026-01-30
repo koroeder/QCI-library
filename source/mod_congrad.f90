@@ -3,10 +3,11 @@
 ! version 1 (congrad1) - tests for internal minimum in repulsions only
 ! version 2 (congrad2) - tests for internal minimum in repulsion and constraints
 !
+
 ! @Note on energy addition for internal minimum
 ! For internal minima the energy contribution is shared between J-1 and J images 
 ! In practice this looks like EEE(J1)=EEE(J1)+DUMMY/2 & EEE(J1-1)=EEE(J1-1)+DUMMY/2
-! However, use EEE(J1-1)=EEE(J1-1)+DUMMY/2 causes error at the order of epsilon every time we do this 
+! However, use of EEE(J1-1)=EEE(J1-1)+DUMMY/2 causes error at the order of epsilon every time we do this 
 ! This is due to the compiler 
 ! Insted we sum all the energies into EEE2 term, chsift at the end and add back to EEE array.
 ! Similiar thing needs to be done for gradients, but here the cshif it 3*NATOMS
@@ -34,10 +35,8 @@ MODULE CONSTR_E_GRAD
          ! call correct congrad routine
          IF (CHECKCONINT) THEN
             CALL CONGRAD2(ETOTAL, XYZ, GGG, EEE, RMS)
-            WRITE(*,*) "Used Congrad2"
-         ELSE
+            ELSE
             CALL CONGRAD1(ETOTAL, XYZ, GGG, EEE, RMS)
-            WRITE(*,*) "Used Congrad1"
          END IF
       END SUBROUTINE CONGRAD
 
@@ -59,11 +58,6 @@ MODULE CONSTR_E_GRAD
          REAL(KIND = REAL64) :: EEED(NIMAGES+2), GGGD(3*NATOMS*(NIMAGES+2))
          INTEGER :: J1, J2
 
-         !for get_repulsion_e test
-         REAL(KIND = REAL64) :: G1, G2, GDIFF
-         REAL(KIND = REAL64) :: EEER2(NIMAGES+2), GGGR2(3*NATOMS*(NIMAGES+2))
-         REAL(KIND = REAL64) :: EREP2, E1, E2, EDIFF
-        
          CALLN = CALLN + 1
 
          ! initiate some variables
@@ -79,36 +73,10 @@ MODULE CONSTR_E_GRAD
          GGGD(1:(3*NATOMS)*(NIMAGES+2))=0.0D0
          ECON = 0.0D0; EREP = 0.0D0; ESPR = 0.0D0; EDIH = 0.0D0
 
-         !for get_repulsion_e test
-         GGGR2(1:(3*NATOMS)*(NIMAGES+2))=0.0D0
-         EEER2(1:NIMAGES+2)=0.0D0
-         EREP2 = 0.0D0
-
          ! QUERY: what is INTCONSTRAINTDEL? seems like a scaling for the potential
          IF (.NOT.(INTCONSTRAINTDEL.EQ.0.0D0)) THEN
             CALL GET_CONSTRAINT_E_NOINTERNAL(XYZ,GGGC,EEEC,ECON)
-            CALL GET_CONSTRAINT_E(XYZ,GGGR2,EEER2,ECON)
          END IF
-         
-         G1=0.0D0
-         G2=0.0D0
-         GDIFF=0.0D0
-         E1=0.0D0; E2=0.0D0; EDIFF=0.0D0
-         DO J1=2,NIMAGES+2
-            DO J2=1,3*NATOMS
-               
-               G1 = G1 +  ABS(GGGC((3*NATOMS)*(J1-1)+J2))
-               G2 = G2 + ABS(GGGR2((3*NATOMS)*(J1-1)+J2))
-            END DO
-            !E1=E1 + EEEC(J1)**2
-            !E2=E2 + EEER2(J1)**2
-         END DO
-         GDIFF = G2-G1
-         !EDIFF = EEEC - EEER2
-         WRITE(*,*) "CONGRAD_CHECK> GDIFF: ", GDIFF
-         WRITE(*,*) "CONGRAD_CHECK> EDIFF: ", SUM( ABS(EEEC - EEER2))
-         
-
          IF (.NOT.(QCICONSTRREP.EQ.0.0D0)) THEN
             CALL GET_REPULSION_E(XYZ,GGGR,EEER,EREP)
          END IF
@@ -248,7 +216,7 @@ MODULE CONSTR_E_GRAD
          REAL(KIND = REAL64), INTENT(OUT) :: GGG(3*NATOMS*(NIMAGES+2))  !< gradient for each atom in each image
          REAL(KIND = REAL64), INTENT(OUT) :: EEE(NIMAGES+2)             !< energy for constraints in each image
          REAL(KIND = REAL64), INTENT(OUT) :: ECON                       !< energy for constraints
-         INTEGER :: J1, J2, I
+         INTEGER :: J1, J2
          INTEGER :: NI1, NJ1                         !< indices for atoms A and B in XYZ and GGG
          REAL(KIND=REAL64) :: CCLOCAL, CCLOCAL2      !< local concut
          REAL(KIND=REAL64) :: XA(3), XB(3)           !< coordinates for atoms A and B 
@@ -258,10 +226,6 @@ MODULE CONSTR_E_GRAD
          REAL(KIND=REAL64) :: LOCALCONFACTOR 
          INTEGER :: IMAX, JMAX
 
-         !Test vars
-         REAL(KIND=REAL64) :: GRADAB2(3)   
-         REAL(KIND=REAL64) :: E1, E2
-         E1=0.0D0; E2=0.0D0
 
          EMAX = -(HUGE(1.0D0))
          FMAX = -(HUGE(1.0D0))
@@ -355,7 +319,7 @@ MODULE CONSTR_E_GRAD
          MAXCONSTR = IMAX
 
          IF (JMAX.GT.0) THEN
-            WRITE(*,*) ' congrad> Highest constraint for image ',IMAX, ', con ',JMAX, ', atoms ',CONI(JMAX),CONJ(JMAX),' value=',EMAX
+            WRITE(*,*) ' congrad1> Highest constraint for image ',IMAX, ', con ',JMAX, ', atoms ',CONI(JMAX),CONJ(JMAX),' value=',EMAX
          ENDIF
       END SUBROUTINE GET_CONSTRAINT_E_NOINTERNAL
 
@@ -624,7 +588,7 @@ MODULE CONSTR_E_GRAD
          MAXCONSTR = IMAX
 
          IF (JMAX.GT.0) THEN
-            WRITE(*,*) ' congrad> Highest constraint for image ',IMAX, ', con ',JMAX, ', atoms ',CONI(JMAX),CONJ(JMAX),' value=',EMAX
+            WRITE(*,*) ' congrad2> Highest constraint for image ',IMAX, ', con ',JMAX, ', atoms ',CONI(JMAX),CONJ(JMAX),' value=',EMAX
          ENDIF
       END SUBROUTINE GET_CONSTRAINT_E
 
@@ -657,6 +621,7 @@ MODULE CONSTR_E_GRAD
 
          !variables to try make sence of indices and what goes wrong
          INTEGER :: NI1, NI2, NJ1, NJ2 
+         REAL(KIND=REAL64) :: DUMMYA
          
          REAL(KIND = REAL64) :: G1A, G2A, GDIFF
          REAL(KIND = REAL64) :: GGG2(3*NATOMS*(NIMAGES+2))
@@ -756,8 +721,10 @@ MODULE CONSTR_E_GRAD
                   !DUMMY = RPLOCAL2/DSQ2 + 2.0D0*D2*RPLOCALINV - 3.0D0
                   !WARNING changed dummy to correspond to equation above
    
-                  DUMMY = K_REP*(1.0D0/DSQ2-3.0D0/RPLOCAL2+(2.0D0*D2)/RPLOCAL3)
-   
+                  !DUMMY = K_REP*(1.0D0/DSQ2-3.0D0/RPLOCAL2+(2.0D0*D2)/RPLOCAL3)
+                  !This form should have higher numerical stability
+                  DUMMY = K_REP*(1.0D0/DSQ2+( (2.0D0*D2)/RPLOCAL-3.0D0)/RPLOCAL2)          
+
                   EEE(J1)=EEE(J1)+DUMMY
                   EREP = EREP + DUMMY
                   IF (DUMMY.GT.EMAX) THEN
@@ -787,13 +754,14 @@ MODULE CONSTR_E_GRAD
                ! was assigned to image NIMAGES+1. 
                DUMMY = 0.0D0
                !QUESTION why J1 NE 2 condition and/or should it also be J1 NE NIMAGES+2?
-               IF ((.NOT.NOINT).AND.(DINT.LT.RPLOCAL).AND.(J1.NE.2)) THEN
+               IF ((.NOT.NOINT).AND.(DINT.LT.RPLOCAL).AND.(J1.NE.2).AND.(J1.LT.(NIMAGES+2))) THEN
                   !D12 = DSQI !from call to find internal minimum
                   !DUMMY=INTMINFAC*(RPLOCAL2/D12+2.0D0*DINT*RPLOCALINV-3.0D0)
                   !WARNING changed equation again
                   
-                  DUMMY = K_REP*INTMINFAC*(1.0D0/DSQI-3.0D0/RPLOCAL2+(2.0D0*DINT)/(RPLOCAL3) )
-                                    
+                  !DUMMY = K_REP*INTMINFAC*(1.0D0/DSQI-3.0D0/RPLOCAL2+(2.0D0*DINT)/(RPLOCAL3) )
+                  DUMMY = K_REP*INTMINFAC*(1.0D0/DSQI+(2.0D0*DINT/RPLOCAL-3.0D0)/RPLOCAL2 )            
+                  
                   EREP=EREP+DUMMY
                   IF (DUMMY.GT.EMAX) THEN
                      IMAX=J1
@@ -842,7 +810,6 @@ MODULE CONSTR_E_GRAD
             
          END DO
 
-         !!TODO - DOUBLE CHECK CSHIFT INDEX!!!! SHIFT=-1
          GGG2 = CSHIFT(GGG2,SHIFT=3*NATOMS)
          GGG(1:3*NATOMS*(NIMAGES+2)) = GGG(1:3*NATOMS*(NIMAGES+2))+ GGG2(1:3*NATOMS*(NIMAGES+2))
 
@@ -920,9 +887,9 @@ MODULE CONSTR_E_GRAD
 
          DO J2=1,NNREPULSIVE
             RPLOCAL = NREPCUT(J2)
-            RPLOCAL2 = RPLOCAL**2
-            RPLOCAL3 = RPLOCAL**3
-            INTCONST = RPLOCAL**3
+            RPLOCAL2 = RPLOCAL*RPLOCAL
+            RPLOCAL3 = RPLOCAL2*RPLOCAL
+            INTCONST = RPLOCAL3
             INTCONSTINV = 1.0D0/INTCONST
 
             DO J1=2,NIMAGES+2
@@ -946,6 +913,7 @@ MODULE CONSTR_E_GRAD
                !WARNING Added this condition
                !DP_G12 = DOTP(3,G1,G2)
                !DINTMIN = DSQ1+DSQ2-2.0D0*DP_G12
+
                 IF (ABS(NREPI(J2)-NREPJ(J2)).LT.QCIINTREPMINSEP) THEN
                   DINTMIN = 0.0D0
                ELSE 
@@ -970,8 +938,10 @@ MODULE CONSTR_E_GRAD
                   !DUMMY=QCICONSTRREP*(1.0D0/DSQ2+(2.0D0*D2-3.0D0*RPLOCAL)*INTCONSTINV)
                   !DUMMY=K_REP*(1.0D0/DSQ2+(2.0D0*D2-3.0D0*RPLOCAL)*INTCONSTINV)
                   
-                  DUMMY = K_REP*(1.0D0/DSQ2-3.0D0/RPLOCAL2+(2.0D0*D2)/RPLOCAL3)
-                
+                  !DUMMY = K_REP*(1.0D0/DSQ2-3.0D0/RPLOCAL2+(2.0D0*D2)/RPLOCAL3)
+                  DUMMY = K_REP*(1.0D0/DSQ2+( (2.0D0*D2)/RPLOCAL-3.0D0)/RPLOCAL2)
+
+                  
                   EEE(J1)=EEE(J1)+DUMMY
                   EREP=EREP+DUMMY
                   IF (DUMMY.GT.EMAX) THEN
@@ -992,7 +962,10 @@ MODULE CONSTR_E_GRAD
                IF ((.NOT.NOINT).AND.(DINT.LT.RPLOCAL).AND.(J1.NE.2).AND.(J1.LT.(NIMAGES+2))) THEN
                   !DUMMY=INTMINFAC*QCICONSTRREP*(1.0D0/DSQI+(2.0D0*DINT-3.0D0*RPLOCAL)*INTCONSTINV)
                   !DUMMY=INTMINFAC*K_REP*(1.0D0/DSQI+(2.0D0*DINT-3.0D0*RPLOCAL)*INTCONSTINV)
-                  DUMMY = K_REP*INTMINFAC*(1.0D0/DSQI-3.0D0/RPLOCAL2+(2.0D0*DINT)/(RPLOCAL3) )
+                  
+                  !DUMMY = K_REP*INTMINFAC*(1.0D0/DSQI-3.0D0/RPLOCAL2+(2.0D0*DINT)/(RPLOCAL3) )
+                  DUMMY = K_REP*INTMINFAC*(1.0D0/DSQI+(2.0D0*DINT/RPLOCAL-3.0D0)/RPLOCAL2 )
+                  
                   EREP=EREP+DUMMY
                   IF (DUMMY.GT.EMAX) THEN
                      IMAX=J1
@@ -1086,6 +1059,7 @@ MODULE CONSTR_E_GRAD
             
             ! V_QCI = 1/2 * K_SPR * |X_i - X_{i-1}|^2
             DUMMY = KINT*0.5D0*DPLUS/KINTSCALED
+            
             !QUESTION this adds energy to X_0 and X_n+1? How should the energy be divided? 
             !WARNING adding if statement to make sure E(1) & E(NIMAGES+2) = 0 ... not sure this is right
             IF (J1.EQ.1) THEN
@@ -1106,13 +1080,16 @@ MODULE CONSTR_E_GRAD
             ESPR = ESPR + DUMMY
             ! get gradient
             DUMMY=KINT/KINTSCALED
+           
             DO J2=1,NATOMS
                SPGRAD = 0.0D0
                IF ((.NOT.QCISPRINGACTIVET).OR.ATOMACTIVE(J2)) THEN 
                   SPGRAD(1:3)=DUMMY*(XYZ(NI1+3*(J2-1)+1:NI1+3*(J2-1)+3)-XYZ(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3))
+                  
                   !Image J-1
-                  GGG(NI1+3*(J2-1)+1:NI1+3*(J2-1)+3)=GGG(NI1+3*(J2-1)+1:NI1+3*(J2-1)+3)+SPGRAD(1:3)
-                  !GGG2(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)=GGG2(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)+SPGRAD(1:3)
+                  !GGG(NI1+3*(J2-1)+1:NI1+3*(J2-1)+3)=GGG(NI1+3*(J2-1)+1:NI1+3*(J2-1)+3)+SPGRAD(1:3)
+                  GGG2(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)=GGG2(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)+SPGRAD(1:3)
+                  
                   !Image J
                   GGG(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)=GGG(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)-SPGRAD(1:3)
                ENDIF
@@ -1125,8 +1102,8 @@ MODULE CONSTR_E_GRAD
          !WRITE(*,*) "EEE2 after CSHIF: ", EEE2
          EEE(1:NIMAGES+2)=EEE(1:NIMAGES+2)+EEE2(1:NIMAGES+2) 
 
-         !GGG2 = CSHIFT(GGG2, SHIFT=3*NATOMS)
-         !GGG(1:3*NATOMS*(NIMAGES+2))=GGG(1:3*NATOMS*(NIMAGES+2))+GGG2(1:3*NATOMS*(NIMAGES+2))
+         GGG2 = CSHIFT(GGG2, SHIFT=3*NATOMS)
+         GGG(1:3*NATOMS*(NIMAGES+2))=GGG(1:3*NATOMS*(NIMAGES+2))+GGG2(1:3*NATOMS*(NIMAGES+2))
 
          MAXSPRIMAGE = IMAX
          EMAXSPR = EMAX
@@ -1140,6 +1117,7 @@ MODULE CONSTR_E_GRAD
          REAL(KIND = REAL64) :: SEPARATION, DEVIATION(1:NIMAGES+1)
 
          SEPARATION = SUM(DVEC(1:NIMAGES+1))
+         !QUESTION what is this formula
          DEVIATION(1:NIMAGES+1)=ABS(100*((NIMAGES+1)*DVEC(1:NIMAGES+1)/SEPARATION-1.0D0))
          QCIAVDEV=SUM(DEVIATION)/(NIMAGES+1)
       END SUBROUTINE GET_AV_DEV
