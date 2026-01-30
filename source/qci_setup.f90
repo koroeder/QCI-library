@@ -22,11 +22,12 @@ MODULE QCISETUP
             CALL INIT_PERMALLOW(NATOMS)
             WRITE(*,*) "qci_init> Reading perm.allow file ..."
          ENDIF
+         
          !Need to get frozen atoms before aligning the endpoints for loperdist to work atm. 
-         IF (QCIFREEZET) THEN
-            WRITE(*,*) "qci_init> Calling GET_FROZEN_ATOMS ..."
-            CALL GET_FROZEN_ATOMS()
-         ENDIF
+         !This will not actually assign frozen atoms, only allocates arrays 
+         WRITE(*,*) "qci_init> Calling GET_FROZEN_ATOMS ..."
+         CALL GET_FROZEN_ATOMS()
+        
          
          ! align endpoints
           IF (ALIGNT.OR.USEIMAGEDENSITY) THEN 
@@ -34,8 +35,7 @@ MODULE QCISETUP
             CALL ALIGN_ENDPOINTS()
             WRITE(*,*) "qci_init> Aligned endpoints"
          ENDIF
-
-         !Need to get frozen atoms before aligning the endpoints for loperdist to work atm. 
+         !Now actually assign frozen atoms 
          IF (QCIFREEZET) THEN
             WRITE(*,*) "qci_init> Calling GET_FROZEN_ATOMS ..."
             CALL GET_FROZEN_ATOMS()
