@@ -833,9 +833,10 @@ MODULE ADDINGATOM
          USe MOD_INTCOORDS, ONLY: XSTART, XFINAL
          USE QCI_CONSTRAINT_KEYS, ONLY: NCONSTRAINT, CONI, CONJ
          USE HELPER_FNCTS, ONLY: DISTANCE_TWOATOMS
+         USE DIHEDRAL_CONSTRAINTS, ONLY: NDIH, DIHEDRALS
          IMPLICIT NONE  
          INTEGER, INTENT(IN) :: NEWATOM
-         INTEGER :: J1, J2
+         INTEGER :: J1, J2, J3
          LOGICAL :: ISCONSTRAINED  
          REAL(KIND = REAL64) :: DF, DS , DMIN      
          
@@ -843,14 +844,19 @@ MODULE ADDINGATOM
 
          DO J1=1,NATOMS
             IF (.NOT.ATOMACTIVE(J1)) CYCLE !ignore atoms that are not active
-            IF (ABS(J1-NEWATOM).LE.QCIINTREPMINSEP) CYCLE !no repulsions if atoms are close in sequence
+            !TODO setup proper dihedral exclusion
+             IF (ABS(J1-NEWATOM).LE.4) CYCLE !no repulsions if atoms are close in sequence
             ISCONSTRAINED = .FALSE.
+            !Don't add repulsion if there are constraints between the atoms 
             DO J2=1,NCONSTRAINT
                IF (((CONI(J2).EQ.J1).AND.(CONJ(J2).EQ.NEWATOM)).OR.((CONJ(J2).EQ.J1).AND.(CONI(J2).EQ.NEWATOM))) THEN
                   ISCONSTRAINED = .TRUE.
                   EXIT
                END IF
             END DO
+            
+            !TODO Don't add repuslions if new atom is part of a dihedral! 
+
             IF (.NOT.ISCONSTRAINED) THEN
                CALL DISTANCE_TWOATOMS(NATOMS, XSTART, NEWATOM, J1, DS)
                CALL DISTANCE_TWOATOMS(NATOMS, XFINAL, NEWATOM, J1, DF)

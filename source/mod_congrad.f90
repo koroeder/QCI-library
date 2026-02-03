@@ -15,33 +15,39 @@
 MODULE CONSTR_E_GRAD
    USE QCIPREC
    IMPLICIT NONE
-   INTEGER :: MAXCONIMAGE, MAXREPIMAGE, MAXSPRIMAGE      !< image with highest constraint / repulsion
-   INTEGER :: MAXCONSTR, MAXREP                          !< index for worst constraint / repulsion
-   REAL(KIND=REAL64) :: CONVERGECONTEST, CONVERGEREPTEST !< energy of that term
-   REAL(KIND=REAL64) :: FCONTEST, FREPTEST
+   INTEGER :: MAXCONIMAGE, MAXREPIMAGE, MAXSPRIMAGE                          !< image with highest constraint / repulsion
+   INTEGER :: MAXCONSTR, MAXREP, MAXDIH                                      !< index for worst constraint / repulsion
+   REAL(KIND=REAL64) :: CONVERGECONTEST, CONVERGEREPTEST, CONVERGENCEDIHTEST !< energy of that term
+   REAL(KIND=REAL64) :: FCONTEST, FREPTEST, FDIHTEST
    REAL(KIND=REAL64) :: EMAXSPR
-   REAL(KIND=REAL64) :: FCONMAX, FREPMAX                 !< maximum gradient
+   REAL(KIND=REAL64) :: FCONMAX, FREPMAX, FDIHMAX                 !< maximum gradient
    INTEGER :: CALLN = 0
    CONTAINS
 
-      SUBROUTINE CONGRAD(ETOTAL, XYZ, GGG, EEE, RMS)
+      SUBROUTINE CONGRAD(ETOTAL, XYZ, GGG, EEE, RMS, WRITE_OUTPUT)
          USE QCIKEYS, ONLY: NIMAGES, NATOMS, CHECKCONINT
          REAL(KIND = REAL64), INTENT(IN) :: XYZ(3*NATOMS*(NIMAGES+2))   !< input coordinates
          REAL(KIND = REAL64), INTENT(OUT) :: GGG(3*NATOMS*(NIMAGES+2))  !< gradient for each atom in each image
          REAL(KIND = REAL64), INTENT(OUT) :: EEE(NIMAGES+2)             !< energy for each image
          REAL(KIND = REAL64), INTENT(OUT) :: ETOTAL                    !< overall energy
          REAL(KIND = REAL64), INTENT(OUT) :: RMS                       !< total force
+         LOGICAL, INTENT(IN), OPTIONAL :: WRITE_OUTPUT                 ! output energies only when we need to
+         LOGICAL :: W_O 
+
+
+         W_O = .FALSE.
+         IF (PRESENT(WRITE_OUTPUT)) W_O= WRITE_OUTPUT
 
          ! call correct congrad routine
          IF (CHECKCONINT) THEN
-            CALL CONGRAD2(ETOTAL, XYZ, GGG, EEE, RMS)
+            CALL CONGRAD2(ETOTAL, XYZ, GGG, EEE, RMS, W_O)
             ELSE
-            CALL CONGRAD1(ETOTAL, XYZ, GGG, EEE, RMS)
+            CALL CONGRAD1(ETOTAL, XYZ, GGG, EEE, RMS, W_O)
          END IF
       END SUBROUTINE CONGRAD
 
 
-      SUBROUTINE CONGRAD1(ETOTAL, XYZ, GGG, EEE, RMS)
+      SUBROUTINE CONGRAD1(ETOTAL, XYZ, GGG, EEE, RMS, WRITE_OUTPUT)
          USE QCIKEYS, ONLY: NIMAGES, NATOMS, QCICONSTRREP, KINT, QCIFREEZET, QCIFROZEN, INTCONSTRAINTDEL, &
                             USEDIHEDRALCONST
          IMPLICIT NONE
@@ -50,6 +56,7 @@ MODULE CONSTR_E_GRAD
          REAL(KIND = REAL64), INTENT(OUT) :: EEE(NIMAGES+2)             ! energy for each image
          REAL(KIND = REAL64), INTENT(OUT) :: ETOTAL                    ! overall energy
          REAL(KIND = REAL64), INTENT(OUT) :: RMS                       ! total force
+         LOGICAL, INTENT(IN), OPTIONAL :: WRITE_OUTPUT                 ! output energies only when we need to 
         
          REAL(KIND = REAL64) :: ECON, EREP, ESPR, EDIH      ! QUERY: should these be globals in keys?
          REAL(KIND = REAL64) :: EEEC(NIMAGES+2), GGGC(3*NATOMS*(NIMAGES+2))
@@ -57,6 +64,10 @@ MODULE CONSTR_E_GRAD
          REAL(KIND = REAL64) :: EEES(NIMAGES+2), GGGS(3*NATOMS*(NIMAGES+2))
          REAL(KIND = REAL64) :: EEED(NIMAGES+2), GGGD(3*NATOMS*(NIMAGES+2))
          INTEGER :: J1, J2
+         LOGICAL :: W_O 
+
+         W_O = .FALSE.
+         IF (PRESENT(WRITE_OUTPUT)) W_O= WRITE_OUTPUT
 
          CALLN = CALLN + 1
 
@@ -116,14 +127,16 @@ MODULE CONSTR_E_GRAD
          END DO
          RMS = SQRT(RMS/(3*NATOMS*NIMAGES))
          ETOTAL = SUM(EEE(2:NIMAGES+1))
-         WRITE(*,*) " congrad1> E total: ", ETOTAL, "RMS: ", RMS, " E rep: ", SUM(EEER), " E constr: ", SUM(EEEC)
-         WRITE(*,*) "                                              E spring: ", SUM(EEES), " E dih: ", SUM(EEED)
-         WRITE(*,*) " congrad1> FCONTEST: ", FCONTEST, " FREPTEST: ", FREPTEST
-         WRITE(*,*) " congrad1> CONVERGECONTEST: ", CONVERGECONTEST, " CONVERGEREPTEST: ", CONVERGEREPTEST 
+         IF (W_O) THEN
+            WRITE(*,*) " congrad1> E total: ", ETOTAL, "RMS: ", RMS, " E rep: ", SUM(EEER), " E constr: ", SUM(EEEC)
+            WRITE(*,*) "                                              E spring: ", SUM(EEES), " E dih: ", SUM(EEED)
+            WRITE(*,*) " congrad1> FCONTEST: ", FCONTEST, " FREPTEST: ", FREPTEST
+            WRITE(*,*) " congrad1> CONVERGECONTEST: ", CONVERGECONTEST, " CONVERGEREPTEST: ", CONVERGEREPTEST
+         ENDIF 
       END SUBROUTINE CONGRAD1
 
 
-      SUBROUTINE CONGRAD2(ETOTAL, XYZ, GGG, EEE, RMS)
+      SUBROUTINE CONGRAD2(ETOTAL, XYZ, GGG, EEE, RMS, WRITE_OUTPUT)
          USE QCIKEYS, ONLY: NIMAGES, NATOMS, KINT, QCIFREEZET, QCIFROZEN, QCICONSTRREP, INTCONSTRAINTDEL, &
                             USEDIHEDRALCONST
          IMPLICIT NONE
@@ -132,7 +145,8 @@ MODULE CONSTR_E_GRAD
          REAL(KIND = REAL64), INTENT(OUT) :: EEE(NIMAGES+2)             ! energy for each image
          REAL(KIND = REAL64), INTENT(OUT) :: ETOTAL                    ! overall energy
          REAL(KIND = REAL64), INTENT(OUT) :: RMS                       ! total force
-        
+         LOGICAL, INTENT(IN), OPTIONAL :: WRITE_OUTPUT                 ! output energies only when we need to 
+
          REAL(KIND = REAL64) :: ECON, EREP, ESPR, EDIH      ! QUERY: should these be globals in keys?
          REAL(KIND = REAL64) :: EEEC(NIMAGES+2), GGGC(3*NATOMS*(NIMAGES+2))
          REAL(KIND = REAL64) :: EEER(NIMAGES+2), GGGR(3*NATOMS*(NIMAGES+2))
@@ -140,6 +154,10 @@ MODULE CONSTR_E_GRAD
          REAL(KIND = REAL64) :: EEED(NIMAGES+2), GGGD(3*NATOMS*(NIMAGES+2))
          INTEGER :: J1, J2
 
+         LOGICAL :: W_O 
+
+         W_O = .FALSE.
+         IF (PRESENT(WRITE_OUTPUT)) W_O= WRITE_OUTPUT
 
          ! initiate some variables
          EEE(1:NIMAGES+2)=0.0D0
@@ -199,11 +217,14 @@ MODULE CONSTR_E_GRAD
          END DO
          RMS = SQRT(RMS/(3*NATOMS*NIMAGES))
          ETOTAL = SUM(EEE(2:NIMAGES+1))
-         WRITE(*,*) " congrad2> E total: ", ETOTAL, "RMS: ", RMS, " E rep: ", SUM(EEER), " E constr: ", SUM(EEEC)
-         WRITE(*,*) "                                              E spring: ", SUM(EEES), " E dih: ", SUM(EEED)
-         WRITE(*,*) " congrad2> FCONTEST: ", FCONTEST, " FREPTEST: ", FREPTEST
-         WRITE(*,*) " congrad2> CONVERGECONTEST: ", CONVERGECONTEST, " CONVERGEREPTEST: ", CONVERGEREPTEST
-      END SUBROUTINE CONGRAD2    
+         IF (W_O) THEN
+            WRITE(*,*) " congrad2> E total: ", ETOTAL, "RMS: ", RMS, " E rep: ", SUM(EEER), " E constr: ", SUM(EEEC)
+            WRITE(*,*) "                                              E spring: ", SUM(EEES), " E dih: ", SUM(EEED)
+            WRITE(*,*) " congrad2> FCONTEST: ", FCONTEST, " FREPTEST: ", FREPTEST
+            WRITE(*,*) " congrad2> CONVERGECONTEST: ", CONVERGECONTEST, " CONVERGEREPTEST: ", CONVERGEREPTEST
+         ENDIF
+
+         END SUBROUTINE CONGRAD2    
 
       SUBROUTINE GET_CONSTRAINT_E_NOINTERNAL(XYZ,GGG,EEE,ECON)
          USE QCIKEYS, ONLY: NIMAGES, NATOMS, K_CONST, INTMINFAC, CHECKCONINT, INTCONSTRAINTDEL, &
@@ -314,7 +335,7 @@ MODULE CONSTR_E_GRAD
          !QUERY: FIs FMAX definitely for the same JMAX and IMAX as EMAX?
          IF (-FMIN.GT.FMAX) FMAX=-FMIN
          FCONTEST=FMAX
-         CONVERGECONTEST=EMAX
+         CONVERGECONTEST=EMAX/K_CONST
          MAXCONIMAGE = JMAX
          MAXCONSTR = IMAX
 
@@ -580,7 +601,7 @@ MODULE CONSTR_E_GRAD
 
          !QUESTION why do we have the line below?  
          !CONVERGECONTEST=EMAX/INTCONSTRAINTDEL
-         CONVERGECONTEST=EMAX
+         CONVERGECONTEST=EMAX/K_CONST
 
          IF (-FMIN.GT.FMAX) FMAX=-FMIN
          FCONTEST=FMAX
@@ -822,7 +843,7 @@ MODULE CONSTR_E_GRAD
          FMAX=MAXVAL(GGG(3*NATOMS+1:3*NATOMS*(NIMAGES+1)))
          IF (-FMIN.GT.FMAX) FMAX=-FMIN
          FREPTEST=FMAX
-         CONVERGEREPTEST=EMAX
+         CONVERGEREPTEST=EMAX/K_REP
          MAXCONIMAGE = JMAX
          MAXCONSTR = IMAX
       END SUBROUTINE GET_REPULSION_E
@@ -1014,7 +1035,7 @@ MODULE CONSTR_E_GRAD
          FREPTEST=FMAX
          !QUESTION why this convergence test?
          !CONVERGEREPTEST=EMAX/QCICONSTRREP
-         CONVERGEREPTEST=EMAX
+         CONVERGEREPTEST=EMAX/K_REP
          MAXCONIMAGE = JMAX
          MAXCONSTR = IMAX
       END SUBROUTINE GET_REPULSION_E2

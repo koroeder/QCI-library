@@ -74,7 +74,7 @@ MODULE QCIINTERPOLATION
          ! get common constraints for atoms in permutational groups
          IF (QCIPERMT) CALL CHECK_COMMON_CONSTR()
 
-         ! Turning first constraint on
+         ! Turning first constraint on and activating atoms
          CONACTIVE(NBEST)=.TRUE.
          ATOMACTIVE(CONI(NBEST))=.TRUE.
          ATOMACTIVE(CONJ(NBEST))=.TRUE.
@@ -90,7 +90,8 @@ MODULE QCIINTERPOLATION
          NTRIES(CONI(NBEST))=1
          NTRIES(CONJ(NBEST))=1
          NREPULSIVE=0
-         NCONSTRAINTON=0
+         !We turned on the 1st constraint above 
+         NCONSTRAINTON=1
          
          ! add constraints and repulsions for all frozen atoms
          !IF (QCIFREEZET) THEN
@@ -391,6 +392,8 @@ MODULE QCIINTERPOLATION
                   GPREV(:) = GGG(:)
                   XPREV(:) = XYZ(:)
                   ACCEPTEDSTEP = .TRUE.
+                  !This call to Congrad prints the congrad output
+                  CALL CONGRAD(ETOTAL, XYZ, GGG, EEE, RMS, .TRUE.)
                ELSE
                   NDECREASE = NDECREASE + 1
                   !TODO: add NDECREASE and a parameter variable for its limit 
@@ -409,6 +412,7 @@ MODULE QCIINTERPOLATION
                   END IF
                END IF
             END DO ! end of loop for accepting the step size
+            
             !scale gradient if necessary
             IF (MAXGRADCOMP.GT.0.0D0) CALL SCALEGRAD(DIMS,G,RMS,MAXGRADCOMP)
             CALL CHECK_FOR_COLDFUSION(ETOTAL)

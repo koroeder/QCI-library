@@ -306,7 +306,6 @@ MODULE CHIRALITY
             CHIRALCENTRE = CHIR_INFO(J1,1)
             !check whether the chiral centre and connected atoms are active
             IF (.NOT.ATOMACTIVE(CHIRALCENTRE)) CENTREACTIVE = .FALSE.
-            !QUESTION what is J2 here?
             DO J2=2,5
                IF (.NOT.ATOMACTIVE(CHIR_INFO(J1,J2))) CENTREACTIVE = .FALSE.
             END DO

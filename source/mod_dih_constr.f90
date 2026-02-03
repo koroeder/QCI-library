@@ -15,7 +15,7 @@ MODULE DIHEDRAL_CONSTRAINTS
    LOGICAL :: ALLDIHACTIVE = .FALSE.
    ! activated dihedrals?
    LOGICAL, ALLOCATABLE :: DIHACTIVE(:)
-   !< spring restraint constant
+   !> spring restraint constant
    REAL(KIND = REAL64) :: KDIH !QUESTION should this be in qci keys?
 
    CONTAINS
@@ -146,6 +146,7 @@ MODULE DIHEDRAL_CONSTRAINTS
                CALL GET_ATOMID("C5",I,AT3)
                CALL GET_ATOMID("C6",I,AT4)
                REFATOMS(NCONS,1) = AT1; REFATOMS(NCONS,2) = AT2; REFATOMS(NCONS,3) = AT3; REFATOMS(NCONS,4) = AT4
+               !WRITE(*,*) "DIHEDRAL check: N9-C4-C5-C6: ", REFATOMS(NCONS,1:4)
                !second dihedral 
                NCONS = NCONS + 1
                CALL GET_ATOMID("N7",I,AT1)
@@ -153,6 +154,7 @@ MODULE DIHEDRAL_CONSTRAINTS
                CALL GET_ATOMID("C4",I,AT3)
                CALL GET_ATOMID("N3",I,AT4)
                REFATOMS(NCONS,1) = AT1; REFATOMS(NCONS,2) = AT2; REFATOMS(NCONS,3) = AT3; REFATOMS(NCONS,4) = AT4    
+               !WRITE(*,*) "DIHEDRAL check: N7-C5-C4-N3: ", REFATOMS(NCONS,1:4)
                !third dihedral 
                NCONS = NCONS + 1
                CALL GET_ATOMID("C5",I,AT1)
@@ -160,6 +162,7 @@ MODULE DIHEDRAL_CONSTRAINTS
                CALL GET_ATOMID("N1",I,AT3)
                CALL GET_ATOMID("C2",I,AT4)
                REFATOMS(NCONS,1) = AT1; REFATOMS(NCONS,2) = AT2; REFATOMS(NCONS,3) = AT3; REFATOMS(NCONS,4) = AT4 
+               !WRITE(*,*) "DIHEDRAL check: C5-C6-N1-C2: ", REFATOMS(NCONS,1:4)
                !fourth dihedral 
                NCONS = NCONS + 1
                CALL GET_ATOMID("C5",I,AT1)
@@ -167,6 +170,7 @@ MODULE DIHEDRAL_CONSTRAINTS
                CALL GET_ATOMID("C8",I,AT3)
                CALL GET_ATOMID("N9",I,AT4)
                REFATOMS(NCONS,1) = AT1; REFATOMS(NCONS,2) = AT2; REFATOMS(NCONS,3) = AT3; REFATOMS(NCONS,4) = AT4
+               !WRITE(*,*) "DIHEDRAL check: C5-N7-C8-N9: ", REFATOMS(NCONS,1:4)
             ELSE IF ((RESNAMES(I).EQ."C").OR.(RESNAMES(I).EQ."C3").OR.(RESNAMES(I).EQ."C5").OR. &
                   (RESNAMES(I).EQ."DC").OR.(RESNAMES(I).EQ."DC3").OR.(RESNAMES(I).EQ."DC5")) THEN
                !first dihedral 
@@ -256,13 +260,17 @@ MODULE DIHEDRAL_CONSTRAINTS
             DIHEDRALS(J,2) = CHIR_INFO(J,2)
             DIHEDRALS(J,3) = CHIR_INFO(J,3)
             DIHEDRALS(J,4) = CHIR_INFO(J,4)
+         !WRITE(*,*) "DIHEDRALS-CHIR_INFO:  J=", J, "atoms: ", DIHEDRALS(J,1:4)
          END DO
          DO J=1,NCONS
             DIHEDRALS(NCHIRAL+J,1) = REFATOMS(J,1)
             DIHEDRALS(NCHIRAL+J,2) = REFATOMS(J,2)
             DIHEDRALS(NCHIRAL+J,3) = REFATOMS(J,3)
             DIHEDRALS(NCHIRAL+J,4) = REFATOMS(J,4)            
+         !WRITE(*,*) "DIHEDRALS-:  J=", J, "atoms: ",  DIHEDRALS(NCHIRAL+J,1:4)
          END DO
+         !WRITE(*,*) "setup_dih_constr> NDIH: ", NDIH
+         
          ! get reference angles
          DO J=1,NDIH
             AT1 = DIHEDRALS(J,1); AT2 = DIHEDRALS(J,2); AT3 = DIHEDRALS(J,3); AT4 = DIHEDRALS(J,4)
@@ -272,12 +280,12 @@ MODULE DIHEDRAL_CONSTRAINTS
             IF (DABS(THISDIH-PI).LE.EPS3) THISDIH = SIGN(PI,THISDIH)
             THISC0 = DCOS(THISDIH)
             THISS0 = DSIN(THISDIH)
+            !QUESTION is EPS6 too strict? ... dhould we use EPS3 ? 
             IF (DABS(THISC0).LE.EPS6) THISC0 = 0.0D0
             IF (DABS(THISS0).LE.EPS6) THISS0 = 0.0D0
             C0(J) = THISC0
             S0(J) = THISS0
          END DO
-         
       END SUBROUTINE SETUP_DIH_CONSTR
 
       SUBROUTINE COMPUTE_DIH(NATOMS, X, A, B, C, D, PHI)
@@ -403,7 +411,8 @@ MODULE DIHEDRAL_CONSTRAINTS
          
          !use a regularised version of sine
          SREG = SINPHI + SIGN(1.0d-18,SINPHI)
-         IF (EPS6.GT.ABS(SREG)) THEN
+
+         IF (EPS6.LT.ABS(SREG)) THEN
             ! for small sine values we take the limit of the exact form
             DF = C0(DIHREF)*REGTERM1
          ELSE

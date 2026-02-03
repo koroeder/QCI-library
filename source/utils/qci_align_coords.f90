@@ -80,7 +80,9 @@ MODULE QCIMINDIST
          END DO
       END SUBROUTINE MOVE_COORDS 
       
-      !Get rotational matrix RMAT to align X to refx and DIST - minimise sum of distances between the atoms
+      !>Get rotational matrix RMAT to align X to refx and DIST - minimise sum of distances between the atoms
+      !! Centre of coordinates of X and REFX should be the origin
+      !! This does not modify the input coordinates 
       SUBROUTINE FIND_ALIGNMENT(NATOMS, X, REFX, DIST, RMAT)
          IMPLICIT NONE
          INTEGER, INTENT(IN) :: NATOMS

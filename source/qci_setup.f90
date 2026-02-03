@@ -123,7 +123,7 @@ MODULE QCISETUP
       END SUBROUTINE PARSE_SETTINGS
 
       SUBROUTINE ALIGN_ENDPOINTS()
-         USE QCIPERMDIST, ONLY: LOPERMDIST
+         USE QCIPERMDIST, ONLY: LOPERMDIST, LPERMOFF
          USE QCIMINDIST, ONLY: ALIGNXBTOA
          USE QCIKEYS, ONLY : NATOMS, E2E_DIST, QCIPERMT, DEBUG
          USE MOD_INTCOORDS, ONLY: XSTART, XFINAL
@@ -135,7 +135,10 @@ MODULE QCISETUP
          ! -> lopermdist outputs xfinal and xstart
          IF (QCIPERMT) THEN
             WRITE(*,*) "Call LOPERMDIST: DOGROUP=0" 
+            !WARNING added below to turn on local permutations for initial alignement 
+            LPERMOFF = .FALSE.
             CALL LOPERMDIST(XFINAL,XSTART,E2E_DIST,DIST2,RMATBEST,0,NMOVE,NEWPERM)
+            LPERMOFF = .TRUE.
             WRITE(*,*) " align_endpoints> Total distance between endpoints is    ", E2E_DIST
             WRITE(*,*) " align_endpoints> Per atom distance between endpoints is ", E2E_DIST/NATOMS
          ELSE

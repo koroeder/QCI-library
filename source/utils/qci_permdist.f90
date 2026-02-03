@@ -236,8 +236,10 @@ MODULE QCIPERMDIST
             !coordinates for image 2
             COORDSA(1:3*NATOMS) = XYZ((3*NATOMS*(SECONDIMAGE-1)+1):3*NATOMS*SECONDIMAGE)            
 
-            CALL LOPERMDIST(COORDSB,COORDSA,DISTANCE,DIST2,RMATBEST,PERMGROUPIDX,NMOVEP,PERMP)
-   
+            !CALL LOPERMDIST(COORDSB,COORDSA,DISTANCE,DIST2,RMATBEST,PERMGROUPIDX,NMOVEP,PERMP)
+            LPERMOFF=.TRUE.
+            CALL LOPERMDIST(COORDSB,COORDSA,DISTANCE,DIST2,RMATBEST,0 ,NMOVEP,PERMP)
+
             IF (DEBUG.AND.NMOVEP.GT.0)  THEN
                WRITE(*,*) ' check_perm_band> group ',PERMGROUPIDX,' alignment of images ',SECONDIMAGE,FIRSTIMAGE,' moves=',&
                           NMOVEP, ' permutations, distance =',DISTANCE    
@@ -854,6 +856,8 @@ MODULE QCIPERMDIST
          BESTPERM(1:NATOMS)=ALLPERM(1:NATOMS)
          ! At this point NEWPERM, ALLPERM, SAVEPERM, BESTPERM
          ! are all the same!
+         
+         !WARNING potential deviation from OPTIM!
          CALL FIND_ALIGNMENT(NATOMS, DUMMYB, XBEST, DISTANCE, RMAT)
          IF (DEBUG) PRINT '(A,G20.10)',' lopermdist> after overall alignment distance=',DISTANCE
          RMATBEST(1:3,1:3)=RMAT(1:3,1:3)
@@ -871,8 +875,8 @@ MODULE QCIPERMDIST
             IF (LPERMOFF) THEN ! align COORDSB instead
                IF (.NOT.QCIFROZEN(J1)) COORDSB(3*(J1-1)+1:3*(J1-1)+3)=TEMPB(3*(J1-1)+1:3*(J1-1)+3)
             ELSE
-         ! finally, best COORDSA should include permutations for DNEB input!
-         IF (.NOT.QCIFROZEN(J1)) COORDSA(3*(J1-1)+1:3*(J1-1)+3)=XBEST(3*(J1-1)+1:3*(J1-1)+3) 
+            ! finally, best COORDSA should include permutations for DNEB input!
+               IF (.NOT.QCIFROZEN(J1)) COORDSA(3*(J1-1)+1:3*(J1-1)+3)=XBEST(3*(J1-1)+1:3*(J1-1)+3) 
             ENDIF
          ENDDO
 
@@ -1105,7 +1109,8 @@ MODULE QCIPERMDIST
          ENDDO       
       END SUBROUTINE ROTXZ
 
-
+      !> Moves centre of coords XA & XB to the origin, finds min distance rotational aligment
+      !> Returns the rotation matrix, but does not modify input coords
       SUBROUTINE NEWMINDIST2(RA,RB,NATOMS,DIST,DEBUG,RMAT,CMXA,CMYA,CMZA,CMXB,CMYB,CMZB,DWORST)
          IMPLICIT NONE
          INTEGER, INTENT(IN) :: NATOMS
