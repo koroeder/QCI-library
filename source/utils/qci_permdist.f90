@@ -39,12 +39,15 @@ MODULE QCIPERMDIST
 
    !LOGICAL :: PERMDISTINIT = .FALSE. ! This seems unused?
    !LOGICAL :: PERMGUESS = .FALSE.  ! This seems unused? 
-   LOGICAL :: LPERMOFF=.TRUE. !.FALSE. !< QUESTION This is always seems off with no way to assign it/ manually changing to true causes glibc (memory) crash 
+   LOGICAL :: LPERMOFF=.TRUE. 
 
-   LOGICAL :: PBETTER = .FALSE.! Used
+   LOGICAL :: PBETTER = .FALSE.!< Used to indicate if we found better alignment with permutation 
     
-   REAL(KIND=REAL64) :: LOCALPERMCUT = 0.5D0
-   REAL(KIND=REAL64) :: LOCALPERMCUT2 = 5.0D0
+   REAL(KIND=REAL64) :: LOCALPERMCUT = 0.5D0 !alignment threshold - atoms not added if the alignment is worse than this in terms of the total Euclidean distance
+                                              !don't we really want the worst distance for one atom? We are comparing to an extensive quantity! 
+
+   REAL(KIND=REAL64) :: LOCALPERMCUT2 = 5.0D0 !atoms to add to group must be within this distance (averaged for end points)
+   
    ! is this ever used or initialised?
    REAL(KIND=REAL64) :: LOCALPERMCUTINC ! unused?
 
@@ -183,9 +186,11 @@ MODULE QCIPERMDIST
          END DO
       END SUBROUTINE UPDATE_ACTIVE_PERMGROUPS
 
+      !> WARNING!!! Curently broken - doesn't do anything!
       SUBROUTINE CHECK_PERM_BAND(PERMGROUPIDX, FIRSTATOM, REVERSET)
-         USE QCIKEYS, ONLY: DEBUG, NATOMS, NIMAGES
+         USE QCIKEYS, ONLY: DEBUG, NATOMS, NIMAGES, QCIPERMCUT
          USE MOD_INTCOORDS, ONLY: XYZ
+         
          IMPLICIT NONE
          INTEGER, INTENT(IN) :: PERMGROUPIDX !<number of permutational group
          INTEGER, INTENT(IN) :: FIRSTATOM !<first atom id in permutational group
@@ -199,6 +204,11 @@ MODULE QCIPERMDIST
          LOGICAL :: BULKT = .FALSE., TWOD = .FALSE.
          REAL(KIND=REAL64) :: DISTANCE, DIST2
 
+         REAL(KIND=REAL64) :: SAVELOCALPERMCUT
+         SAVELOCALPERMCUT=LOCALPERMCUT
+         LOCALPERMCUT=QCIPERMCUT !This was coppied from OPTIM 
+
+
          ! going forward through the images
          IF (.NOT.REVERSET) THEN
             STARTIDX = 1
@@ -211,7 +221,7 @@ MODULE QCIPERMDIST
             STEP = -1
          END IF
 
-         DO J1=STARTIDX,ENDIDX,STEP 
+         DO J1=STARTIDX,ENDIDX,STEP !cycling through images
             ! Test alignment with neighbouring image
             ! Including endpoints (J): (start) 1 - 2 - 3 - ... -  J-1 -   J  - J+1 - J+2  - ... - NIMAGES+1 - NIMAGES (finish)
             ! Excluding endpoints (J1):            1 - 2 - ... - J1-2 - J1-1 -  J1 - J1+1 - ... - NIMAGES
@@ -230,16 +240,20 @@ MODULE QCIPERMDIST
             END IF 
             SECONDIMAGE = J1+1     !2 or NIMAGES+1
             
-            !WRITE(*,*) "Checking images ", FIRSTIMAGE, SECONDIMAGE
             !coordinates for image 1
             COORDSB(1:3*NATOMS) = XYZ((3*NATOMS*(FIRSTIMAGE-1)+1):3*NATOMS*FIRSTIMAGE)
             !coordinates for image 2
             COORDSA(1:3*NATOMS) = XYZ((3*NATOMS*(SECONDIMAGE-1)+1):3*NATOMS*SECONDIMAGE)            
 
-            !CALL LOPERMDIST(COORDSB,COORDSA,DISTANCE,DIST2,RMATBEST,PERMGROUPIDX,NMOVEP,PERMP)
-            LPERMOFF=.TRUE.
-            CALL LOPERMDIST(COORDSB,COORDSA,DISTANCE,DIST2,RMATBEST,0 ,NMOVEP,PERMP)
-
+            LPERMOFF=.TRUE. !at his point we wanr to align the whole image not do local permutations
+            !we call with DGROUP>0, so we exit with changes to coords A?
+            
+            !!!!!!WARNING !!!!!!
+            ! This type of LOPERMDIST call is broken! 
+            ! PERMP is never updated, SO NMOVES is always zero!
+            CALL LOPERMDIST(COORDSB,COORDSA,DISTANCE,DIST2,RMATBEST,PERMGROUPIDX,NMOVEP,PERMP)
+            
+            
             IF (DEBUG.AND.NMOVEP.GT.0)  THEN
                WRITE(*,*) ' check_perm_band> group ',PERMGROUPIDX,' alignment of images ',SECONDIMAGE,FIRSTIMAGE,' moves=',&
                           NMOVEP, ' permutations, distance =',DISTANCE    
@@ -263,6 +277,7 @@ MODULE QCIPERMDIST
                XYZ((3*NATOMS*(SECONDIMAGE-1)+1):3*NATOMS*SECONDIMAGE) = COORDSA(1:3*NATOMS)
             ENDIF
          END DO
+         LOCALPERMCUT=SAVELOCALPERMCUT
          !WRITE(*,*) "Completed perm band check"
       END SUBROUTINE CHECK_PERM_BAND
 
@@ -356,7 +371,7 @@ MODULE QCIPERMDIST
 
       END SUBROUTINE CHECK_COMMON_CONSTR
 
-      !
+      !> For LMPERMOFF=.TRUE. move COORDSB, LMPERMOFF=.FALSE. move COORDSA
       SUBROUTINE LOPERMDIST(COORDSB,COORDSA,DISTANCE,DIST2,RMATBEST,DOGROUP,NMOVE,NEWPERM)
          USE QCIKEYS, ONLY: NATOMS, DEBUG, BOXLX, BOXLY, BOXLZ, BULKT, STOCKT !, TWOD, RIGID
          USE QCIPREC
@@ -789,6 +804,7 @@ MODULE QCIPERMDIST
             DISTANCE=SQRT(LDBEST(DOGROUP))
             NMOVE=0
             DO J2=1,NATOMS
+               !THIS WILL  NEVER EVALUATE TRUE WE ASIGNED NEWPERM(J2)=J2!!!!
                IF (NEWPERM(J2).NE.J2) THEN
                   NMOVE=NMOVE+1
                ENDIF
@@ -808,6 +824,15 @@ MODULE QCIPERMDIST
                DUMMYA(3*(J1-1)+3)=COORDSA(3*(NEWPERM(J1)-1)+3)
             ENDDO
             CALL NEWMINDIST2(COORDSB,DUMMYA,NATOMS,PDISTANCE,DEBUG,RMAT,CMXA,CMYA,CMZA,CMXB,CMYB,CMZB,DWORST)           
+            
+            !Debugg test 
+            DO J1=1,NATOMS
+               IF (J1.NE.NEWPERM(J1)) THEN
+                  WRITE(*,*) "WARNING: newperm does something"
+                  
+               ENDIF
+            ENDDO
+            
             IF (PDISTANCE.LT.NOPDISTANCE) PBETTER=.TRUE.
             RETURN
          ENDIF
@@ -851,6 +876,10 @@ MODULE QCIPERMDIST
 
          DISTANCE=DSUM
          DIST2=DISTANCE**2
+
+         !WRITE(*,'(A,G20.10)') ' lopermdist> After myorient block sum of distances=',DISTANCE
+         !WRITE(*,'(A,G20.10)') ' lopermdist> Total permutations=',NPERM
+
          ! Save current best overall distance, permuted version of COORDSA, and permutation.
          XBEST(1:3*NATOMS)=DUMMYA(1:3*NATOMS)
          BESTPERM(1:NATOMS)=ALLPERM(1:NATOMS)
@@ -858,19 +887,17 @@ MODULE QCIPERMDIST
          ! are all the same!
          
          !WARNING potential deviation from OPTIM!
-         CALL FIND_ALIGNMENT(NATOMS, DUMMYB, XBEST, DISTANCE, RMAT)
-         IF (DEBUG) PRINT '(A,G20.10)',' lopermdist> after overall alignment distance=',DISTANCE
+         !CALL FIND_ALIGNMENT(NATOMS, DUMMYB, XBEST, DISTANCE, RMAT)
+         CALL NEWMINDIST3(DUMMYB,XBEST,NATOMS,DISTANCE,DEBUG,RMAT,CMXA,CMYA,CMZA,CMXB,CMYB,CMZB,DWORST)  
+
+         !IF (DEBUG) 
+         !PRINT '(A,G20.10)',' lopermdist> after overall alignment distance=',DISTANCE
          RMATBEST(1:3,1:3)=RMAT(1:3,1:3)
          
-         !IF (LPERMOFF) THEN ! align COORDSB instead
-         !   COORDSB(1:3*NATOMS)=TEMPB(1:3*NATOMS)
-         !ELSE
-         !   COORDSA(1:3*NATOMS)=XBEST(1:3*NATOMS) ! finally, best COORDSA should include permutations for DNEB input!
-         !ENDIF
-
+         
          !Copied fix from OPTIM
+         
          ! Fix frozen atoms. DJW 17.5.2025
-
          DO J1=1,NATOMS
             IF (LPERMOFF) THEN ! align COORDSB instead
                IF (.NOT.QCIFROZEN(J1)) COORDSB(3*(J1-1)+1:3*(J1-1)+3)=TEMPB(3*(J1-1)+1:3*(J1-1)+3)
@@ -1110,7 +1137,7 @@ MODULE QCIPERMDIST
       END SUBROUTINE ROTXZ
 
       !> Moves centre of coords XA & XB to the origin, finds min distance rotational aligment
-      !> Returns the rotation matrix, but does not modify input coords
+      !> Returns the rotation matrix, does not modift the coordinates
       SUBROUTINE NEWMINDIST2(RA,RB,NATOMS,DIST,DEBUG,RMAT,CMXA,CMYA,CMZA,CMXB,CMYB,CMZB,DWORST)
          IMPLICIT NONE
          INTEGER, INTENT(IN) :: NATOMS
@@ -1140,11 +1167,13 @@ MODULE QCIPERMDIST
             CMZA=CMZA+XA(3*(J1-1)+3)
          ENDDO
          CMXA=CMXA/NATOMS; CMYA=CMYA/NATOMS; CMZA=CMZA/NATOMS
+         !WRITE(*,*) "DEBUG newmindist2> CMXA", CMXA, "CMYA", CMYA, "CMZA", CMZA 
          DO J1=1,NATOMS
             XA(3*(J1-1)+1)=XA(3*(J1-1)+1)-CMXA
             XA(3*(J1-1)+2)=XA(3*(J1-1)+2)-CMYA
             XA(3*(J1-1)+3)=XA(3*(J1-1)+3)-CMZA
          ENDDO
+         
          CMXB=0.0D0; CMYB=0.0D0; CMZB=0.0D0
          DO J1=1,NATOMS
             CMXB=CMXB+XB(3*(J1-1)+1)
@@ -1152,6 +1181,7 @@ MODULE QCIPERMDIST
             CMZB=CMZB+XB(3*(J1-1)+3)
          ENDDO
          CMXB=CMXB/NATOMS; CMYB=CMYB/NATOMS; CMZB=CMZB/NATOMS
+         !WRITE(*,*) "DEBUG newmindist2> CMXB", CMXB, "CMYB", CMYB, "CMZB", CMZB 
          DO J1=1,NATOMS
             XB(3*(J1-1)+1)=XB(3*(J1-1)+1)-CMXB
             XB(3*(J1-1)+2)=XB(3*(J1-1)+2)-CMYB
@@ -1238,6 +1268,146 @@ MODULE QCIPERMDIST
          !WRITE(*,*) "newmindist2> Distance: ", DISTANCE, " DWORST: ", DWORST
       END SUBROUTINE NEWMINDIST2
 
+!Same as NEWMIDIST3, except this one modifies coordinates
+SUBROUTINE NEWMINDIST3(RA,RB,NATOMS,DIST,DEBUG,RMAT,CMXA,CMYA,CMZA,CMXB,CMYB,CMZB,DWORST)
+         IMPLICIT NONE
+         INTEGER, INTENT(IN) :: NATOMS
+         REAL(KIND = REAL64), INTENT(IN) :: RA(3*NATOMS)
+         REAL(KIND = REAL64), INTENT(INOUT) :: RB(3*NATOMS)
+         REAL(KIND = REAL64), INTENT(OUT) :: DIST, DWORST
+         REAL(KIND = REAL64), INTENT(OUT) :: RMAT(3,3)
+         REAL(KIND = REAL64), INTENT(OUT) :: CMXA, CMYA, CMZA, CMXB, CMYB, CMZB
+         LOGICAL, INTENT(IN) :: DEBUG
+
+         REAL(KIND = REAL64) :: XA(3*NATOMS), XB(3*NATOMS) ! copy of coordinates to be manipulated
+         INTEGER :: J1, JMIN, J2 ! counters
+         REAL(KIND = REAL64) :: QMAT(4,4), Q1, Q2, Q3, Q4, XM, YM, ZM, XP, YP, ZP ! quaternion
+         REAL(KIND = REAL64) :: DIAG(4), TEMPA(9*NATOMS) ! arrays needed for diagonalisation
+         INTEGER :: INFO ! exit status for dysev
+         REAL(KIND = REAL64) :: MINV
+         REAL(KIND = REAL64) :: DISTANCE, SCDUM
+
+         !copy coordinates so we can manipulate them
+         XA(1:3*NATOMS)=RA(1:3*NATOMS)
+         XB(1:3*NATOMS)=RB(1:3*NATOMS)
+
+         ! Move centre of coordinates of XA and XB to the origin
+         CMXA=0.0D0; CMYA=0.0D0; CMZA=0.0D0
+         DO J1=1,NATOMS
+            CMXA=CMXA+XA(3*(J1-1)+1)
+            CMYA=CMYA+XA(3*(J1-1)+2)
+            CMZA=CMZA+XA(3*(J1-1)+3)
+         ENDDO
+         CMXA=CMXA/NATOMS; CMYA=CMYA/NATOMS; CMZA=CMZA/NATOMS
+         !WRITE(*,*) "DEBUG newmindist2> CMXA", CMXA, "CMYA", CMYA, "CMZA", CMZA 
+         DO J1=1,NATOMS
+            XA(3*(J1-1)+1)=XA(3*(J1-1)+1)-CMXA
+            XA(3*(J1-1)+2)=XA(3*(J1-1)+2)-CMYA
+            XA(3*(J1-1)+3)=XA(3*(J1-1)+3)-CMZA
+         ENDDO
+         
+         CMXB=0.0D0; CMYB=0.0D0; CMZB=0.0D0
+         DO J1=1,NATOMS
+            CMXB=CMXB+XB(3*(J1-1)+1)
+            CMYB=CMYB+XB(3*(J1-1)+2)
+            CMZB=CMZB+XB(3*(J1-1)+3)
+         ENDDO
+         CMXB=CMXB/NATOMS; CMYB=CMYB/NATOMS; CMZB=CMZB/NATOMS
+         !WRITE(*,*) "DEBUG newmindist2> CMXB", CMXB, "CMYB", CMYB, "CMZB", CMZB 
+         DO J1=1,NATOMS
+            XB(3*(J1-1)+1)=XB(3*(J1-1)+1)-CMXB
+            XB(3*(J1-1)+2)=XB(3*(J1-1)+2)-CMYB
+            XB(3*(J1-1)+3)=XB(3*(J1-1)+3)-CMZB
+         ENDDO
+
+         !  The formula below is not invariant to overall translation because XP, YP, ZP
+         !  involve a sum of coordinates! We need to have XA and XB coordinate centres both 
+         !  at the origin!!
+         QMAT(1:4,1:4)=0.0D0
+         DO J1=1,NATOMS
+            XM=XA(3*(J1-1)+1)-XB(3*(J1-1)+1)
+            YM=XA(3*(J1-1)+2)-XB(3*(J1-1)+2)
+            ZM=XA(3*(J1-1)+3)-XB(3*(J1-1)+3)
+            XP=XA(3*(J1-1)+1)+XB(3*(J1-1)+1)
+            YP=XA(3*(J1-1)+2)+XB(3*(J1-1)+2)
+            ZP=XA(3*(J1-1)+3)+XB(3*(J1-1)+3)
+         !  PRINT '(A,I8,6G18.8)','J1,XM,YM,ZM,XP,YP,ZP=',J1,XM,YM,ZM,XP,YP,ZP
+            QMAT(1,1)=QMAT(1,1)+XM**2+YM**2+ZM**2
+            QMAT(1,2)=QMAT(1,2)+YP*ZM-YM*ZP
+            QMAT(1,3)=QMAT(1,3)+XM*ZP-XP*ZM
+            QMAT(1,4)=QMAT(1,4)+XP*YM-XM*YP
+            QMAT(2,2)=QMAT(2,2)+YP**2+ZP**2+XM**2
+            QMAT(2,3)=QMAT(2,3)+XM*YM-XP*YP
+            QMAT(2,4)=QMAT(2,4)+XM*ZM-XP*ZP
+            QMAT(3,3)=QMAT(3,3)+XP**2+ZP**2+YM**2
+            QMAT(3,4)=QMAT(3,4)+YM*ZM-YP*ZP
+            QMAT(4,4)=QMAT(4,4)+XP**2+YP**2+ZM**2
+         ENDDO
+         
+         QMAT(2,1)=QMAT(1,2)
+         QMAT(3,1)=QMAT(1,3)
+         QMAT(3,2)=QMAT(2,3)
+         QMAT(4,1)=QMAT(1,4)
+         QMAT(4,2)=QMAT(2,4)
+         QMAT(4,3)=QMAT(3,4)
+        
+         CALL DSYEV('V','U',4,QMAT,4,DIAG,TEMPA,9*NATOMS,INFO)
+         
+         IF (INFO.NE.0) PRINT '(A,I6,A)',' newmindist2> WARNING - INFO=',INFO,' in DSYEV'
+
+         MINV=1.0D200
+         JMIN=1
+         DO J1=1,4
+            IF (DIAG(J1).LT.MINV) THEN
+            JMIN=J1
+            MINV=DIAG(J1)
+            ENDIF
+         ENDDO
+         IF (MINV.LT.0.0D0) THEN
+            IF (ABS(MINV).LT.1.0D-6) THEN
+            MINV=0.0D0
+            ELSE
+            PRINT '(A,G20.10,A)',' newmindist2> WARNING MINV is ',MINV,' change to absolute value'
+            MINV=-MINV
+            ENDIF
+         ENDIF
+         DIST=SQRT(MINV) 
+
+         !  IF (DEBUG) PRINT '(A,G20.10,A,I6)',' newmindist2> minimum residual is ',DIAG(JMIN),' for eigenvector ',JMIN
+         Q1=QMAT(1,JMIN); Q2=QMAT(2,JMIN); Q3=QMAT(3,JMIN); Q4=QMAT(4,JMIN)
+         ! RMAT will contain the matrix that maps XB onto the best correspondence with XA
+         RMAT(1,1)=Q1**2+Q2**2-Q3**2-Q4**2
+         RMAT(1,2)=2*(Q2*Q3+Q1*Q4)
+         RMAT(1,3)=2*(Q2*Q4-Q1*Q3)
+         RMAT(2,1)=2*(Q2*Q3-Q1*Q4)
+         RMAT(2,2)=Q1**2+Q3**2-Q2**2-Q4**2
+         RMAT(2,3)=2*(Q3*Q4+Q1*Q2)
+         RMAT(3,1)=2*(Q2*Q4+Q1*Q3)
+         RMAT(3,2)=2*(Q3*Q4-Q1*Q2)
+         RMAT(3,3)=Q1**2+Q4**2-Q2**2-Q3**2
+
+        
+         ! Test the rotation, check the distance, and find the biggest atomic displacement
+         ! XB is actually modified here!
+         ! original call
+         !This is were we differ from NEWMINDIST2!
+         CALL NEWROTGEOM(NATOMS,RB,RMAT,CMXB,CMYB,CMZB)
+         
+
+         DWORST=0.0D0
+         DISTANCE=0.0D0
+         DO J2=1,NATOMS
+            SCDUM=(XA(3*(J2-1)+1)-XB(3*(J2-1)+1))**2+(XA(3*(J2-1)+2)-XB(3*(J2-1)+2))**2+(XA(3*(J2-1)+3)-XB(3*(J2-1)+3))**2
+            DISTANCE=DISTANCE+SCDUM
+            IF (SCDUM.GT.DWORST) DWORST=SCDUM
+         ENDDO
+         DISTANCE=SQRT(DISTANCE)
+         DWORST=SQRT(DWORST)
+
+         WRITE(*,*) "newmindist2> Distance: ", DISTANCE, " DWORST: ", DWORST
+      END SUBROUTINE NEWMINDIST3
+
+      !> does not change coordinates
       SUBROUTINE MINPERM(N, P, Q, SX, SY, SZ, PBC, PERM, DIST, WORSTDIST, WORSTRADIUS)
          IMPLICIT NONE
          INTEGER, INTENT(IN) :: N !< system size (number of atoms)

@@ -29,6 +29,7 @@ MODULE MOD_INTCOORDS
 
          CALL ALLOC_INTCOORDS()
          CALL ALLOC_PREVCOORDS()
+         !When we call this XSTART and XFINAL should be aligned already 
          XYZ(1:(3*NATOMS))=XSTART(1:3*NATOMS)
          XYZ((3*NATOMS)*(NIMAGES+1)+1:(3*NATOMS)*(NIMAGES+2))=XFINAL(1:3*NATOMS)
          DO J1=1,NIMAGES+2

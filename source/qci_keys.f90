@@ -145,8 +145,7 @@ MODULE QCIKEYS
    !> permutational stuff
    INTEGER :: QCIPERMCHECKINT = 100
    LOGICAL :: QCIPERMT = .FALSE.
-   REAL(KIND=REAL64) :: QCIPERMCUT = 0.8D0 !< QUESTION? is this used anywhere?
-
+   REAL(KIND=REAL64) :: QCIPERMCUT = 0.8D0 !< used in LOPERMDIST
    !> for myorient
    REAL(KIND=REAL64) :: ORBITTOL = 0.3D0
 

@@ -41,8 +41,8 @@ MODULE QCIMINDIST
             ENDDO
          ENDDO     
 
-         ! move coordinates back to original frame position
-         CALL MOVE_COORDS(NSIZE,RB,-CXB)
+         ! move coordinates to RA frame of reference for maximum alignment
+         CALL MOVE_COORDS(NSIZE,RB,-CXA)
          ! write coordinates back to XB to be returned
          XB(1:3*NSIZE) = RB(1:3*NSIZE)
       END SUBROUTINE ALIGNXBTOA

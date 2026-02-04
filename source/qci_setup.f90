@@ -123,22 +123,35 @@ MODULE QCISETUP
       END SUBROUTINE PARSE_SETTINGS
 
       SUBROUTINE ALIGN_ENDPOINTS()
-         USE QCIPERMDIST, ONLY: LOPERMDIST, LPERMOFF
+         USE QCIPERMDIST, ONLY: LOPERMDIST, LPERMOFF, LOCALPERMCUT, LOCALPERMCUT2, LOCALPERMNEIGH
          USE QCIMINDIST, ONLY: ALIGNXBTOA
          USE QCIKEYS, ONLY : NATOMS, E2E_DIST, QCIPERMT, DEBUG
          USE MOD_INTCOORDS, ONLY: XSTART, XFINAL
          IMPLICIT NONE
          REAL(KIND=REAL64) :: DIST2, RMATBEST(3,3)
-         INTEGER :: NMOVE, NEWPERM(NATOMS)
+         REAL(KIND=REAL64) :: SAVELOCALPERMCUT, SAVELOCALPERMCUT2
+         INTEGER :: NMOVE, NEWPERM(NATOMS), SAVELOCALPERMNEIGH
 
          !QUERY: will lopermdist actually change coordinates or do we need a wrapper to do so?
          ! -> lopermdist outputs xfinal and xstart
          IF (QCIPERMT) THEN
-            WRITE(*,*) "Call LOPERMDIST: DOGROUP=0" 
+            !WRITE(*,*) "Call LOPERMDIST: DOGROUP=0" 
             !WARNING added below to turn on local permutations for initial alignement 
-            LPERMOFF = .FALSE.
-            CALL LOPERMDIST(XFINAL,XSTART,E2E_DIST,DIST2,RMATBEST,0,NMOVE,NEWPERM)
+            !Adding settings from OPTIM here
+            SAVELOCALPERMNEIGH=LOCALPERMNEIGH
+            SAVELOCALPERMCUT=LOCALPERMCUT
+            SAVELOCALPERMCUT2=LOCALPERMCUT2
+            LOCALPERMNEIGH=NATOMS
+            LOCALPERMCUT=1.2D0
+            LOCALPERMCUT2=1.0D10
+
             LPERMOFF = .TRUE.
+            CALL LOPERMDIST(XFINAL,XSTART,E2E_DIST,DIST2,RMATBEST,0,NMOVE,NEWPERM)
+            LPERMOFF = .FALSE.
+            LOCALPERMNEIGH=SAVELOCALPERMNEIGH
+            LOCALPERMCUT=SAVELOCALPERMCUT
+            LOCALPERMCUT2=SAVELOCALPERMCUT2
+
             WRITE(*,*) " align_endpoints> Total distance between endpoints is    ", E2E_DIST
             WRITE(*,*) " align_endpoints> Per atom distance between endpoints is ", E2E_DIST/NATOMS
          ELSE
