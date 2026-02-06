@@ -304,15 +304,17 @@ MODULE CONSTR_E_GRAD
                   ! WARNING changed expression for better numberical stability 
                   ! (A^2-B^2)/B^2 -> ((A/B)-1)*((A/B)+1)  
                                     
-                  GRADAB(1:3)=2.0D0*K_CONST*LOCALCONFACTOR*(DUMMY/CCLOCAL-1.0D0)*(DUMMY/CCLOCAL+1.0D0)*DUMMY*G2(1:3)
-                  !GRADAB(1:3)=2.0D0*K_CONST*LOCALCONFACTOR*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G2(1:3)
-               
+                  !GRADAB(1:3)=2.0D0*K_CONST*LOCALCONFACTOR*(DUMMY/CCLOCAL-1.0D0)*(DUMMY/CCLOCAL+1.0D0)*DUMMY*G2(1:3)
+                  GRADAB(1:3)=2.0D0*K_CONST*LOCALCONFACTOR*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G2(1:3)
+                  
+                  
                   ! Eq(8) J.Chem.Theory Comput. 2012, 8, 5020-5034
                   ! V_con(d^i_AB) = (k_con* ((d^i_AB - ave(d_AB))^2 -(C^con_AB)^2 )^2 )/ 2*(C^con_AB)^2
                               
-                  !DUMMY = K_CONST*LOCALCONFACTOR*((DUMMY2-CCLOCAL2)**2/(2.0D0*CCLOCAL2))
-                  DUMMy = 0.5D0*K_CONST*LOCALCONFACTOR*((DUMMY/CCLOCAL)-1.0D0)*((DUMMY/CCLOCAL)+1.0D0)*CCLOCAL2
-
+                  DUMMY = K_CONST*LOCALCONFACTOR*((DUMMY2-CCLOCAL2)**2/(2.0D0*CCLOCAL2))
+                  
+                  !DUMMY = 0.5D0*K_CONST*LOCALCONFACTOR*((DUMMY/CCLOCAL)**2-1.0D0)**2 *CCLOCAL2
+                  
                   EEE(J1) = EEE(J1) + DUMMY
                   ECON = ECON + DUMMY
                   !!!!!!debugging WRITE(*,*) " For image ", J1, " dist: ", DIST, " dummy: ", DIST - CONDISTREFLOCAL(J2), " energy: ", DUMMY 
@@ -495,18 +497,19 @@ MODULE CONSTR_E_GRAD
                ! condition: |G2| - mean(d_AB) > C_AB
                DUMMY = D2-CONDISTREFLOCAL(J2)
                IF ((DUMMY.GT.CCLOCAL).AND.(J1.LT.NIMAGES+2)) THEN  
-                  !CONSTGRAD(1:3)=2*INTCONSTRAINTDEL*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G2(1:3)
+                  
+                  CONSTGRAD(1:3)=2.0D0*K_CONST*INTCONSTRAINTDEL*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G2(1:3)
                   !DUMMY=INTCONSTRAINTDEL*(DUMMY**2-CCLOCAL**2)**2/(2.0D0*CCLOCAL**2)
                   ! We are missing eps_con
                  
                   !CONSTGRAD(1:3)=2.0D0*K_CONST*LOCALCONFACTOR*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G2(1:3)
-                  CONSTGRAD(1:3)=2.0D0*K_CONST*LOCALCONFACTOR*((DUMMY/CCLOCAL)-1.0D0)*((DUMMY/CCLOCAL)+1.0D0)*DUMMY*G2(1:3)
+                  !CONSTGRAD(1:3)=2.0D0*K_CONST*LOCALCONFACTOR*((DUMMY/CCLOCAL)-1.0D0)*((DUMMY/CCLOCAL)+1.0D0)*DUMMY*G2(1:3)
                                
                   ! V_con(d^i_AB) = eps_con ((d^i_AB-ave*(d^i_AB))^2 - C_con_AB^2 )^2 / 2(C_con_AB)^2
                   !WARNING changing DUMMY here to (hopefully) improve numerical stability
-                  !DUMMY=K_CONST*LOCALCONFACTOR*((DUMMY**2-CCLOCAL**2)**2)/(2.0D0*CCLOCAL**2)                  
-                  !DUMMY=0.5D0*K_CONST*LOCALCONFACTOR*((DUMMY**2/CCLOCAL**2)-1.0D0)*CCLOCAL**2
-                  DUMMY=0.5D0*K_CONST*LOCALCONFACTOR*((DUMMY/CCLOCAL)-1.0D0)*((DUMMY/CCLOCAL)+1.0D0)*CCLOCAL**2
+                  DUMMY=K_CONST*LOCALCONFACTOR*((DUMMY**2-CCLOCAL**2)**2)/(2.0D0*CCLOCAL**2)                  
+                 
+                  !DUMMY=0.5D0*K_CONST*LOCALCONFACTOR*(((DUMMY/CCLOCAL)-1.0D0)*((DUMMY/CCLOCAL)+1.0D0)*CCLOCAL)**2
 
                   EEE(J1) = EEE(J1) + DUMMY
                   ECON=ECON+DUMMY
@@ -539,9 +542,9 @@ MODULE CONSTR_E_GRAD
        
                   !Image J1-1 
 
-                  !CONSTGRAD(1:3)=2*INTMINFAC*INTCONSTRAINTDEL*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G1INT(1:3)
+                  CONSTGRAD(1:3)=2.0D0*INTMINFAC*LOCALCONFACTOR*K_CONST*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G1INT(1:3)
                   !CONSTGRAD(1:3)=2.0D0*K_CONST*INTMINFAC*LOCALCONFACTOR*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G1INT(1:3)
-                  CONSTGRAD(1:3)=2.0D0*K_CONST*INTMINFAC*LOCALCONFACTOR*((DUMMY/CCLOCAL)-1.0D0)*((DUMMY/CCLOCAL)+1.0D0)*DUMMY*G1INT(1:3)
+                  !CONSTGRAD(1:3)=2.0D0*K_CONST*INTMINFAC*LOCALCONFACTOR*((DUMMY/CCLOCAL)-1.0D0)*((DUMMY/CCLOCAL)+1.0D0)*DUMMY*G1INT(1:3)
                   
                   !GGG(NI1+1:NI1+3)=GGG(NI1+1:NI1+3)+CONSTGRAD(1:3)
                   !GGG(NJ1+1:NJ1+3)=GGG(NJ1+1:NJ1+3)-CONSTGRAD(1:3)
@@ -550,18 +553,17 @@ MODULE CONSTR_E_GRAD
                   GGG2(NJ1+1:NJ1+3)=GGG2(NJ1+1:NJ1+3)-CONSTGRAD(1:3)
                   
                   !Image J1 - we add this one normally
-                  !CONSTGRAD(1:3)=2*INTMINFAC*INTCONSTRAINTDEL*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G2INT(1:3)
+                  CONSTGRAD(1:3)=2*INTMINFAC*LOCALCONFACTOR*K_CONST*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G2INT(1:3)
                   !CONSTGRAD(1:3)=2.0D0*K_CONST*INTMINFAC*LOCALCONFACTOR*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G2INT(1:3)
-                  CONSTGRAD(1:3)=2.0D0*K_CONST*INTMINFAC*LOCALCONFACTOR*((DUMMY/CCLOCAL)-1.0D0)*((DUMMY/CCLOCAL)+1.0D0)*DUMMY*G2INT(1:3)
+                  !CONSTGRAD(1:3)=2.0D0*K_CONST*INTMINFAC*LOCALCONFACTOR*((DUMMY/CCLOCAL)-1.0D0)*((DUMMY/CCLOCAL)+1.0D0)*DUMMY*G2INT(1:3)
                   GGG(NI2+1:NI2+3)=GGG(NI2+1:NI2+3)+CONSTGRAD(1:3)
                   GGG(NJ2+1:NJ2+3)=GGG(NJ2+1:NJ2+3)-CONSTGRAD(1:3)
 
                   !DUMMY=INTMINFAC*INTCONSTRAINTDEL*(DUMMY**2-CCLOCAL**2)**2/(2.0D0*CCLOCAL**2)
-                  !DUMMY=K_CONST*INTMINFAC*LOCALCONFACTOR*(DUMMY**2-CCLOCAL**2)**2/(2.0D0*CCLOCAL**2)
+                  DUMMY=K_CONST*INTMINFAC*LOCALCONFACTOR*(DUMMY**2-CCLOCAL**2)**2/(2.0D0*CCLOCAL**2)
                   
                   !Note not much difference between expressions below 
-                  !DUMMY=0.5D0*K_CONST*INTMINFAC*LOCALCONFACTOR*((DUMMY**2/CCLOCAL**2)-1.0D0)*CCLOCAL**2
-                  DUMMY=0.5D0*K_CONST*INTMINFAC*LOCALCONFACTOR*((DUMMY/CCLOCAL)-1.0D0)*((DUMMY/CCLOCAL)+1.0D0)*CCLOCAL**2
+                  !DUMMY=0.5D0*K_CONST*INTMINFAC*LOCALCONFACTOR*(((DUMMY/CCLOCAL)-1.0D0)*((DUMMY/CCLOCAL)+1.0D0)*CCLOCAL)**2
                   !WRITE(*,*) "CONSTRAINT_E> DUMMY", DUMMY
                   ECON=ECON+DUMMY
                   IF (DUMMY.GT.EMAX) THEN
@@ -569,16 +571,16 @@ MODULE CONSTR_E_GRAD
                      JMAX=J2
                      EMAX=DUMMY
                   ENDIF
-                  IF (J1.EQ.2) THEN
-                     EEE(J1)=EEE(J1)+DUMMY
-                  ELSE IF (J1.LT.NIMAGES+2) THEN
+                  !IF (J1.EQ.2) THEN
+                  !   EEE(J1)=EEE(J1)+DUMMY
+                  !ELSE IF (J1.LT.NIMAGES+2) THEN
                      EEE(J1)=EEE(J1)+DUMMY/2.0D0
                      EEE2(J1)=EEE2(J1)+DUMMY/2.0D0
                      !EEE(J1-1)=EEE(J1-1)+DUMMY/2.0D0
-                  ELSE IF (J1.EQ.NIMAGES+2) THEN
+                  !ELSE IF (J1.EQ.NIMAGES+2) THEN
                      !EEE(J1-1)=EEE(J1-1)+DUMMY
-                     EEE2(J1)=EEE2(J1)+DUMMY
-                  ENDIF
+                  !   EEE2(J1)=EEE2(J1)+DUMMY
+                  !ENDIF
                   
                   !Added block to track FMAX
                    DUMMY=MINVAL(CONSTGRAD)
@@ -790,18 +792,18 @@ MODULE CONSTR_E_GRAD
                      EMAX=DUMMY
                   ENDIF
                   
-                  IF (J1.EQ.2) THEN
+                 ! IF (J1.EQ.2) THEN
                      !This condition never evaluates true
-                     EEE(J1)=EEE(J1)+DUMMY 
-                     WRITE(*,*) "J1=2, DUMMY ", DUMMY        
-                  ELSE IF (J1.LT.NIMAGES+2) THEN
+                     !EEE(J1)=EEE(J1)+DUMMY 
+                  !   WRITE(*,*) "J1=2, DUMMY ", DUMMY        
+                  !ELSE IF (J1.LT.NIMAGES+2) THEN
                      EEE(J1)=EEE(J1)+DUMMY/2.0D0
                      !EEE(J1-1) = EEE(J1-1)+DUMMY/2.0D0
                      EEE2(J1)=EEE2(J1)+DUMMY/2.0D0 
-                  ELSE IF (J1.EQ.NIMAGES+2) THEN
+                  !ELSE IF (J1.EQ.NIMAGES+2) THEN
                      !EEE(J1-1)=EEE(J1-1)+DUMMY
-                     EEE2(J1)=EEE2(J1)+DUMMY
-                  ENDIF
+                  !   EEE2(J1)=EEE2(J1)+DUMMY
+                  !ENDIF
                   
                   !DUMMY=-2.0D0*(RPLOCAL2/(DINT*D12)-RPLOCALINV)
                   !WARNING changed equation again
@@ -994,18 +996,18 @@ MODULE CONSTR_E_GRAD
                      EMAX=DUMMY
                   ENDIF
                   
-                  IF (J1.EQ.2) THEN
+                  !IF (J1.EQ.2) THEN
                      !This condition never evaluates true
-                     EEE(J1)=EEE(J1)+DUMMY         
-                  ELSE IF (J1.LT.NIMAGES+2) THEN
+                  !   EEE(J1)=EEE(J1)+DUMMY         
+                  !ELSE IF (J1.LT.NIMAGES+2) THEN
                      EEE(J1)=EEE(J1)+DUMMY/2.0D0
                      !EEE(J1-1)=EEE(J1-1)+DUMMY/2.0D0
                      EEE2(J1)=EEE2(J1)+DUMMY/2.0D0 
-                  ELSE IF  (J1.EQ.NIMAGES+2) THEN
+                  !ELSE IF  (J1.EQ.NIMAGES+2) THEN
                      !WARNING source of difference E_REP1/2, should this condition be here?
                      !EEE(J1-1)=EEE(J1-1)+DUMMY
-                     EEE2(J1)=EEE2(J1)+DUMMY
-                  ENDIF
+                   !  EEE2(J1)=EEE2(J1)+DUMMY
+                  !ENDIF
                   !DUMMY=-2.0D0*QCICONSTRREP*(1.0D0/(DINT*DSQI)-INTCONSTINV)
                   !DUMMY=-2.0D0*K_REP*(1.0D0/(DINT*DSQI)-INTCONSTINV)
                  

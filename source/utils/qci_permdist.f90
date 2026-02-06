@@ -465,7 +465,7 @@ MODULE QCIPERMDIST
          !  The maximum number of pair exchanges associated with a group is two.
          NDUMMY = 1 ! Reset dummy counter
 
-         WRITE(*,*) "lopermdist> NPERMGROUP = ", NPERMGROUP 
+         !WRITE(*,*) "lopermdist> NPERMGROUP = ", NPERMGROUP 
          DO J1=1,NPERMGROUP  ! Loop for bipartite matching
             ! are we doing this group?
             IF (DOGROUP.GT.0) THEN
@@ -474,7 +474,7 @@ MODULE QCIPERMDIST
             ENDIF
             !get information for this group to be used
             PATOMS=NPERMSIZE(J1)
-            WRITE(*,*) "lopermdist> J1 = ", J1, " PATOMS = ", PATOMS 
+            !WRITE(*,*) "lopermdist> J1 = ", J1, " PATOMS = ", PATOMS 
             LDBEST(J1)=1.0D100
             TRIED(1:NATOMS)=0
             DO J2=1,PATOMS
@@ -912,7 +912,7 @@ MODULE QCIPERMDIST
       END SUBROUTINE LOPERMDIST
 
       ! TODO add routines below
-      ! Put permutational isomers into a standard orientation
+      !> Put permutational isomers into a standard orientation
       SUBROUTINE MYORIENT(Q1,T1,NORBIT1,NCHOOSE1,NORBIT2,NCHOOSE2,NATOMS,DEBUG,ROT,ROTINV,STOCKT)
          USE QCIKEYS, ONLY: ORBITTOL
          IMPLICIT NONE

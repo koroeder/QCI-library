@@ -202,7 +202,6 @@ MODULE CHIRALITY
          C(2) = XYZ(3*NATOMS*(IMAGE-1)+3*CHIRALCENTRE-1)
          C(3) = XYZ(3*NATOMS*(IMAGE-1)+3*CHIRALCENTRE)
 
-         !get bonded atoms
          AT1(1) = XYZ(3*NATOMS*(IMAGE-1)+3*ATOMS1(1)-2)
          AT1(2) = XYZ(3*NATOMS*(IMAGE-1)+3*ATOMS1(1)-1)
          AT1(3) = XYZ(3*NATOMS*(IMAGE-1)+3*ATOMS1(1))
@@ -238,8 +237,8 @@ MODULE CHIRALITY
                ! apply rotation
                DP = DOTP(3,ATOMX,ROTAX)
                ATOMX(1) = RX*DP*(1.0D0-COSTH) + ATOMX(1)*COSTH + (-RZ*ATOMX(2) + RY*ATOMX(3))*SINTH
-               ATOMX(2) = RX*DP*(1.0D0-COSTH) + ATOMX(2)*COSTH + ( RZ*ATOMX(1) - RX*ATOMX(3))*SINTH
-               ATOMX(3) = RX*DP*(1.0D0-COSTH) + ATOMX(3)*COSTH + (-RY*ATOMX(1) + RX*ATOMX(2))*SINTH
+               ATOMX(2) = RY*DP*(1.0D0-COSTH) + ATOMX(2)*COSTH + ( RZ*ATOMX(1) - RX*ATOMX(3))*SINTH
+               ATOMX(3) = RZ*DP*(1.0D0-COSTH) + ATOMX(3)*COSTH + (-RY*ATOMX(1) + RX*ATOMX(2))*SINTH
                !write new coordinates back to XYZ array
                XYZ(3*NATOMS*(IMAGE-1)+3*ATID-2) =  ATOMX(1) + C(1)
                XYZ(3*NATOMS*(IMAGE-1)+3*ATID-1) =  ATOMX(2) + C(2)
@@ -262,8 +261,8 @@ MODULE CHIRALITY
                ! apply rotation
                DP = DOTP(3,ATOMX,ROTAX)
                ATOMX(1) = RX*DP*(1.0D0-COSTH) + ATOMX(1)*COSTH + (-RZ*ATOMX(2) + RY*ATOMX(3))*SINTH
-               ATOMX(2) = RX*DP*(1.0D0-COSTH) + ATOMX(2)*COSTH + ( RZ*ATOMX(1) - RX*ATOMX(3))*SINTH
-               ATOMX(3) = RX*DP*(1.0D0-COSTH) + ATOMX(3)*COSTH + (-RY*ATOMX(1) + RX*ATOMX(2))*SINTH
+               ATOMX(2) = RY*DP*(1.0D0-COSTH) + ATOMX(2)*COSTH + ( RZ*ATOMX(1) - RX*ATOMX(3))*SINTH
+               ATOMX(3) = RZ*DP*(1.0D0-COSTH) + ATOMX(3)*COSTH + (-RY*ATOMX(1) + RX*ATOMX(2))*SINTH
                !write new coordinates back to XYZ array
                XYZ(3*NATOMS*(IMAGE-1)+3*ATID-2) =  ATOMX(1) + C(1)
                XYZ(3*NATOMS*(IMAGE-1)+3*ATID-1) =  ATOMX(2) + C(2)

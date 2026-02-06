@@ -280,7 +280,6 @@ MODULE DIHEDRAL_CONSTRAINTS
             IF (DABS(THISDIH-PI).LE.EPS3) THISDIH = SIGN(PI,THISDIH)
             THISC0 = DCOS(THISDIH)
             THISS0 = DSIN(THISDIH)
-            !QUESTION is EPS6 too strict? ... dhould we use EPS3 ? 
             IF (DABS(THISC0).LE.EPS6) THISC0 = 0.0D0
             IF (DABS(THISS0).LE.EPS6) THISS0 = 0.0D0
             C0(J) = THISC0
@@ -319,7 +318,9 @@ MODULE DIHEDRAL_CONSTRAINTS
 
          !comput cos and sin components and get dihedral
          COSPHI = DOTP(3,N1,N2)
+         !QESTION is this form of sin correct? We already normilised N1 & N2
          SINPHI = DOTP(3,CROSS_PROD(N1,N2),RBC)*NPROD
+         !SINPHI = DOTP(3,CROSS_PROD(N1,N2),RBC)/NORMBC
          PHI = ATAN2(SINPHI,COSPHI)
       END SUBROUTINE COMPUTE_DIH
 
@@ -403,6 +404,7 @@ MODULE DIHEDRAL_CONSTRAINTS
          CT1 = MAX(-P9999,CT0)
 
          ! compute regularised dihedral and the sine and cosine terms
+         !QUESTION This is other way round for dsin than description above ... 
          PHI_REG = PI - DSIGN(DACOS(CT1),DOTP(3,RBC,CROSS_PROD(N1,N2)))
          COSPHI = DCOS(PHI_REG)
          SINPHI = DSIN(PHI_REG)
@@ -412,7 +414,7 @@ MODULE DIHEDRAL_CONSTRAINTS
          !use a regularised version of sine
          SREG = SINPHI + SIGN(1.0d-18,SINPHI)
 
-         IF (EPS6.LT.ABS(SREG)) THEN
+         IF (ABS(SREG).LT.EPS6) THEN
             ! for small sine values we take the limit of the exact form
             DF = C0(DIHREF)*REGTERM1
          ELSE

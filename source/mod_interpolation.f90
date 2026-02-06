@@ -174,16 +174,16 @@ MODULE QCIINTERPOLATION
 
                ! Checking all active groups across the band - do we have the best alignement?
                FIRSTATOM = 1
-               WRITE(*,*) " QCIinterp> Checking permutational alignment across the band, NPERMGROUPS: ", NPERMGROUP
-               DO J1=1,NPERMGROUP
-                  IF (GROUPACTIVE(J1)) THEN
-                     !check permutational consistency forward
-                     CALL CHECK_PERM_BAND(J1, FIRSTATOM, .FALSE.)
-                     !check permutational consistency in reverse
-                     CALL CHECK_PERM_BAND(J1, FIRSTATOM, .TRUE.)
-                  END IF
-                  FIRSTATOM = FIRSTATOM + NPERMSIZE(J1)
-               END DO
+               !WRITE(*,*) " QCIinterp> Checking permutational alignment across the band, NPERMGROUPS: ", NPERMGROUP
+               !DO J1=1,NPERMGROUP
+               !   IF (GROUPACTIVE(J1)) THEN
+               !      !check permutational consistency forward
+               !      CALL CHECK_PERM_BAND(J1, FIRSTATOM, .FALSE.)
+               !      !check permutational consistency in reverse
+               !      CALL CHECK_PERM_BAND(J1, FIRSTATOM, .TRUE.)
+               !   END IF
+               !   FIRSTATOM = FIRSTATOM + NPERMSIZE(J1)
+               !END DO
                !we check repulsions before we continue
                CALL CHECKREP(XYZ,0,1)
             END IF

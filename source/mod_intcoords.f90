@@ -99,13 +99,7 @@ MODULE MOD_INTCOORDS
          IF (QCIDOBACK.AND.(BACKBEST.GT.0)) THEN
             NCONSMALLEST=BACKBEST  ! ensures NBEST is set if there are frozen atoms and DOBACK is set 
          END IF
-         
-         !TODO THIS NEEDS FIXING!
-         IF (NCONSMALLEST.EQ.0) THEN
-            WRITE(*,*) "WARNING: D1 ", D1, "D2 ", D2, "DF ", DF
-            NCONSMALLEST = 1
-         ENDIF
-         
+               
          NBEST = NCONSMALLEST
          IF (DEBUG) THEN
             WRITE(*,*) ' get_dists_constr> Smallest overall motion for constraint ',NBEST, ' atoms ', &
