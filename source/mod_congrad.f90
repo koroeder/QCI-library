@@ -301,17 +301,17 @@ MODULE CONSTR_E_GRAD
                     
 
                   ! calculate gradient and energy
-                  ! WARNING changed expression for better numberical stability 
-                  ! (A^2-B^2)/B^2 -> ((A/B)-1)*((A/B)+1)  
-                                    
-                  !GRADAB(1:3)=2.0D0*K_CONST*LOCALCONFACTOR*(DUMMY/CCLOCAL-1.0D0)*(DUMMY/CCLOCAL+1.0D0)*DUMMY*G2(1:3)
-                  GRADAB(1:3)=2.0D0*K_CONST*LOCALCONFACTOR*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G2(1:3)
-                  
+                                                     
+                  !GRADAB(1:3)=2.0D0*K_CONST*LOCALCONFACTOR*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G2(1:3)
+
+
+                  GRADAB(1:3)=2.0D0*K_CONST*LOCALCONFACTOR*((DUMMY2-CCLOCAL2)/CCLOCAL2**2)*DUMMY*G2(1:3)
                   
                   ! Eq(8) J.Chem.Theory Comput. 2012, 8, 5020-5034
-                  ! V_con(d^i_AB) = (k_con* ((d^i_AB - ave(d_AB))^2 -(C^con_AB)^2 )^2 )/ 2*(C^con_AB)^2
-                              
-                  DUMMY = K_CONST*LOCALCONFACTOR*((DUMMY2-CCLOCAL2)**2/(2.0D0*CCLOCAL2))
+                  ! Deviation from published equation ... added /CCLOCAL**2  
+                  !old equation: V_con(d^i_AB) = (k_con* ((d^i_AB - ave(d_AB))^2 -(C^con_AB)^2 )^2 )/ 2*(C^con_AB)^2
+                  ! new: V_con(d^i_AB) = (k_con* ((d^i_AB - ave(d_AB))^2 -(C^con_AB)^2 )^2 )/ 2*(C^con_AB)^4
+                  DUMMY = K_CONST*LOCALCONFACTOR*((DUMMY2-CCLOCAL2)**2/(2.0D0*CCLOCAL2**2))
                   
                   !DUMMY = 0.5D0*K_CONST*LOCALCONFACTOR*((DUMMY/CCLOCAL)**2-1.0D0)**2 *CCLOCAL2
                   
@@ -498,16 +498,16 @@ MODULE CONSTR_E_GRAD
                DUMMY = D2-CONDISTREFLOCAL(J2)
                IF ((DUMMY.GT.CCLOCAL).AND.(J1.LT.NIMAGES+2)) THEN  
                   
-                  CONSTGRAD(1:3)=2.0D0*K_CONST*INTCONSTRAINTDEL*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G2(1:3)
+                  !CONSTGRAD(1:3)=2.0D0*K_CONST*INTCONSTRAINTDEL*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G2(1:3)
                   !DUMMY=INTCONSTRAINTDEL*(DUMMY**2-CCLOCAL**2)**2/(2.0D0*CCLOCAL**2)
                   ! We are missing eps_con
                  
                   !CONSTGRAD(1:3)=2.0D0*K_CONST*LOCALCONFACTOR*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G2(1:3)
                   !CONSTGRAD(1:3)=2.0D0*K_CONST*LOCALCONFACTOR*((DUMMY/CCLOCAL)-1.0D0)*((DUMMY/CCLOCAL)+1.0D0)*DUMMY*G2(1:3)
-                               
+                  CONSTGRAD(1:3)=2.0D0*K_CONST*LOCALCONFACTOR*((DUMMY**2-CCLOCAL**2)/CCLOCAL**4)*DUMMY*G2(1:3)      
                   ! V_con(d^i_AB) = eps_con ((d^i_AB-ave*(d^i_AB))^2 - C_con_AB^2 )^2 / 2(C_con_AB)^2
-                  !WARNING changing DUMMY here to (hopefully) improve numerical stability
-                  DUMMY=K_CONST*LOCALCONFACTOR*((DUMMY**2-CCLOCAL**2)**2)/(2.0D0*CCLOCAL**2)                  
+                  !Changed equrion from the published one by factor (1/CCLOCAL**2)
+                  DUMMY=K_CONST*LOCALCONFACTOR*((DUMMY**2-CCLOCAL**2)**2)/(2.0D0*CCLOCAL**4)                  
                  
                   !DUMMY=0.5D0*K_CONST*LOCALCONFACTOR*(((DUMMY/CCLOCAL)-1.0D0)*((DUMMY/CCLOCAL)+1.0D0)*CCLOCAL)**2
 
@@ -536,13 +536,14 @@ MODULE CONSTR_E_GRAD
                
                ! Used for congrad2 and have intenal minima AND d(theta*)-mean(d_AB) > C_conAB
                ! Warning added J1.NE.2 to match repulsions
-               !NOINT = .TRUE.
+               
                DUMMY=DINT-CONDISTREFLOCAL(J2) 
                IF (CHECKCONINT.AND.(.NOT.NOINT).AND.(ABS(DUMMY).GT.CCLOCAL).AND.(J1.NE.2).AND.(J1.LT.(NIMAGES+2))) THEN
        
                   !Image J1-1 
 
-                  CONSTGRAD(1:3)=2.0D0*INTMINFAC*LOCALCONFACTOR*K_CONST*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G1INT(1:3)
+                  !CONSTGRAD(1:3)=2.0D0*INTMINFAC*LOCALCONFACTOR*K_CONST*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G1INT(1:3)
+                  CONSTGRAD(1:3)=2.0D0*INTMINFAC*LOCALCONFACTOR*K_CONST*((DUMMY**2-CCLOCAL**2)/DUMMY**4)*DUMMY*G1INT(1:3)
                   !CONSTGRAD(1:3)=2.0D0*K_CONST*INTMINFAC*LOCALCONFACTOR*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G1INT(1:3)
                   !CONSTGRAD(1:3)=2.0D0*K_CONST*INTMINFAC*LOCALCONFACTOR*((DUMMY/CCLOCAL)-1.0D0)*((DUMMY/CCLOCAL)+1.0D0)*DUMMY*G1INT(1:3)
                   
@@ -553,14 +554,14 @@ MODULE CONSTR_E_GRAD
                   GGG2(NJ1+1:NJ1+3)=GGG2(NJ1+1:NJ1+3)-CONSTGRAD(1:3)
                   
                   !Image J1 - we add this one normally
-                  CONSTGRAD(1:3)=2*INTMINFAC*LOCALCONFACTOR*K_CONST*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G2INT(1:3)
+                  CONSTGRAD(1:3)=2.0D0*INTMINFAC*LOCALCONFACTOR*K_CONST*((DUMMY**2-CCLOCAL**2)/DUMMY**4)*DUMMY*G2INT(1:3)
                   !CONSTGRAD(1:3)=2.0D0*K_CONST*INTMINFAC*LOCALCONFACTOR*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G2INT(1:3)
                   !CONSTGRAD(1:3)=2.0D0*K_CONST*INTMINFAC*LOCALCONFACTOR*((DUMMY/CCLOCAL)-1.0D0)*((DUMMY/CCLOCAL)+1.0D0)*DUMMY*G2INT(1:3)
                   GGG(NI2+1:NI2+3)=GGG(NI2+1:NI2+3)+CONSTGRAD(1:3)
                   GGG(NJ2+1:NJ2+3)=GGG(NJ2+1:NJ2+3)-CONSTGRAD(1:3)
 
                   !DUMMY=INTMINFAC*INTCONSTRAINTDEL*(DUMMY**2-CCLOCAL**2)**2/(2.0D0*CCLOCAL**2)
-                  DUMMY=K_CONST*INTMINFAC*LOCALCONFACTOR*(DUMMY**2-CCLOCAL**2)**2/(2.0D0*CCLOCAL**2)
+                  DUMMY=K_CONST*INTMINFAC*LOCALCONFACTOR*(DUMMY**2-CCLOCAL**2)**2/(2.0D0*CCLOCAL**4)
                   
                   !Note not much difference between expressions below 
                   !DUMMY=0.5D0*K_CONST*INTMINFAC*LOCALCONFACTOR*(((DUMMY/CCLOCAL)-1.0D0)*((DUMMY/CCLOCAL)+1.0D0)*CCLOCAL)**2
@@ -741,12 +742,12 @@ MODULE CONSTR_E_GRAD
                IF ((D2.LT.RPLOCAL).AND.(J1.LT.NIMAGES+2)) THEN
                   ! QUESTION missing EPS_rep 
                   !V_rep(d^i_AB) = eps_rep ( 1/(d^i_AB)^2 - 3/C_repAB + 2* d^i_AB / C_repAB )
-                  !DUMMY = RPLOCAL2/DSQ2 + 2.0D0*D2*RPLOCALINV - 3.0D0
+                  !Changed from published equation by RPLOCSL**2
+                  DUMMY = K_REP*(RPLOCAL2/DSQ2 + 2.0D0*D2*RPLOCALINV - 3.0D0)
                   !WARNING changed dummy to correspond to equation above
    
                   !DUMMY = K_REP*(1.0D0/DSQ2-3.0D0/RPLOCAL2+(2.0D0*D2)/RPLOCAL3)
-                  !This form should have higher numerical stability
-                  DUMMY = K_REP*(1.0D0/DSQ2+( (2.0D0*D2)/RPLOCAL-3.0D0)/RPLOCAL2)          
+                          
 
                   EEE(J1)=EEE(J1)+DUMMY
                   EREP = EREP + DUMMY
@@ -758,9 +759,9 @@ MODULE CONSTR_E_GRAD
                   DUMMY = 0.0D0
 
                   !dV/dd_AB = -2/(d^i_AB)^3 + 2/C_repAB^3 
-                  !DUMMY=-2.0D0*(RPLOCAL2/(D2*DSQ2)-RPLOCALINV)
+                  DUMMY=-2.0D0*K_REP*(RPLOCAL2/(D2*DSQ2)-RPLOCALINV)
                   !WARNING changed to match equation above 
-                  DUMMY=2.0D0*K_REP*(-1.0D0/(D2*DSQ2)+1.0D0/(RPLOCAL3) )
+                  !DUMMY=2.0D0*K_REP*(-1.0D0/(D2*DSQ2)+1.0D0/(RPLOCAL3) )
                   
                   REPGRAD(1:3) = DUMMY*G2(1:3)
 
@@ -962,8 +963,9 @@ MODULE CONSTR_E_GRAD
                   !DUMMY=K_REP*(1.0D0/DSQ2+(2.0D0*D2-3.0D0*RPLOCAL)*INTCONSTINV)
                   
                   !DUMMY = K_REP*(1.0D0/DSQ2-3.0D0/RPLOCAL2+(2.0D0*D2)/RPLOCAL3)
-                  DUMMY = K_REP*(1.0D0/DSQ2+( (2.0D0*D2)/RPLOCAL-3.0D0)/RPLOCAL2)
-
+                  !DUMMY = K_REP*(1.0D0/DSQ2+( (2.0D0*D2)/RPLOCAL-3.0D0)/RPLOCAL2)
+                  !Changed from published equation by RPLOCSL**2
+                  DUMMY=K_REP*(RPLOCAL2/DSQ2-3.0D0+2*D2/RPLOCAL)
                   
                   EEE(J1)=EEE(J1)+DUMMY
                   EREP=EREP+DUMMY
@@ -974,8 +976,10 @@ MODULE CONSTR_E_GRAD
                   ENDIF
                   !DUMMY=-2.0D0*QCICONSTRREP*(1.0D0/(D2*DSQ2)-INTCONSTINV)
                   !DUMMY=-2.0D0*K_REP*(1.0D0/(D2*DSQ2)-INTCONSTINV)
-                  DUMMY=2.0D0*K_REP*(-1.0D0/(D2*DSQ2)+1.0D0/(RPLOCAL3) )
+                  !DUMMY=2.0D0*K_REP*(-1.0D0/(D2*DSQ2)+1.0D0/(RPLOCAL3) )
                   
+                  DUMMY=2.0D0*K_REP*(-RPLOCAL2/(D2*DSQ2)+1.0D0/RPLOCAL )
+
                   REPGRAD(1:3)=DUMMY*G2(1:3)
                   GGG(NI2+1:NI2+3)=GGG(NI2+1:NI2+3)+REPGRAD(1:3)
                   GGG(NJ2+1:NJ2+3)=GGG(NJ2+1:NJ2+3)-REPGRAD(1:3)
@@ -987,8 +991,10 @@ MODULE CONSTR_E_GRAD
                   !DUMMY=INTMINFAC*K_REP*(1.0D0/DSQI+(2.0D0*DINT-3.0D0*RPLOCAL)*INTCONSTINV)
                   
                   !DUMMY = K_REP*INTMINFAC*(1.0D0/DSQI-3.0D0/RPLOCAL2+(2.0D0*DINT)/(RPLOCAL3) )
-                  DUMMY = K_REP*INTMINFAC*(1.0D0/DSQI+(2.0D0*DINT/RPLOCAL-3.0D0)/RPLOCAL2 )
-                  
+                  !DUMMY = K_REP*INTMINFAC*(1.0D0/DSQI+(2.0D0*DINT/RPLOCAL-3.0D0)/RPLOCAL2 )
+                  !Changed from published equation by RPLOCSL**2
+                  DUMMY = K_REP*INTMINFAC*(RPLOCAL2/DSQI+2.0D0*DINT/RPLOCAL-3.0D0)
+
                   EREP=EREP+DUMMY
                   IF (DUMMY.GT.EMAX) THEN
                      IMAX=J1
@@ -1011,8 +1017,10 @@ MODULE CONSTR_E_GRAD
                   !DUMMY=-2.0D0*QCICONSTRREP*(1.0D0/(DINT*DSQI)-INTCONSTINV)
                   !DUMMY=-2.0D0*K_REP*(1.0D0/(DINT*DSQI)-INTCONSTINV)
                  
-                  DUMMY=2.0D0*K_REP*(-1.0D0/(DINT*DSQI)+1.0D0/RPLOCAL3 )
-                  
+                  !DUMMY=2.0D0*K_REP*(-1.0D0/(DINT*DSQI)+1.0D0/RPLOCAL3 )
+                  DUMMY=2.0D0*K_REP*(-RPLOCAL2/(DINT*DSQI)+1.0D0/RPLOCAL )
+
+
                   !Image J-1
                   REPGRAD(1:3)=INTMINFAC*DUMMY*G1INT(1:3)
                   GGG2(NI1+1:NI1+3)=GGG2(NI1+1:NI1+3)+REPGRAD(1:3)
