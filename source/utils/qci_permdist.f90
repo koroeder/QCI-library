@@ -186,7 +186,6 @@ MODULE QCIPERMDIST
          END DO
       END SUBROUTINE UPDATE_ACTIVE_PERMGROUPS
 
-      !> WARNING!!! Curently broken - doesn't do anything!
       SUBROUTINE CHECK_PERM_BAND(PERMGROUPIDX, FIRSTATOM, REVERSET)
          USE QCIKEYS, ONLY: DEBUG, NATOMS, NIMAGES, QCIPERMCUT
          USE MOD_INTCOORDS, ONLY: XYZ
@@ -252,7 +251,7 @@ MODULE QCIPERMDIST
 
             
 
-            LPERMOFF=.TRUE. !at his point we wanr to align the whole image not do local permutations
+            LPERMOFF=.FALSE. !at his point we wanr to align the whole image not do local permutations
             !we call with DGROUP>0, so we exit with changes to coords A?
             
             
@@ -487,10 +486,7 @@ MODULE QCIPERMDIST
             
             !IF DOGROUP is specified we evaluate this loop exactly once when J1.EQ. DO GROUP
             IF (DOGROUP.GT.0) THEN
-               IF (J1.GT.DOGROUP) THEN
-                  WRITE(*,*) "Lopermdist> EXIT" 
-                  EXIT
-               ENDIF
+               IF (J1.GT.DOGROUP) EXIT
                IF (J1.LT.DOGROUP) GOTO 864 ! for QCI test single groups - MUST increment NDUMMY on line 864!!
             ENDIF
             
@@ -507,7 +503,7 @@ MODULE QCIPERMDIST
 
             !!!!!!!!!!!!!!!!!!!WARNING EXPERIMENTAL!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             !Swap atoms is the swap group is size 2  
-            IF (PATOMS.EQ.2) THEN
+            IF ((PATOMS.EQ.2).AND.(J1.EQ.DOGROUP)) THEN
                NEWPERM(NDUMMY) = PERMGROUP(NDUMMY+1) 
                NEWPERM(NDUMMY+1) = PERMGROUP(NDUMMY)
             ENDIF

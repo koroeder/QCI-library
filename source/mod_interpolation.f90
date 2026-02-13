@@ -48,7 +48,7 @@ MODULE QCIINTERPOLATION
          REAL(KIND = REAL64) :: STPMIN !< minimum step-size
          REAL(KIND = REAL64) :: CURRMAXSEP, CURRMINSEP !< current minimum and maximum image separation
          INTEGER :: IDXMIN, IDXMAX !< id for minimum and maximum distance images
-         
+         REAL(KIND = REAL64) :: MAX_GRAD_COMP !< max gradient compononet. Used for convergence test
          !DEGBUG
          INTEGER :: UNITCONSTR
 
@@ -313,7 +313,9 @@ MODULE QCIINTERPOLATION
             !L-BFGS start
 
             GTMP(1:DIMS)=0.0D0
+            MAX_GRAD_COMP=-HUGE(1.0D0)
             ! the variables needed for step taking are either module variables in this module or saved in mod_intcoords
+            
             CALL MAKESTEP(NITERUSE,NPT,POINT,RHO1,ALPHA)          
             
             !  <G,R_k> / (|G|*|R_k|) 
@@ -325,6 +327,12 @@ MODULE QCIINTERPOLATION
             END IF
             
             GTMP(1:DIMS)=G(1:DIMS)
+
+            !Get the largest absolute value component of the gradient
+            !Used for convergence test 
+            MAX_GRAD_COMP = ABS(MAXVAL(GTMP))
+            IF( MAX_GRAD_COMP.LT.ABS(MINVAL(GTMP))) MAX_GRAD_COMP = ABS(MINVAL(GTMP))
+
             ! Take the minimum scale factor for all images for LBFGS step to avoid discontinuities
             STPMIN = 1.0D0
             DO J1=1,NIMAGES
@@ -403,6 +411,8 @@ MODULE QCIINTERPOLATION
                      GGG(:) = GPREV(:)
                      WRITE(*,*) " QCIinterp> WARNING - LBFGS cannot find a lower energy, NFAIL=",NFAIL
                      ACCEPTEDSTEP = .TRUE. !we failed to many times, so for now we accept failure and leave the loop
+                     !This call to Congrad prints the congrad output
+                     CALL CONGRAD(ETOTAL, XYZ, GGG, EEE, RMS, .TRUE.)
                   ELSE
                      XYZ(:) = XPREV(:)
                      GGG(:) = GPREV(:)
@@ -410,6 +420,7 @@ MODULE QCIINTERPOLATION
                      STP(1:DIMS) = STP(1:DIMS)/STPREDUCTION  
                      WRITE(*,*) " QCIinterp> Energy increased from ", EPREV, "to", ETOTAL, "; decreasing step size"                 
                   END IF
+
                END IF
             END DO ! end of loop for accepting the step size
             
@@ -421,17 +432,21 @@ MODULE QCIINTERPOLATION
             ! set DGUESS to a reasonable guess
             DGUESS=DIAG(1)
 
-            !L-BFGS start
-
+           
             !get exit status
-            CALL SET_EXIT_STATUS(NITERDONE,EXITSTATUS)
             !first check if we should add an atom
             ADDATOMT = .FALSE.
-            IF ((EXITSTATUS.GT.0).AND.(NACTIVE.LT.NATOMS)) THEN
+            EXITSTATUS = 0
+
+            IF (NACTIVE.LT.NATOMS) THEN
                ADDATOMT = .TRUE. 
+            ELSE
+               !get exit status
+               CALL SET_EXIT_STATUS(NITERDONE,EXITSTATUS)
             END IF
+                              
             !if we don't add an atom, check if we converged
-            IF (.NOT.(ADDATOMT).AND.(EXITSTATUS.EQ.1)) THEN
+            IF ((.NOT.(ADDATOMT)).AND.(EXITSTATUS.EQ.1)) THEN
                !we have converged and there is no more atom to add - we can leave the main loop
                EXIT
             END IF
@@ -453,6 +468,8 @@ MODULE QCIINTERPOLATION
             END IF
 
          END DO
+         ! End of interpolation loop
+         
          ! if the exit status is not 1, we left without convergence 
          IF (NACTIVE.LT.NATOMS) THEN
             WRITE(*,*) " QCIinterp> QCI did not activate all atoms during interpolation. Final number of active atoms: ", NACTIVE
@@ -486,12 +503,11 @@ MODULE QCIINTERPOLATION
 
          EXITSTATUS = 0
          !is the simulation converged?
-         IF ((FCONTEST.LT.QCIRMSTOL).AND.(FREPTEST.LT.QCIRMSTOL).AND.(CONVERGECONTEST.LT.MAXCONE).AND.(CONVERGEREPTEST.LT.MAXCONE).AND.(NITERDONE.GT.1)) THEN
+         IF ((FCONTEST.LT.QCIRMSTOL).AND.(FREPTEST.LT.QCIRMSTOL).AND.(CONVERGECONTEST.LT.MAXCONE)&
+            &.AND.(CONVERGEREPTEST.LT.MAXCONE).AND.(NITERDONE.GT.1)) THEN
             EXITSTATUS = 1
          END IF
 
-         !should we add more atoms?
-         IF (MOD(NITERDONE,INTADDATOM).EQ.0) EXITSTATUS = 2
       END SUBROUTINE SET_EXIT_STATUS
 
       SUBROUTINE GET_STATISTIC_INTERP()
