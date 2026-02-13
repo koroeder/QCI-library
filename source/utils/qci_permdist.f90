@@ -204,6 +204,8 @@ MODULE QCIPERMDIST
          LOGICAL :: BULKT = .FALSE., TWOD = .FALSE.
          REAL(KIND=REAL64) :: DISTANCE, DIST2
 
+        !REAL(KIND = REAL64) :: SAVECOORDSA(3*NATOMS)
+        
          REAL(KIND=REAL64) :: SAVELOCALPERMCUT
          SAVELOCALPERMCUT=LOCALPERMCUT
          LOCALPERMCUT=QCIPERMCUT !This was coppied from OPTIM 
@@ -245,24 +247,30 @@ MODULE QCIPERMDIST
             !coordinates for image 2
             COORDSA(1:3*NATOMS) = XYZ((3*NATOMS*(SECONDIMAGE-1)+1):3*NATOMS*SECONDIMAGE)            
 
+            !For Testing only
+            !SAVECOORDSA = COORDSA
+
+            
+
             LPERMOFF=.TRUE. !at his point we wanr to align the whole image not do local permutations
             !we call with DGROUP>0, so we exit with changes to coords A?
             
-            !!!!!!WARNING !!!!!!
-            ! This type of LOPERMDIST call is broken! 
-            ! PERMP is never updated, SO NMOVES is always zero!
+            
             CALL LOPERMDIST(COORDSB,COORDSA,DISTANCE,DIST2,RMATBEST,PERMGROUPIDX,NMOVEP,PERMP)
+            !CALL LOPERMDIST(COORDSB,COORDSA,DISTANCE,DIST2,RMATBEST,0,NMOVEP,PERMP)
             
             
+            
+
             IF (DEBUG.AND.NMOVEP.GT.0)  THEN
                WRITE(*,*) ' check_perm_band> group ',PERMGROUPIDX,' alignment of images ',SECONDIMAGE,FIRSTIMAGE,' moves=',&
-                          NMOVEP, ' permutations, distance =',DISTANCE    
+                          NMOVEP, ' permutations, distance =',DISTANCE, " PBETTER=", PBETTER   
             END IF
 
             !swap atoms if we found a better permutational alignment
             !LOPERMIST assigns PBETTER
             IF ((NMOVEP.GT.0).AND.PBETTER) THEN
-               WRITE(*,*) " Moving ", NMOVEP, " atoms in image ", SECONDIMAGE
+               WRITE(*,*) "check_perm_band> Moving ", NMOVEP, " atoms in image ", SECONDIMAGE
                COORDSA(1:3*NATOMS) = XYZ((3*NATOMS*(SECONDIMAGE-1)+1):3*NATOMS*SECONDIMAGE) !we are going back to original coordsA
                DO J2=1,NPERMSIZE(PERMGROUPIDX)
                   IDX = PERMGROUP(FIRSTATOM+J2-1)
@@ -274,6 +282,14 @@ MODULE QCIPERMDIST
                   ENDIF
                ENDDO
           
+               !DEBUGGING
+              ! DO J2=1,3*NATOMS
+              ! IF( (ABS(SAVECOORDSA(J2)-COORDSA(J2))).GT.1D-10) THEN
+              !    WRITE(*,*) "check_perm_band> WARNING coordinate change J2=", J2
+              ! ENDIF                          
+               
+              ! ENDDO
+
                XYZ((3*NATOMS*(SECONDIMAGE-1)+1):3*NATOMS*SECONDIMAGE) = COORDSA(1:3*NATOMS)
             ENDIF
          END DO
@@ -468,32 +484,56 @@ MODULE QCIPERMDIST
          !WRITE(*,*) "lopermdist> NPERMGROUP = ", NPERMGROUP 
          DO J1=1,NPERMGROUP  ! Loop for bipartite matching
             ! are we doing this group?
+            
+            !IF DOGROUP is specified we evaluate this loop exactly once when J1.EQ. DO GROUP
             IF (DOGROUP.GT.0) THEN
-               IF (J1.GT.DOGROUP) EXIT
+               IF (J1.GT.DOGROUP) THEN
+                  WRITE(*,*) "Lopermdist> EXIT" 
+                  EXIT
+               ENDIF
                IF (J1.LT.DOGROUP) GOTO 864 ! for QCI test single groups - MUST increment NDUMMY on line 864!!
             ENDIF
+            
             !get information for this group to be used
             PATOMS=NPERMSIZE(J1)
+                        
             !WRITE(*,*) "lopermdist> J1 = ", J1, " PATOMS = ", PATOMS 
+            !WRITE(*,*) "loperdist> We are doing group: ", DOGROUP, "PERMGROUP(NDUMMY) = ", PERMGROUP(NDUMMY), "NDUMMY= ", NDUMMY
             LDBEST(J1)=1.0D100
             TRIED(1:NATOMS)=0
             DO J2=1,PATOMS
                LPERMBEST(J2)=J2
             ENDDO
+
+            !!!!!!!!!!!!!!!!!!!WARNING EXPERIMENTAL!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            !Swap atoms is the swap group is size 2  
+            IF (PATOMS.EQ.2) THEN
+               NEWPERM(NDUMMY) = PERMGROUP(NDUMMY+1) 
+               NEWPERM(NDUMMY+1) = PERMGROUP(NDUMMY)
+            ENDIF
+
             XA=0.0D0; YA=0.0D0; ZA=0.0D0
             XB=0.0D0; YB=0.0D0; ZB=0.0D0
             DO J2=1,PATOMS
               ! TRIED(NEWPERM(PERMGROUP(NDUMMY+J2-1)))=-1
                TRIED(PERMGROUP(NDUMMY+J2-1))=-1
+               !WRITE(*,*) "lopedmdist> J2 =", J2,  " PERMGROUP(NDUMMY+J2-1))= ", PERMGROUP(NDUMMY+J2-1), " we set TRIED = -1"
+               !At this point NEWPERM(J1)=J1 !!!! so PDUMMYA and PDUMMYB will be the same
                PDUMMYA(3*(J2-1)+1)=DUMMYA(3*(NEWPERM(PERMGROUP(NDUMMY+J2-1))-1)+1)
                PDUMMYA(3*(J2-1)+2)=DUMMYA(3*(NEWPERM(PERMGROUP(NDUMMY+J2-1))-1)+2)
                PDUMMYA(3*(J2-1)+3)=DUMMYA(3*(NEWPERM(PERMGROUP(NDUMMY+J2-1))-1)+3)
-              ! PDUMMYB(3*(J2-1)+1)=DUMMYB(3*(NEWPERM(PERMGROUP(NDUMMY+J2-1))-1)+1)
+               
+               !WRITE(*,*) "TESTING > J2=", J2 ," PDUMMYA offset: ", 3*(J2-1), " DUMMYA offset: ", 3*(NEWPERM(PERMGROUP(NDUMMY+J2-1)))
+              
+               ! PDUMMYB(3*(J2-1)+1)=DUMMYB(3*(NEWPERM(PERMGROUP(NDUMMY+J2-1))-1)+1)
               ! PDUMMYB(3*(J2-1)+2)=DUMMYB(3*(NEWPERM(PERMGROUP(NDUMMY+J2-1))-1)+2)
               ! PDUMMYB(3*(J2-1)+3)=DUMMYB(3*(NEWPERM(PERMGROUP(NDUMMY+J2-1))-1)+3)
                PDUMMYB(3*(J2-1)+1)=DUMMYB(3*(PERMGROUP(NDUMMY+J2-1)-1)+1)
                PDUMMYB(3*(J2-1)+2)=DUMMYB(3*(PERMGROUP(NDUMMY+J2-1)-1)+2)
                PDUMMYB(3*(J2-1)+3)=DUMMYB(3*(PERMGROUP(NDUMMY+J2-1)-1)+3)
+
+               !WRITE(*,*) "TESTING > J2=", J2 ," PDUMMYB offset: ", 3*(J2-1), " DUMMYA offset: ", 3*(PERMGROUP(NDUMMY+J2-1))
+               
                XA=XA+PDUMMYA(3*(J2-1)+1)
                YA=YA+PDUMMYA(3*(J2-1)+2)
                ZA=ZA+PDUMMYA(3*(J2-1)+3)
@@ -505,6 +545,7 @@ MODULE QCIPERMDIST
             XB=XB/PATOMS; YB=YB/PATOMS; ZB=ZB/PATOMS
             SPDUMMYA(1:3*PATOMS)=PDUMMYA(1:3*PATOMS)
             SPDUMMYB(1:3*PATOMS)=PDUMMYB(1:3*PATOMS)  
+
 
             ! TRIED(J2) is 0 if atom J2 is eligible to be a neighbour, but has not
             ! yet been tried. It is -1 if it is ineligible, or has been tried and
@@ -793,18 +834,29 @@ MODULE QCIPERMDIST
 
             ! Save current optimal permutation in NEWPERM
             NEWPERM(1:NATOMS)=SAVEPERM(1:NATOMS)
+            
+            
             DSUM=DSUM+SQRT(LDBEST(J1))
 
             ! Update NDUMMY, the cumulative offset for PERMGROUP
 864         NDUMMY=NDUMMY+NPERMSIZE(J1)
          END DO ! End of loop for bipartite matching
+         
+         !Debugg test 
+         !DO J2=1,NATOMS 
+         !   IF (NEWPERM(J2).NE.SAVEPERM(J2)) THEN
+         !         WRITE(*,*) "WARNING: newperm does something"
+         !   ENDIF
+         !ENDDO
+            
 
+         
          PBETTER=.FALSE.
          IF (DOGROUP.GT.0) THEN
             DISTANCE=SQRT(LDBEST(DOGROUP))
+            !WRITE(*,*) "lopemdist> DISTANCE=", DISTANCE
             NMOVE=0
             DO J2=1,NATOMS
-               !THIS WILL  NEVER EVALUATE TRUE WE ASIGNED NEWPERM(J2)=J2!!!!
                IF (NEWPERM(J2).NE.J2) THEN
                   NMOVE=NMOVE+1
                ENDIF
@@ -826,13 +878,14 @@ MODULE QCIPERMDIST
             CALL NEWMINDIST2(COORDSB,DUMMYA,NATOMS,PDISTANCE,DEBUG,RMAT,CMXA,CMYA,CMZA,CMXB,CMYB,CMZB,DWORST)           
             
             !Debugg test 
-            DO J1=1,NATOMS
-               IF (J1.NE.NEWPERM(J1)) THEN
-                  WRITE(*,*) "WARNING: newperm does something"
-                  
-               ENDIF
-            ENDDO
+            !DO J1=1,NATOMS
+            !   IF (J1.NE.NEWPERM(J1)) THEN
+            !      WRITE(*,*) "WARNING: newperm does something"
+            !      
+            !   ENDIF
+            !ENDDO
             
+            !WRITE(*,*) "lopermdist > Compare: PDISTANCE: ", PDISTANCE, " NOPDISTANCE: ", NOPDISTANCE
             IF (PDISTANCE.LT.NOPDISTANCE) PBETTER=.TRUE.
             RETURN
          ENDIF
