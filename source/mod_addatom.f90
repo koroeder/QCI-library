@@ -845,7 +845,7 @@ MODULE ADDINGATOM
          DO J1=1,NATOMS
             IF (.NOT.ATOMACTIVE(J1)) CYCLE !ignore atoms that are not active
             !TODO setup proper dihedral exclusion
-            IF (ABS(J1-NEWATOM).LE.4) CYCLE !no repulsions if atoms are close in sequence
+            IF (ABS(J1-NEWATOM).LE.3) CYCLE !no repulsions if atoms are close in sequence
             ISCONSTRAINED = .FALSE.
             !Don't add repulsion if there are constraints between the atoms 
             DO J2=1,NCONSTRAINT
@@ -856,12 +856,12 @@ MODULE ADDINGATOM
             END DO
 
             !Don't include repuslsions if atoms are part of the same dihedral
-            !DO J2=1, NDIH
-            !   IF ( ANY(NEWATOM.EQ.DIHEDRALS(J2,:)).AND.ANY(J1.EQ.DIHEDRALS(J2,:))) THEN
-            !      ISCONSTRAINED = .TRUE.
-            !      CYCLE !EXIT
-            !   ENDIF
-            !ENDDO
+            DO J2=1, NDIH
+               IF ( ANY(NEWATOM.EQ.DIHEDRALS(J2,:)).AND.ANY(J1.EQ.DIHEDRALS(J2,:))) THEN
+                  ISCONSTRAINED = .TRUE.
+                  EXIT
+               ENDIF
+            ENDDO
             
 
             IF (.NOT.ISCONSTRAINED) THEN

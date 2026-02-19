@@ -260,7 +260,7 @@ MODULE DIHEDRAL_CONSTRAINTS
             DIHEDRALS(J,2) = CHIR_INFO(J,2)
             DIHEDRALS(J,3) = CHIR_INFO(J,3)
             DIHEDRALS(J,4) = CHIR_INFO(J,4)
-         !WRITE(*,*) "DIHEDRALS-CHIR_INFO:  J=", J, "atoms: ", DIHEDRALS(J,1:4)
+         WRITE(*,*) "DIHEDRALS-CHIR_INFO:  J=", J, "atoms: ", DIHEDRALS(J,1:4)
          END DO
          DO J=1,NCONS
             DIHEDRALS(NCHIRAL+J,1) = REFATOMS(J,1)
@@ -269,8 +269,7 @@ MODULE DIHEDRAL_CONSTRAINTS
             DIHEDRALS(NCHIRAL+J,4) = REFATOMS(J,4)            
          !WRITE(*,*) "DIHEDRALS-:  J=", J, "atoms: ",  DIHEDRALS(NCHIRAL+J,1:4)
          END DO
-         !WRITE(*,*) "setup_dih_constr> NDIH: ", NDIH
-         
+               
          ! get reference angles
          DO J=1,NDIH
             AT1 = DIHEDRALS(J,1); AT2 = DIHEDRALS(J,2); AT3 = DIHEDRALS(J,3); AT4 = DIHEDRALS(J,4)
@@ -291,7 +290,7 @@ MODULE DIHEDRAL_CONSTRAINTS
          USE HELPER_FNCTS, ONLY: CROSS_PROD, EUC_NORM, DOTP
          IMPLICIT NONE
          INTEGER, INTENT(IN) :: NATOMS
-         REAL(KIND = REAL64), INTENT(IN) :: X(3*NATOMS)
+         REAL(KIND = REAL64), INTENT(IN) :: X(3*NATOMS) !< all atoms in an image
          INTEGER, INTENT(IN) :: A, B, C, D
          REAL(KIND = REAL64), INTENT(OUT) :: PHI
 
@@ -315,13 +314,15 @@ MODULE DIHEDRAL_CONSTRAINTS
          NPROD = 1.0D0/(NORM1*NORM2*NORMBC)
          N1(1:3) = N1(1:3)/NORM1
          N2(1:3) = N2(1:3)/NORM2
-
-         !comput cos and sin components and get dihedral
+         
+         NPROD = 1.0D0/(EUC_NORM(CROSS_PROD(N1,N2))) 
+         
+         !compute cos and sin components and get dihedral
          COSPHI = DOTP(3,N1,N2)
-         !QESTION is this form of sin correct? We already normilised N1 & N2
-         SINPHI = DOTP(3,CROSS_PROD(N1,N2),RBC)*NPROD
-         !SINPHI = DOTP(3,CROSS_PROD(N1,N2),RBC)/NORMBC
-         PHI = ATAN2(SINPHI,COSPHI)
+         !CHANGE we already normalised N1 and N2
+         !SINPHI = DOTP(3,CROSS_PROD(N1,N2),RBC)*NPROD    
+         SINPHI = DOTP(3,CROSS_PROD(N1,N2),RBC)/(NPROD*NORMBC)
+         PHI = ATAN2(SINPHI,COSPHI) 
       END SUBROUTINE COMPUTE_DIH
 
       SUBROUTINE CHECK_DIH_ACTIVE()
@@ -357,6 +358,7 @@ MODULE DIHEDRAL_CONSTRAINTS
          REAL(KIND = REAL64) :: DOT12, L1, L2, Z1, Z2, Z12, REGTERM1, CT0, CT1, SREG
          REAL(KIND = REAL64) :: FAB(3), FBC(3), FCD(3)
          REAL(KIND = REAL64) :: FREG1(3), FREG2(3)
+         REAL(KIND = REAL64) :: NORM_Z, SINZ
 
          !cutoffs used for regularisation
          REAL(KIND = REAL64), PARAMETER :: EPS9 = 1.0D-9
@@ -370,7 +372,7 @@ MODULE DIHEDRAL_CONSTRAINTS
          ! This can be rewritten to
          ! E = Deps*KDIH*[1 + cos(PHI_REG)*C0 + sin(PHI_REG)*S0]
          ! The variables are as follows:
-         ! PHI_REG = PI - SIGN(dotp(rBC,(N1xN2)))*arccos(DOTP(N1,N2))
+         ! PHI_REG = PI - SIGN(dotp(rBC,(N1xN2))) * arccos(DOTP(N1,N2))
          ! with rBC the vector between the central two atoms and N1 and N2 the two normals at B and C, respectively
          ! C0 and S0 are the cosine and sine of PHIREF_REG, i.e. the regularised version of the reference
          ! These are stored in arrays after the setup.
@@ -388,6 +390,7 @@ MODULE DIHEDRAL_CONSTRAINTS
          NORM1 = EUC_NORM(N1)
          NORM2 = EUC_NORM(N2)
          DOT12 = DOTP(3,N1,N2)
+
          ! introduce regularisation step 1: step function to cutoff small values
          L1 = NORM1 + EPS9
          L2 = NORM2 + EPS9
@@ -404,35 +407,42 @@ MODULE DIHEDRAL_CONSTRAINTS
          CT1 = MAX(-P9999,CT0)
 
          ! compute regularised dihedral and the sine and cosine terms
-         !QUESTION This is other way round for dsin than description above ... 
-         PHI_REG = PI - DSIGN(DACOS(CT1),DOTP(3,RBC,CROSS_PROD(N1,N2)))
+         PHI_REG = PI - DSIGN(DACOS(CT1), DOTP(3,RBC,CROSS_PROD(N1,N2)))
+                    
          COSPHI = DCOS(PHI_REG)
          SINPHI = DSIN(PHI_REG)
-
+       
          E = KDIH*(1+COSPHI*C0(DIHREF)+SINPHI*S0(DIHREF))*REGTERM1
-         
+
          !use a regularised version of sine
          SREG = SINPHI + SIGN(1.0d-18,SINPHI)
 
+         ! Force calculation
+         ! dE/d(cos(phi)) 
          IF (ABS(SREG).LT.EPS6) THEN
             ! for small sine values we take the limit of the exact form
             DF = C0(DIHREF)*REGTERM1
          ELSE
             DF = (C0(DIHREF)*SINPHI - S0(DIHREF)*COSPHI)/SREG*REGTERM1
          END IF
-         
+         DF = KDIH * DF
+
          !individual first derviatives with respect to the cartesian coords
+         ! d(cos(phi))/dr
+         
          FREG1(1:3) = -N2*Z12 + CT1*N1*Z1**2
-         FREG2(1:3) =  N2*Z12 - CT1*N2*Z2**2
+         FREG2(1:3) = -N1*Z12 + CT1*N2*Z2**2
 
          FAB(1:3) = DF*CROSS_PROD(RBC,FREG1)
-         FBC(1:3) = DF*(CROSS_PROD(RAB,FREG1)+CROSS_PROD(FREG2,RCD))
+         FBC(1:3) = DF*(CROSS_PROD(RAB,FREG1) + CROSS_PROD(FREG2,RCD))
          FCD(1:3) = DF*CROSS_PROD(RBC,FREG2)
 
-         FA(1:3) = -FAB(1:3) 
-         FB(1:3) =  FAB(1:3) - FBC(1:3) 
-         FC(1:3) =  FBC(1:3) + FCD(1:3)
-         FD(1:3) = -FCD(1:3)
+         FA(1:3) = FAB(1:3) 
+         FB(1:3) = -FAB(1:3) + FBC(1:3) 
+         FC(1:3) = -FBC(1:3) - FCD(1:3)
+         FD(1:3) = FCD(1:3)
+
+        
       END SUBROUTINE DIHEDRAL
 
       !use of a harmonic constraint, which is not periodic -> not ideal here

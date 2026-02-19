@@ -251,14 +251,10 @@ MODULE QCIPERMDIST
 
             
 
-            LPERMOFF=.FALSE. !at his point we wanr to align the whole image not do local permutations
-            !we call with DGROUP>0, so we exit with changes to coords A?
+            LPERMOFF=.FALSE. 
             
             
-            CALL LOPERMDIST(COORDSB,COORDSA,DISTANCE,DIST2,RMATBEST,PERMGROUPIDX,NMOVEP,PERMP)
-            !CALL LOPERMDIST(COORDSB,COORDSA,DISTANCE,DIST2,RMATBEST,0,NMOVEP,PERMP)
-            
-            
+            CALL LOPERMDIST(COORDSB,COORDSA,DISTANCE,DIST2,RMATBEST,PERMGROUPIDX,NMOVEP,PERMP)      
             
 
             IF (DEBUG.AND.NMOVEP.GT.0)  THEN
@@ -1317,7 +1313,7 @@ MODULE QCIPERMDIST
          !WRITE(*,*) "newmindist2> Distance: ", DISTANCE, " DWORST: ", DWORST
       END SUBROUTINE NEWMINDIST2
 
-!Same as NEWMIDIST3, except this one modifies coordinates
+!Same as NEWMIDIST2, except this one modifies coordinates
 SUBROUTINE NEWMINDIST3(RA,RB,NATOMS,DIST,DEBUG,RMAT,CMXA,CMYA,CMZA,CMXB,CMYB,CMZB,DWORST)
          IMPLICIT NONE
          INTEGER, INTENT(IN) :: NATOMS

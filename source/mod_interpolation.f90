@@ -48,7 +48,7 @@ MODULE QCIINTERPOLATION
          REAL(KIND = REAL64) :: STPMIN !< minimum step-size
          REAL(KIND = REAL64) :: CURRMAXSEP, CURRMINSEP !< current minimum and maximum image separation
          INTEGER :: IDXMIN, IDXMAX !< id for minimum and maximum distance images
-         REAL(KIND = REAL64) :: MAX_GRAD_COMP !< max gradient compononet. Used for convergence test
+         
          !DEGBUG
          INTEGER :: UNITCONSTR
 
@@ -313,7 +313,7 @@ MODULE QCIINTERPOLATION
             !L-BFGS start
 
             GTMP(1:DIMS)=0.0D0
-            MAX_GRAD_COMP=-HUGE(1.0D0)
+            
             ! the variables needed for step taking are either module variables in this module or saved in mod_intcoords
             
             CALL MAKESTEP(NITERUSE,NPT,POINT,RHO1,ALPHA)          
@@ -327,11 +327,6 @@ MODULE QCIINTERPOLATION
             END IF
             
             GTMP(1:DIMS)=G(1:DIMS)
-
-            !Get the largest absolute value component of the gradient
-            !Used for convergence test 
-            MAX_GRAD_COMP = ABS(MAXVAL(GTMP))
-            IF( MAX_GRAD_COMP.LT.ABS(MINVAL(GTMP))) MAX_GRAD_COMP = ABS(MINVAL(GTMP))
 
             ! Take the minimum scale factor for all images for LBFGS step to avoid discontinuities
             STPMIN = 1.0D0

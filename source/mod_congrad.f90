@@ -257,6 +257,7 @@ MODULE CONSTR_E_GRAD
          GGG(1:(3*NATOMS)*(NIMAGES+2))=0.0D0
          ECON = 0.0D0
          DO J2=1,NCONSTRAINT
+
             ! only active constraints contribute
             !IF (.NOT.CONACTIVE(J2)) CYCLE
             ! get constraint cut off for this contraint
