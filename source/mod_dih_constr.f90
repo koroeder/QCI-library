@@ -357,7 +357,7 @@ MODULE DIHEDRAL_CONSTRAINTS
          REAL(KIND = REAL64) :: PHI_REG, SINPHI, COSPHI, DF
          REAL(KIND = REAL64) :: DOT12, L1, L2, Z1, Z2, Z12, REGTERM1, CT0, CT1, SREG
          REAL(KIND = REAL64) :: FAB(3), FBC(3), FCD(3)
-         REAL(KIND = REAL64) :: FREG1(3), FREG2(3)
+         REAL(KIND = REAL64) :: FREG1(3), FREG21(3), FREG22(3), FREG31(3), FREG32(3), FREG4(3)
          REAL(KIND = REAL64) :: NORM_Z, SINZ
 
          !cutoffs used for regularisation
@@ -430,18 +430,32 @@ MODULE DIHEDRAL_CONSTRAINTS
          !individual first derviatives with respect to the cartesian coords
          ! d(cos(phi))/dr
          
-         FREG1(1:3) = -N2*Z12 + CT1*N1*Z1**2
-         FREG2(1:3) = -N1*Z12 + CT1*N2*Z2**2
+         !FREG1(1:3) = -N2*Z12 + CT1*N1*Z1**2
+         !FREG2(1:3) = -N1*Z12 + CT1*N2*Z2**2
+         
+         !FAB(1:3) = DF*CROSS_PROD(RBC,FREG1)
+         !FBC(1:3) = DF*(CROSS_PROD(RAB,FREG1) + CROSS_PROD(FREG2,RCD))
+         !FCD(1:3) = DF*CROSS_PROD(RBC,FREG2)
 
-         FAB(1:3) = DF*CROSS_PROD(RBC,FREG1)
-         FBC(1:3) = DF*(CROSS_PROD(RAB,FREG1) + CROSS_PROD(FREG2,RCD))
-         FCD(1:3) = DF*CROSS_PROD(RBC,FREG2)
+         !FA(1:3) = FAB(1:3) 
+         !FB(1:3) = -FAB(1:3) + FBC(1:3) 
+         !FC(1:3) = -FBC(1:3) - FCD(1:3)
+         !FD(1:3) = FCD(1:3)
 
-         FA(1:3) = FAB(1:3) 
-         FB(1:3) = -FAB(1:3) + FBC(1:3) 
-         FC(1:3) = -FBC(1:3) - FCD(1:3)
-         FD(1:3) = FCD(1:3)
+         FREG1 = N2*Z12 - CT1*N1*Z1**2
+         
+         FREG21 = -N2*Z12 + CT1*N1*Z1**2
+         FREG22 = N1*Z12 - CT1*N2*Z2**2
 
+         FREG31 = -N2*Z12 + CT1*N1*Z1**2
+         FREG32 = -N1*Z12 + CT1*N2*Z2**2
+
+         FREG4 = N1*Z12 - CT1*N2*Z2**2
+
+         FA = DF * CROSS_PROD(FREG1,RBC)
+         FB = DF * (CROSS_PROD(FREG21,RAB+RBC) + CROSS_PROD(FREG22,RCD))
+         FC = DF * (CROSS_PROD(FREG31,RAB) + CROSS_PROD(FREG32,RBC+RCD)) 
+         FD = DF * CROSS_PROD(FREG4,RBC)
         
       END SUBROUTINE DIHEDRAL
 
