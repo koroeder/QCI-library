@@ -4,4 +4,6 @@ TODO list:
 - [x] Remove repulsions within diherdrals
 - [ ] Setup module for congrad output printing
 - [ ] Check chirality and dihedrals for finish and compare with start image
-- [ ] Write up documentation  
+- [ ] Write up documentation
+- [ ] remove WARNING for missing constraints for frozen atoms
+- [ ] clean up putput
