@@ -383,15 +383,16 @@ MODULE CONSTR_E_GRAD
                XB(1:3) = XYZ(N+3*B-2:N+3*B)
                XC(1:3) = XYZ(N+3*C-2:N+3*C)
                XD(1:3) = XYZ(N+3*D-2:N+3*D)
-               !call routine to compute dihedral and get gradient
+               !call routine to compute dihedral and get forces
                CALL DIHEDRAL(XA, XB, XC, XD, J, THISE, FA, FB, FC, FD)
                !add results to appropriate variables
                EDIH = EDIH + THISE
                EEE(I) = EEE(I) + THISE
-               GGG(N+3*A-2:N+3*A) = GGG(N+3*A-2:N+3*A) - FA(1:3)
-               GGG(N+3*B-2:N+3*B) = GGG(N+3*B-2:N+3*B) - FB(1:3)
-               GGG(N+3*C-2:N+3*C) = GGG(N+3*C-2:N+3*C) - FC(1:3)
-               GGG(N+3*D-2:N+3*D) = GGG(N+3*D-2:N+3*D) - FD(1:3)
+               !We add forces here (we calculated the negative gradient in the DIHEDRAL function)
+               GGG(N+3*A-2:N+3*A) = GGG(N+3*A-2:N+3*A) + FA(1:3)
+               GGG(N+3*B-2:N+3*B) = GGG(N+3*B-2:N+3*B) + FB(1:3)
+               GGG(N+3*C-2:N+3*C) = GGG(N+3*C-2:N+3*C) + FC(1:3)
+               GGG(N+3*D-2:N+3*D) = GGG(N+3*D-2:N+3*D) + FD(1:3)
             END DO
          END DO
       END SUBROUTINE GET_DIH_CON_E
