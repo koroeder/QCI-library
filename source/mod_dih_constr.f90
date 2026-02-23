@@ -408,7 +408,8 @@ MODULE DIHEDRAL_CONSTRAINTS
          CT1 = MAX(-P9999,CT0)
 
          ! compute regularised dihedral and the sine and cosine terms
-         PHI_REG = PI - DSIGN(DACOS(CT1), DOTP(3,RBC,CROSS_PROD(N1,N2)))
+         ! Note: Need to have + here, due to how we define vectors 
+         PHI_REG = PI + DSIGN(DACOS(CT1), DOTP(3,RBC,CROSS_PROD(N1,N2)))
                     
          COSPHI = DCOS(PHI_REG)
          SINPHI = DSIN(PHI_REG)
@@ -443,7 +444,7 @@ MODULE DIHEDRAL_CONSTRAINTS
          !Note: sanity check - sum of forces on all atoms must be 0
          FA(1:3) =  FAB(1:3) 
          FB(1:3) = -FAB(1:3) + FBC(1:3) 
-         FC(1:3) = -FBC(1:3) - FCD(1:3)
+         FC(1:3) = -FCD(1:3) - FBC(1:3) 
          FD(1:3) =  FCD(1:3)
                  
       END SUBROUTINE DIHEDRAL
