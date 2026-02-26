@@ -9,6 +9,8 @@ MODULE DIHEDRAL_CONSTRAINTS
    INTEGER, ALLOCATABLE :: DIHEDRALS(:,:)
    ! reference dihedrals
    REAL(KIND = REAL64), ALLOCATABLE :: REFDIH(:)
+   ! dihedral multiplicity
+   INTEGER, ALLOCATABLE :: DIHMUL(:)
    ! regularisation of phiref
    REAL(KIND = REAL64), ALLOCATABLE :: S0(:), C0(:)
    ! activated all dihedrals?
@@ -25,6 +27,7 @@ MODULE DIHEDRAL_CONSTRAINTS
          ALLOCATE(REFDIH(NDIH))
          ALLOCATE(DIHACTIVE(NDIH))
          ALLOCATE(S0(NDIH),C0(NDIH))
+         ALLOCATE(DIHMUL(NDIH))
       END SUBROUTINE ALLOC_DIHVARS
 
       SUBROUTINE DEALLOC_DIHVARS()
@@ -33,6 +36,7 @@ MODULE DIHEDRAL_CONSTRAINTS
          IF (ALLOCATED(DIHACTIVE)) DEALLOCATE(DIHACTIVE)
          IF (ALLOCATED(S0)) DEALLOCATE(S0)
          IF (ALLOCATED(C0)) DEALLOCATE(C0)
+         IF (ALLOCATED(DIHMUL)) DEALLOCATE(DIHMUL)
       END SUBROUTINE DEALLOC_DIHVARS
 
       SUBROUTINE SETUP_DIH_CONSTR()
@@ -194,6 +198,7 @@ MODULE DIHEDRAL_CONSTRAINTS
                CALL GET_ATOMID("N1",I,AT3)
                CALL GET_ATOMID("C2",I,AT4)
                REFATOMS(NCONS,1) = AT1; REFATOMS(NCONS,2) = AT2; REFATOMS(NCONS,3) = AT3; REFATOMS(NCONS,4) = AT4 
+               !might need fourth dihedral
             ELSE IF ((RESNAMES(I).EQ."G").OR.(RESNAMES(I).EQ."G3").OR.(RESNAMES(I).EQ."G5").OR. &
                      (RESNAMES(I).EQ."DG").OR.(RESNAMES(I).EQ."DG3").OR.(RESNAMES(I).EQ."DG5")) THEN
                !first dihedral 
@@ -247,6 +252,13 @@ MODULE DIHEDRAL_CONSTRAINTS
                CALL GET_ATOMID("N1",I,AT3)
                CALL GET_ATOMID("C2",I,AT4)
                REFATOMS(NCONS,1) = AT1; REFATOMS(NCONS,2) = AT2; REFATOMS(NCONS,3) = AT3; REFATOMS(NCONS,4) = AT4 
+               !experimental add fourth dihedral
+               CALL GET_ATOMID("C4",I,AT1)
+               CALL GET_ATOMID("N3",I,AT2)
+               CALL GET_ATOMID("C2",I,AT3)
+               CALL GET_ATOMID("N1",I,AT4)
+               REFATOMS(NCONS,1) = AT1; REFATOMS(NCONS,2) = AT2; REFATOMS(NCONS,3) = AT3; REFATOMS(NCONS,4) = AT4 
+
             END IF
          END DO
          WRITE(*,*) REFATOMS
@@ -260,6 +272,7 @@ MODULE DIHEDRAL_CONSTRAINTS
             DIHEDRALS(J,2) = CHIR_INFO(J,2)
             DIHEDRALS(J,3) = CHIR_INFO(J,3)
             DIHEDRALS(J,4) = CHIR_INFO(J,4)
+            DIHMUL(J) = 1
          WRITE(*,*) "DIHEDRALS-CHIR_INFO:  J=", J, "atoms: ", DIHEDRALS(J,1:4)
          END DO
          DO J=1,NCONS
@@ -267,21 +280,32 @@ MODULE DIHEDRAL_CONSTRAINTS
             DIHEDRALS(NCHIRAL+J,2) = REFATOMS(J,2)
             DIHEDRALS(NCHIRAL+J,3) = REFATOMS(J,3)
             DIHEDRALS(NCHIRAL+J,4) = REFATOMS(J,4)            
-         !WRITE(*,*) "DIHEDRALS-:  J=", J, "atoms: ",  DIHEDRALS(NCHIRAL+J,1:4)
+            DIHMUL(NCHIRAL+J) = 2  
+         WRITE(*,*) "DIHEDRALS-:  J=", J, "atoms: ",  DIHEDRALS(NCHIRAL+J,1:4)
          END DO
-               
+          
+         !DO J=1,NCONS
+         !   DIHEDRALS(J,1) = REFATOMS(J,1)
+         !   DIHEDRALS(J,2) = REFATOMS(J,2)
+         !   DIHEDRALS(J,3) = REFATOMS(J,3)
+         !   DIHEDRALS(J,4) = REFATOMS(J,4) 
+         !   DIHMUL(J) = 2           
+         !WRITE(*,*) "DIHEDRALS-:  J=", J, "atoms: ",  DIHEDRALS(J,1:4)
+         !END DO
+
          ! get reference angles
          DO J=1,NDIH
             AT1 = DIHEDRALS(J,1); AT2 = DIHEDRALS(J,2); AT3 = DIHEDRALS(J,3); AT4 = DIHEDRALS(J,4)
             CALL COMPUTE_DIH(NATOMS, XSTART, AT1, AT2, AT3, AT4, THISDIH)
-            THISDIH = THISDIH - PI
-            REFDIH(J) = THISDIH
+            REFDIH(J) = THISDIH 
             ! now compute and store the regularised versions
             IF (DABS(THISDIH-PI).LE.EPS3) THISDIH = SIGN(PI,THISDIH)
+            THISDIH = THISDIH - DIHMUL(NDIH)*PI
             THISC0 = DCOS(THISDIH)
             THISS0 = DSIN(THISDIH)
             IF (DABS(THISC0).LE.EPS6) THISC0 = 0.0D0
             IF (DABS(THISS0).LE.EPS6) THISS0 = 0.0D0
+
             C0(J) = THISC0
             S0(J) = THISS0
          END DO
@@ -312,7 +336,7 @@ MODULE DIHEDRAL_CONSTRAINTS
          NORM1 = EUC_NORM(N1)
          NORM2 = EUC_NORM(N2)
          NORMBC = EUC_NORM(RBC)
-         NPROD = 1.0D0/(NORM1*NORM2*NORMBC)
+         !NPROD = 1.0D0/(NORM1*NORM2*NORMBC)
          N1(1:3) = N1(1:3)/NORM1
          N2(1:3) = N2(1:3)/NORM2
          
@@ -322,7 +346,8 @@ MODULE DIHEDRAL_CONSTRAINTS
          COSPHI = DOTP(3,N1,N2)
          !CHANGE we already normalised N1 and N2
          !SINPHI = DOTP(3,CROSS_PROD(N1,N2),RBC)*NPROD    
-         SINPHI = DOTP(3,CROSS_PROD(N1,N2),RBC)/(NPROD*NORMBC)
+         !SINPHI = DOTP(3,CROSS_PROD(N1,N2),RBC)/(NPROD*NORMBC)
+         SINPHI = EUC_NORM(CROSS_PROD(N1,N2))
          PHI = ATAN2(SINPHI,COSPHI) 
       END SUBROUTINE COMPUTE_DIH
 
@@ -358,8 +383,8 @@ MODULE DIHEDRAL_CONSTRAINTS
          REAL(KIND = REAL64) :: PHI_REG, SINPHI, COSPHI, DF
          REAL(KIND = REAL64) :: DOT12, L1, L2, Z1, Z2, Z12, REGTERM1, CT0, CT1, SREG
          REAL(KIND = REAL64) :: FAB(3), FBC(3), FCD(3)
-         REAL(KIND = REAL64) :: FREG1(3), FREG21(3), FREG22(3), FREG31(3), FREG32(3), FREG4(3),  FREG2(3),  FREG3(3)
-         REAL(KIND = REAL64) :: NORM_Z, SINZ
+         REAL(KIND = REAL64) :: FREG1(3), FREG2(3)
+         INTEGER :: M
 
          !cutoffs used for regularisation
          REAL(KIND = REAL64), PARAMETER :: EPS9 = 1.0D-9
@@ -403,50 +428,103 @@ MODULE DIHEDRAL_CONSTRAINTS
          REGTERM1 = 0.0D0
          IF (Z12.NE.0.0D0) REGTERM1 = 1.0D0
          
+         IF ((DOT12*Z12).GT.1.0D0) WRITE(*,*) "WARNING DOTP > 1 something is very wrong with dihedrals"
+         IF ((DOT12*Z12).LT.-1.0D0) WRITE(*,*) "WARNING DOTP < 1 something is very wrong with dihedrals"          
+         
          ! second step of regularisation: restrict values to correct range (-1 to 1)
          CT0 = MIN(P9999,DOT12*Z12)
          CT1 = MAX(-P9999,CT0)
 
+         SINPHI = EUC_NORM(CROSS_PROD(N1,N2))*Z12
          ! compute regularised dihedral and the sine and cosine terms
-         ! Note: Need to have + here, due to how we define vectors 
-         PHI_REG = PI + DSIGN(DACOS(CT1), DOTP(3,RBC,CROSS_PROD(N1,N2)))
-                    
-         COSPHI = DCOS(PHI_REG)
-         SINPHI = DSIN(PHI_REG)
+         PHI_REG = PI - DSIGN(DACOS(CT1), DOTP(3,RBC,CROSS_PROD(N1,N2)))
+         
+         !PHI_REG = ATAN2(CT1,SINPHI) 
+         
+         M = DIHMUL(DIHREF)
+         M=1
+
+         COSPHI = DCOS(M*PHI_REG)
+         SINPHI = DSIN(M*PHI_REG)
        
+
+         
+         !E = KDIH*(1+COSPHI*C0(DIHREF)+SINPHI*S0(DIHREF))*REGTERM1
+         !This is dihedral form specifiaclly for constarining planarity in pi rings 
+         !E = KDIH*(1-COSPHI)
          E = KDIH*(1+COSPHI*C0(DIHREF)+SINPHI*S0(DIHREF))*REGTERM1
 
          !use a regularised version of sine
-         SREG = SINPHI + SIGN(1.0d-18,SINPHI)
-
+         !SREG = SINPHI + SIGN(1.0d-18,SINPHI)
+         
+         SREG = DSIN(PHI_REG)+SIGN(1.0d-18,SINPHI)
          ! First part of gradient calculation
          ! dE/d(cos(phi)) 
          IF (ABS(SREG).LT.EPS6) THEN
-            ! for small sine values we take the limit of the exact form
+           ! for small sine values we take the limit of the exact form
             DF = C0(DIHREF)*REGTERM1
          ELSE
-            DF = (C0(DIHREF)*SINPHI - S0(DIHREF)*COSPHI)/SREG*REGTERM1
+            DF = (C0(DIHREF)*SINPHI - S0(DIHREF)*COSPHI)/SREG * REGTERM1
          END IF
-         DF = KDIH * DF
+         
+         
+         !IF (ABS(SREG).LT.EPS6) THEN
+            ! for small sine values we take the limit of the exact form
+         !   DF = -2.0D0*SINPHI/SREG
+         !ELSE
+         !   DF = (C0(DIHREF)*SINPHI - S0(DIHREF)*COSPHI)/SREG * REGTERM1
+         !END IF
+         
+         
+         DF = M*KDIH * DF
 
          ! Individual first derviatives with respect to the cartesian coords
          ! d(cos(phi))/d(R_xx)
-         FREG1(1:3) = N2*Z12 - CT1*N1*Z1**2
-         FREG2(1:3) = N1*Z12 - CT1*N2*Z2**2
+         !FREG1(1:3) = N2*Z12 - CT1*N1*Z1**2
+         !FREG2(1:3) = N1*Z12 - CT1*N2*Z2**2
          
-         ! The minus gradient is accounted for in this step!
+         FREG1 = N2*Z12 - CT1*N1*Z1**2
+         FREG2 = N1*Z12 - CT1*N2*Z2**2
+
+          ! The minus gradient is accounted for in this step!
          ! Now, we have force terms!
          ! F_xx = - dE/dcos * dcos/d(R_xx)
-         FAB(1:3) =  DF* CROSS_PROD(FREG1,RBC)
-         FBC(1:3) = -DF*(CROSS_PROD(FREG1,RAB) + CROSS_PROD(FREG2, RCD))
-         FCD(1:3) =  DF* CROSS_PROD(FREG2,RBC)
+         !FAB(1:3) =  DF* CROSS_PROD(FREG1,RBC)
+         !FBC(1:3) = -DF*(CROSS_PROD(FREG1,RAB) + CROSS_PROD(FREG2, RCD))
+         !FCD(1:3) =  DF* CROSS_PROD(FREG2,RBC)
+
+         FAB =  DF* CROSS_PROD(FREG1,RBC)
+         FBC = -DF*(CROSS_PROD(FREG1,RAB) + CROSS_PROD(FREG2, RCD))
+         FCD =  DF* CROSS_PROD(FREG2,RBC)
 
          !Note: sanity check - sum of forces on all atoms must be 0
-         FA(1:3) =  FAB(1:3) 
-         FB(1:3) = -FAB(1:3) + FBC(1:3) 
-         FC(1:3) = -FCD(1:3) - FBC(1:3) 
-         FD(1:3) =  FCD(1:3)
-                 
+         !FA(1:3) =  FAB(1:3) 
+         !FB(1:3) = -FAB(1:3) + FBC(1:3) 
+         !FC(1:3) = -FCD(1:3) - FBC(1:3) 
+         !FD(1:3) =  FCD(1:3)
+         
+         FA =  FAB 
+         FB = -FAB + FBC 
+         FC = -FCD - FBC 
+         FD =  FCD
+
+         FA = -FA
+         FB = -FB
+         FC = -FC
+         FD = -FD
+
+         
+         !WRITE(*,*) "dihedral> DIHREF", DIHREF, " S0", S0(DIHREF), " C0 ", C0(DIHREF), " SINHPHI ", SINPHI, " COSPHI ", COSPHI
+         !WRITE(*,*) "dihedral> E ", E, "PHI_0 ", REFDIH(DIHREF) , "PHI_REG ", PHI_REG,  "DF = ", DF
+         !WRITE(*,*) "M", M, "FREG1 ", FREG1, "FREG2", FREG2
+         !WRITE(*,*) "F_A ", FA 
+         !WRITE(*,*) "F_B ", FB 
+         !WRITE(*,*) "F_C ", FC 
+         !WRITE(*,*) "F_D ", FD 
+
+         
+
+
       END SUBROUTINE DIHEDRAL
 
       !use of a harmonic constraint, which is not periodic -> not ideal here
