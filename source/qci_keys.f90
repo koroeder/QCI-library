@@ -92,6 +92,9 @@ MODULE QCIKEYS
 
    !> use dihedral cosntraints for chiral atoms and planarity
    LOGICAL :: USEDIHEDRALCONST = .FALSE.
+   
+   !> tolerance for dihedral angle difference between start and final images. Preset 10 deg
+   REAL(KIND=REAL64) :: DIHDIFTOL = 0.17453292519943295
 
    !spring constants and adjustment
    !TODO: add initialisation and setting in qci setup

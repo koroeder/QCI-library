@@ -40,8 +40,8 @@ MODULE DIHEDRAL_CONSTRAINTS
       END SUBROUTINE DEALLOC_DIHVARS
 
       SUBROUTINE SETUP_DIH_CONSTR()
-         USE QCIKEYS, ONLY: NATOMS
-         USE INTERPOLATION_KEYS, ONLY: XSTART
+         USE QCIKEYS, ONLY: NATOMS, DIHDIFTOL
+         USE INTERPOLATION_KEYS, ONLY: XSTART, XFINAL
          USE AMBER_CONSTRAINTS, ONLY: RESNAMES, NRES, GET_ATOMID
          USE CHIRALITY, ONLY: NCHIRAL, CHIR_INFO
 
@@ -49,6 +49,7 @@ MODULE DIHEDRAL_CONSTRAINTS
          REAL(KIND = REAL64), PARAMETER :: EPS6 = 1.0D-6
          INTEGER :: REFATOMS(NATOMS,4)
          INTEGER :: NCONS, AT1, AT2, AT3, AT4, I, J
+         REAL(KIND=REAL64) :: THISDIHS, THISDIHF !phi_0 for start and final images
          REAL(KIND=REAL64) :: THISDIH, THISS0, THISC0
 
          NCONS = 0
@@ -296,10 +297,17 @@ MODULE DIHEDRAL_CONSTRAINTS
          ! get reference angles
          DO J=1,NDIH
             AT1 = DIHEDRALS(J,1); AT2 = DIHEDRALS(J,2); AT3 = DIHEDRALS(J,3); AT4 = DIHEDRALS(J,4)
-            CALL COMPUTE_DIH(NATOMS, XSTART, AT1, AT2, AT3, AT4, THISDIH)
+            !reference dihedrals in start and finish images 
+            CALL COMPUTE_DIH(NATOMS, XSTART, AT1, AT2, AT3, AT4, THISDIHS)
+            CALL COMPUTE_DIH(NATOMS, XFINAL, AT1, AT2, AT3, AT4, THISDIHF)
             
-            THISDIH = -THISDIH 
-            !THISDIH = THISDIH + PI
+            IF(ABS(THISDIHS-THISDIHF).GT.DIHDIFTOL) THEN
+               WRITE(*,*) "WARNING Dihedral", J, "Difference between dihedral start and final angles is ", THISDIHF-THISDIHS,  "rad!!!"
+            ENDIF
+
+            !Define reference dihedral as average dihedral
+            !Note, need the minus here if using regularisation.  
+            THISDIH = -(THISDIHS+THISDIHF)/2.0D0
 
             REFDIH(J) = THISDIH 
             ! now compute and store the regularised versions
