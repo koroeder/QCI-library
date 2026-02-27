@@ -307,7 +307,8 @@ MODULE DIHEDRAL_CONSTRAINTS
 
             !Define reference dihedral as average dihedral
             !Note, need the minus here if using regularisation.  
-            THISDIH = -(THISDIHS+THISDIHF)/2.0D0
+            !THISDIH = -(THISDIHS+THISDIHF)/2.0D0
+            THISDIH = (THISDIHS+THISDIHF)/2.0D0 + PI
 
             REFDIH(J) = THISDIH 
             ! now compute and store the regularised versions
@@ -356,11 +357,10 @@ MODULE DIHEDRAL_CONSTRAINTS
          
          !compute cos and sin components and get dihedral
          COSPHI = DOTP(3,N1,N2)
-         !CHANGE we already normalised N1 and N2
-         !SINPHI = DOTP(3,CROSS_PROD(N1,N2),RBC)*NPROD    
+           
          
-         SINPHI = DOTP(3,CROSS_PROD(N1,N2),RBC)/NORMBC
-         !SINPHI = EUC_NORM(CROSS_PROD(N1,N2))
+         !SINPHI = DOTP(3,CROSS_PROD(N1,N2),RBC)/NORMBC
+         SINPHI = EUC_NORM(CROSS_PROD(N1,N2))
          !ATAN2(y,x)
          PHI = ATAN2(SINPHI,COSPHI) 
       END SUBROUTINE COMPUTE_DIH
@@ -451,9 +451,9 @@ MODULE DIHEDRAL_CONSTRAINTS
 
          SINPHI = EUC_NORM(CROSS_PROD(N1,N2))*Z12
          ! compute regularised dihedral and the sine and cosine terms
-         PHI_REG = PI - DSIGN(DACOS(CT1), DOTP(3,RBC,CROSS_PROD(N1,N2)))
+         !PHI_REG = PI - DSIGN(DACOS(CT1), DOTP(3,RBC,CROSS_PROD(N1,N2)))
          !PHI_REG = DSIGN(DACOS(CT1), DOTP(3,RBC,CROSS_PROD(N1,N2)))
-         !PHI_REG = ATAN2(SINPHI,CT1) 
+         PHI_REG = ATAN2(SINPHI,CT1) 
          
          M = DIHMUL(DIHREF)
          M = 1
@@ -522,10 +522,10 @@ MODULE DIHEDRAL_CONSTRAINTS
          FC = -FCD - FBC 
          FD =  FCD
 
-         FA = -FA
-         FB = -FB
-         FC = -FC
-         FD = -FD
+         !FA = -FA
+         !FB = -FB
+         !FC = -FC
+         !FD = -FD
 
          
          !WRITE(*,*) "dihedral> DIHREF", DIHREF, " S0", S0(DIHREF), " C0 ", C0(DIHREF), " SINHPHI ", SINPHI, " COSPHI ", COSPHI
