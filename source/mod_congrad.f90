@@ -375,7 +375,8 @@ MODULE CONSTR_E_GRAD
             B = DIHEDRALS(J,2)
             C = DIHEDRALS(J,3)
             D = DIHEDRALS(J,4)
-            DO I=2,NIMAGES+1
+            !change back to 2 to NIMAGES+1 when dihedrals work
+            DO I=1,NIMAGES+2
                !reference for image we are in (The x ccoord of the first atom of the current image is N+1)
                N = 3*NATOMS*(I-1)
                !extract relevant coordinates

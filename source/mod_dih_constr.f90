@@ -253,11 +253,11 @@ MODULE DIHEDRAL_CONSTRAINTS
                CALL GET_ATOMID("C2",I,AT4)
                REFATOMS(NCONS,1) = AT1; REFATOMS(NCONS,2) = AT2; REFATOMS(NCONS,3) = AT3; REFATOMS(NCONS,4) = AT4 
                !experimental add fourth dihedral
-               CALL GET_ATOMID("C4",I,AT1)
-               CALL GET_ATOMID("N3",I,AT2)
-               CALL GET_ATOMID("C2",I,AT3)
-               CALL GET_ATOMID("N1",I,AT4)
-               REFATOMS(NCONS,1) = AT1; REFATOMS(NCONS,2) = AT2; REFATOMS(NCONS,3) = AT3; REFATOMS(NCONS,4) = AT4 
+               !CALL GET_ATOMID("C4",I,AT1)
+               !CALL GET_ATOMID("N3",I,AT2)
+               !CALL GET_ATOMID("C2",I,AT3)
+               !CALL GET_ATOMID("N1",I,AT4)
+               !REFATOMS(NCONS,1) = AT1; REFATOMS(NCONS,2) = AT2; REFATOMS(NCONS,3) = AT3; REFATOMS(NCONS,4) = AT4 
 
             END IF
          END DO
@@ -297,10 +297,14 @@ MODULE DIHEDRAL_CONSTRAINTS
          DO J=1,NDIH
             AT1 = DIHEDRALS(J,1); AT2 = DIHEDRALS(J,2); AT3 = DIHEDRALS(J,3); AT4 = DIHEDRALS(J,4)
             CALL COMPUTE_DIH(NATOMS, XSTART, AT1, AT2, AT3, AT4, THISDIH)
+            
+            THISDIH = -THISDIH 
+            !THISDIH = THISDIH + PI
+
             REFDIH(J) = THISDIH 
             ! now compute and store the regularised versions
             IF (DABS(THISDIH-PI).LE.EPS3) THISDIH = SIGN(PI,THISDIH)
-            THISDIH = THISDIH - DIHMUL(NDIH)*PI
+            !THISDIH = THISDIH 
             THISC0 = DCOS(THISDIH)
             THISS0 = DSIN(THISDIH)
             IF (DABS(THISC0).LE.EPS6) THISC0 = 0.0D0
@@ -346,8 +350,10 @@ MODULE DIHEDRAL_CONSTRAINTS
          COSPHI = DOTP(3,N1,N2)
          !CHANGE we already normalised N1 and N2
          !SINPHI = DOTP(3,CROSS_PROD(N1,N2),RBC)*NPROD    
-         !SINPHI = DOTP(3,CROSS_PROD(N1,N2),RBC)/(NPROD*NORMBC)
-         SINPHI = EUC_NORM(CROSS_PROD(N1,N2))
+         
+         SINPHI = DOTP(3,CROSS_PROD(N1,N2),RBC)/NORMBC
+         !SINPHI = EUC_NORM(CROSS_PROD(N1,N2))
+         !ATAN2(y,x)
          PHI = ATAN2(SINPHI,COSPHI) 
       END SUBROUTINE COMPUTE_DIH
 
@@ -438,11 +444,11 @@ MODULE DIHEDRAL_CONSTRAINTS
          SINPHI = EUC_NORM(CROSS_PROD(N1,N2))*Z12
          ! compute regularised dihedral and the sine and cosine terms
          PHI_REG = PI - DSIGN(DACOS(CT1), DOTP(3,RBC,CROSS_PROD(N1,N2)))
-         
-         !PHI_REG = ATAN2(CT1,SINPHI) 
+         !PHI_REG = DSIGN(DACOS(CT1), DOTP(3,RBC,CROSS_PROD(N1,N2)))
+         !PHI_REG = ATAN2(SINPHI,CT1) 
          
          M = DIHMUL(DIHREF)
-         M=1
+         M = 1
 
          COSPHI = DCOS(M*PHI_REG)
          SINPHI = DSIN(M*PHI_REG)
@@ -455,9 +461,9 @@ MODULE DIHEDRAL_CONSTRAINTS
          E = KDIH*(1+COSPHI*C0(DIHREF)+SINPHI*S0(DIHREF))*REGTERM1
 
          !use a regularised version of sine
-         !SREG = SINPHI + SIGN(1.0d-18,SINPHI)
+         SREG = SINPHI + SIGN(1.0d-18,SINPHI)
          
-         SREG = DSIN(PHI_REG)+SIGN(1.0d-18,SINPHI)
+         !SREG = DSIN(PHI_REG)+SIGN(1.0d-18,SINPHI)
          ! First part of gradient calculation
          ! dE/d(cos(phi)) 
          IF (ABS(SREG).LT.EPS6) THEN
