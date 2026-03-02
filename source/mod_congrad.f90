@@ -44,12 +44,14 @@ MODULE CONSTR_E_GRAD
             ELSE
             CALL CONGRAD1(ETOTAL, XYZ, GGG, EEE, RMS, W_O)
          END IF
+         
       END SUBROUTINE CONGRAD
 
 
       SUBROUTINE CONGRAD1(ETOTAL, XYZ, GGG, EEE, RMS, WRITE_OUTPUT)
          USE QCIKEYS, ONLY: NIMAGES, NATOMS, QCICONSTRREP, KINT, QCIFREEZET, QCIFROZEN, INTCONSTRAINTDEL, &
                             USEDIHEDRALCONST
+         USE OUT_PRINT, ONLY: SAVE_OUT
          IMPLICIT NONE
          REAL(KIND = REAL64), INTENT(IN) :: XYZ(3*NATOMS*(NIMAGES+2))   ! input coordinates
          REAL(KIND = REAL64), INTENT(OUT) :: GGG(3*NATOMS*(NIMAGES+2))  ! gradient for each atom in each image
@@ -127,18 +129,23 @@ MODULE CONSTR_E_GRAD
          END DO
          RMS = SQRT(RMS/(3*NATOMS*NIMAGES))
          ETOTAL = SUM(EEE(2:NIMAGES+1))
-         IF (W_O) THEN
-            WRITE(*,*) " congrad1> E total: ", ETOTAL, "RMS: ", RMS, " E rep: ", SUM(EEER), " E constr: ", SUM(EEEC)
-            WRITE(*,*) "                                              E spring: ", SUM(EEES), " E dih: ", SUM(EEED)
-            WRITE(*,*) " congrad1> FCONTEST: ", FCONTEST, " FREPTEST: ", FREPTEST
-            WRITE(*,*) " congrad1> CONVERGECONTEST: ", CONVERGECONTEST, " CONVERGEREPTEST: ", CONVERGEREPTEST
-         ENDIF 
+         
+         !Save outputs, so we can choose when to print
+         CALL SAVE_OUT(ETOTAL, RMS, EREP, ECON, ESPR, EDIH, FCONTEST, FREPTEST, CONVERGECONTEST, CONVERGEREPTEST)
+
+         !IF (W_O) THEN
+         !   WRITE(*,*) " congrad1> E total: ", ETOTAL, "RMS: ", RMS, " E rep: ", SUM(EEER), " E constr: ", SUM(EEEC)
+         !   WRITE(*,*) "                                              E spring: ", SUM(EEES), " E dih: ", SUM(EEED)
+         !   WRITE(*,*) " congrad1> FCONTEST: ", FCONTEST, " FREPTEST: ", FREPTEST
+         !   WRITE(*,*) " congrad1> CONVERGECONTEST: ", CONVERGECONTEST, " CONVERGEREPTEST: ", CONVERGEREPTEST
+         !ENDIF 
       END SUBROUTINE CONGRAD1
 
 
       SUBROUTINE CONGRAD2(ETOTAL, XYZ, GGG, EEE, RMS, WRITE_OUTPUT)
          USE QCIKEYS, ONLY: NIMAGES, NATOMS, KINT, QCIFREEZET, QCIFROZEN, QCICONSTRREP, INTCONSTRAINTDEL, &
                             USEDIHEDRALCONST
+         USE OUT_PRINT, ONLY: SAVE_OUT
          IMPLICIT NONE
          REAL(KIND = REAL64), INTENT(IN) :: XYZ(3*NATOMS*(NIMAGES+2))   ! input coordinates
          REAL(KIND = REAL64), INTENT(OUT) :: GGG(3*NATOMS*(NIMAGES+2))  ! gradient for each atom in each image
@@ -217,12 +224,14 @@ MODULE CONSTR_E_GRAD
          END DO
          RMS = SQRT(RMS/(3*NATOMS*NIMAGES))
          ETOTAL = SUM(EEE(2:NIMAGES+1))
-         IF (W_O) THEN
-            WRITE(*,*) " congrad2> E total: ", ETOTAL, "RMS: ", RMS, " E rep: ", SUM(EEER), " E constr: ", SUM(EEEC)
-            WRITE(*,*) "                                              E spring: ", SUM(EEES), " E dih: ", SUM(EEED)
-            WRITE(*,*) " congrad2> FCONTEST: ", FCONTEST, " FREPTEST: ", FREPTEST
-            WRITE(*,*) " congrad2> CONVERGECONTEST: ", CONVERGECONTEST, " CONVERGEREPTEST: ", CONVERGEREPTEST
-         ENDIF
+         
+         CALL SAVE_OUT(ETOTAL, RMS, EREP, ECON, ESPR, EDIH, FCONTEST, FREPTEST, CONVERGECONTEST, CONVERGEREPTEST)
+         !IF (W_O) THEN
+         !   WRITE(*,*) " congrad2> E total: ", ETOTAL, "RMS: ", RMS, " E rep: ", SUM(EEER), " E constr: ", SUM(EEEC)
+         !   WRITE(*,*) "                                              E spring: ", SUM(EEES), " E dih: ", SUM(EEED)
+         !   WRITE(*,*) " congrad2> FCONTEST: ", FCONTEST, " FREPTEST: ", FREPTEST
+         !   WRITE(*,*) " congrad2> CONVERGECONTEST: ", CONVERGECONTEST, " CONVERGEREPTEST: ", CONVERGEREPTEST
+         !ENDIF
 
          END SUBROUTINE CONGRAD2    
 
@@ -375,7 +384,7 @@ MODULE CONSTR_E_GRAD
             B = DIHEDRALS(J,2)
             C = DIHEDRALS(J,3)
             D = DIHEDRALS(J,4)
-            !change back to 2 to NIMAGES+1 when dihedrals work
+            !change back to (2,NIMAGES+1) when dihedrals work
             DO I=1,NIMAGES+2
                !reference for image we are in (The x ccoord of the first atom of the current image is N+1)
                N = 3*NATOMS*(I-1)

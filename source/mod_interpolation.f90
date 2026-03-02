@@ -26,6 +26,7 @@ MODULE QCIINTERPOLATION
          USE ADDREMOVE_IMAGES, ONLY: ADD_IMAGE, REMOVE_IMAGE
          USE HELPER_FNCTS, ONLY: DOTP
          USE MOD_CHECK_GRAD, ONLY: CHECK_GRAD
+         USE OUT_PRINT, ONLY: WRITE_CONGRADOUT
          IMPLICIT NONE
          INTEGER :: NBEST, NITERDONE, FIRSTATOM, NCONCUTABSINC, NDECREASE, NFAIL, NLASTGOODE
          INTEGER :: J1, I2
@@ -396,7 +397,7 @@ MODULE QCIINTERPOLATION
                   XPREV(:) = XYZ(:)
                   ACCEPTEDSTEP = .TRUE.
                   !This call to Congrad prints the congrad output
-                  CALL CONGRAD(ETOTAL, XYZ, GGG, EEE, RMS, .TRUE.)
+                  !CALL CONGRAD(ETOTAL, XYZ, GGG, EEE, RMS, .TRUE.)
                ELSE
                   NDECREASE = NDECREASE + 1
                   !TODO: add NDECREASE and a parameter variable for its limit 
@@ -406,8 +407,8 @@ MODULE QCIINTERPOLATION
                      GGG(:) = GPREV(:)
                      WRITE(*,*) " QCIinterp> WARNING - LBFGS cannot find a lower energy, NFAIL=",NFAIL
                      ACCEPTEDSTEP = .TRUE. !we failed to many times, so for now we accept failure and leave the loop
-                     !This call to Congrad prints the congrad output
-                     CALL CONGRAD(ETOTAL, XYZ, GGG, EEE, RMS, .TRUE.)
+                     !This call to Congrad prints the congrad output - replaced with output writing function
+                     !CALL CONGRAD(ETOTAL, XYZ, GGG, EEE, RMS, .TRUE.)
                   ELSE
                      XYZ(:) = XPREV(:)
                      GGG(:) = GPREV(:)
@@ -418,6 +419,8 @@ MODULE QCIINTERPOLATION
 
                END IF
             END DO ! end of loop for accepting the step size
+            
+            CALL WRITE_CONGRADOUT()
             
             !scale gradient if necessary
             IF (MAXGRADCOMP.GT.0.0D0) CALL SCALEGRAD(DIMS,G,RMS,MAXGRADCOMP)

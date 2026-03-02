@@ -301,14 +301,26 @@ MODULE DIHEDRAL_CONSTRAINTS
             CALL COMPUTE_DIH(NATOMS, XSTART, AT1, AT2, AT3, AT4, THISDIHS)
             CALL COMPUTE_DIH(NATOMS, XFINAL, AT1, AT2, AT3, AT4, THISDIHF)
             
+                        
             IF(ABS(THISDIHS-THISDIHF).GT.DIHDIFTOL) THEN
                WRITE(*,*) "WARNING Dihedral", J, "Difference between dihedral start and final angles is ", THISDIHF-THISDIHS,  "rad!!!"
             ENDIF
+         
+            !THISDIH = THISDIHS
+
+            !IF (THISDIH.LT.0.0D0) THISDIH = THISDIH + 2*PI
 
             !Define reference dihedral as average dihedral
             !Note, need the minus here if using regularisation.  
-            !THISDIH = -(THISDIHS+THISDIHF)/2.0D0
-            THISDIH = (THISDIHS+THISDIHF)/2.0D0 + PI
+            IF (DIHMUL(J).EQ.2) THEN
+               THISDIH = -THISDIHS
+               !THISDIH = -(THISDIHS+THISDIHF)/2.0D0
+               !THISDIH = (THISDIHS+THISDIHF)/2.0D0 + PI
+            ELSE
+               THISDIH = (THISDIHS+THISDIHF)/2.0D0
+            ENDIF
+            
+            
 
             REFDIH(J) = THISDIH 
             ! now compute and store the regularised versions
@@ -359,8 +371,8 @@ MODULE DIHEDRAL_CONSTRAINTS
          COSPHI = DOTP(3,N1,N2)
            
          
-         !SINPHI = DOTP(3,CROSS_PROD(N1,N2),RBC)/NORMBC
-         SINPHI = EUC_NORM(CROSS_PROD(N1,N2))
+         SINPHI = DOTP(3,CROSS_PROD(N1,N2),RBC)/NORMBC
+         !SINPHI = EUC_NORM(CROSS_PROD(N1,N2))
          !ATAN2(y,x)
          PHI = ATAN2(SINPHI,COSPHI) 
       END SUBROUTINE COMPUTE_DIH
@@ -449,48 +461,91 @@ MODULE DIHEDRAL_CONSTRAINTS
          CT0 = MIN(P9999,DOT12*Z12)
          CT1 = MAX(-P9999,CT0)
 
-         SINPHI = EUC_NORM(CROSS_PROD(N1,N2))*Z12
-         ! compute regularised dihedral and the sine and cosine terms
-         !PHI_REG = PI - DSIGN(DACOS(CT1), DOTP(3,RBC,CROSS_PROD(N1,N2)))
-         !PHI_REG = DSIGN(DACOS(CT1), DOTP(3,RBC,CROSS_PROD(N1,N2)))
+         SINPHI = DOTP(3, RBC ,CROSS_PROD(N1,N2)) * Z12 / EUC_NORM(RBC)
          PHI_REG = ATAN2(SINPHI,CT1) 
          
          M = DIHMUL(DIHREF)
-         M = 1
+         IF (M.EQ.1) THEN
+            !We have chiral center and use quadratic potential
+            PHI_REG = DSIGN(DACOS(CT1), DOTP(3,RBC,CROSS_PROD(N1,N2))) 
+            E = KDIH*(PHI_REG-REFDIH(DIHREF))**2
+            
+            SREG = DSIGN(DACOS(CT1), DOTP(3,RBC,CROSS_PROD(N1,N2)))+ SIGN(1.0d-18,SINPHI)
+            
+            DF = -2.0D0*KDIH*(PHI_REG-REFDIH(DIHREF))/SREG * REGTERM1
+            
+         ELSEIF (M.EQ.2) THEN
+            !We have planar dihedral, use cosine with multiplicity 2
+            M = 1
+            PHI_REG = PI - DSIGN(DACOS(CT1), DOTP(3,RBC,CROSS_PROD(N1,N2)))
 
-         COSPHI = DCOS(M*PHI_REG)
-         SINPHI = DSIN(M*PHI_REG)
-       
+            COSPHI = DCOS(M*PHI_REG)
+            SINPHI = DSIN(M*PHI_REG)
+
+
+            E = KDIH*(1+COSPHI*C0(DIHREF)+SINPHI*S0(DIHREF))*REGTERM1
+
+            !use a regularised version of sine
+             SREG = DSIN(PHI_REG)+ SIGN(1.0d-18,SINPHI)
+
+            !First part of gradient calculation
+            ! dE/d(cos(phi)) 
+            IF (ABS(SREG).LT.EPS6) THEN
+            !for small sine values we take the limit of the exact form
+               DF = C0(DIHREF)*REGTERM1
+            ELSE
+               DF = (C0(DIHREF)*SINPHI - S0(DIHREF)*COSPHI)/SREG * REGTERM1
+            END IF
+
+            DF = -M*KDIH * DF
+
+         ELSE
+            ! We should never be here!
+            WRITE(*,*) "WARNING! We don't know what is Dihderal", DIHREF
+            DF = 0.0D0
+         END IF
+
+         !SINPHI = EUC_NORM(CROSS_PROD(N1,N2))*Z12
+         !SINPHI = DOTP(3, RBC ,CROSS_PROD(N1,N2)) * Z12 / EUC_NORM(RBC)
+
+         ! compute regularised dihedral and the sine and cosine terms
+         !PHI_REG = PI - DSIGN(DACOS(CT1), DOTP(3,RBC,CROSS_PROD(N1,N2)))
+         !PHI_REG = DSIGN(DACOS(CT1), DOTP(3,RBC,CROSS_PROD(N1,N2)))
+
 
          
          !E = KDIH*(1+COSPHI*C0(DIHREF)+SINPHI*S0(DIHREF))*REGTERM1
          !This is dihedral form specifiaclly for constarining planarity in pi rings 
          !E = KDIH*(1-COSPHI)
-         E = KDIH*(1+COSPHI*C0(DIHREF)+SINPHI*S0(DIHREF))*REGTERM1
+         
+         !E = KDIH*(1+COSPHI*C0(DIHREF)+SINPHI*S0(DIHREF))*REGTERM1
+
+         !Quadratic form of the potential
+         !E = KDIH*(PHI_REG-REFDIH(DIHREF))**2
 
          !use a regularised version of sine
-         SREG = SINPHI + SIGN(1.0d-18,SINPHI)
+         !SREG = SINPHI + SIGN(1.0d-18,SINPHI)
          
          !SREG = DSIN(PHI_REG)+SIGN(1.0d-18,SINPHI)
          ! First part of gradient calculation
          ! dE/d(cos(phi)) 
-         IF (ABS(SREG).LT.EPS6) THEN
-           ! for small sine values we take the limit of the exact form
-            DF = C0(DIHREF)*REGTERM1
-         ELSE
-            DF = (C0(DIHREF)*SINPHI - S0(DIHREF)*COSPHI)/SREG * REGTERM1
-         END IF
-         
-         
          !IF (ABS(SREG).LT.EPS6) THEN
-            ! for small sine values we take the limit of the exact form
-         !   DF = -2.0D0*SINPHI/SREG
+         !  ! for small sine values we take the limit of the exact form
+         !   DF = C0(DIHREF)*REGTERM1
          !ELSE
          !   DF = (C0(DIHREF)*SINPHI - S0(DIHREF)*COSPHI)/SREG * REGTERM1
          !END IF
          
+         !If phi-phi_0 LT 5 deg
+         !IF (ABS((PHI_REG-REFDIH(DIHREF))).LT.0.08726646259971647) THEN
+         !   DF = 0.0D0
+         !ELSE 
+            !DF = -2.0D0*(PHI_REG-REFDIH(DIHREF))/SREG * REGTERM1
+         !END IF
          
-         DF = M*KDIH * DF
+         
+         !DF = M*KDIH * DF
+         !DF = KDIH * DF
 
          ! Individual first derviatives with respect to the cartesian coords
          ! d(cos(phi))/d(R_xx)
@@ -512,21 +567,17 @@ MODULE DIHEDRAL_CONSTRAINTS
          FCD =  DF* CROSS_PROD(FREG2,RBC)
 
          !Note: sanity check - sum of forces on all atoms must be 0
-         !FA(1:3) =  FAB(1:3) 
-         !FB(1:3) = -FAB(1:3) + FBC(1:3) 
-         !FC(1:3) = -FCD(1:3) - FBC(1:3) 
-         !FD(1:3) =  FCD(1:3)
+         FA(1:3) =  FAB(1:3) 
+         FB(1:3) = -FAB(1:3) + FBC(1:3) 
+         FC(1:3) = -FCD(1:3) - FBC(1:3) 
+         FD(1:3) =  FCD(1:3)
          
-         FA =  FAB 
-         FB = -FAB + FBC 
-         FC = -FCD - FBC 
-         FD =  FCD
-
-         !FA = -FA
-         !FB = -FB
-         !FC = -FC
-         !FD = -FD
-
+         IF (M.EQ.2) THEN
+            FA = -FA
+            FB = -FB
+            FC = -FC
+            FD = -FD
+         ENDIF
          
          !WRITE(*,*) "dihedral> DIHREF", DIHREF, " S0", S0(DIHREF), " C0 ", C0(DIHREF), " SINHPHI ", SINPHI, " COSPHI ", COSPHI
          !WRITE(*,*) "dihedral> E ", E, "PHI_0 ", REFDIH(DIHREF) , "PHI_REG ", PHI_REG,  "DF = ", DF
