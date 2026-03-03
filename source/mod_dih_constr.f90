@@ -306,26 +306,20 @@ MODULE DIHEDRAL_CONSTRAINTS
                WRITE(*,*) "WARNING Dihedral", J, "Difference between dihedral start and final angles is ", THISDIHF-THISDIHS,  "rad!!!"
             ENDIF
          
-            !THISDIH = THISDIHS
-
-            !IF (THISDIH.LT.0.0D0) THISDIH = THISDIH + 2*PI
-
-            !Define reference dihedral as average dihedral
-            !Note, need the minus here if using regularisation.  
+            
+            !Define reference dihedral as average dihedral 
             IF (DIHMUL(J).EQ.2) THEN
-               THISDIH = -THISDIHS
-               !THISDIH = -(THISDIHS+THISDIHF)/2.0D0
-               !THISDIH = (THISDIHS+THISDIHF)/2.0D0 + PI
+               !For cos potential we need delta=phi_0-PI
+               !THISDIH = THISDIHS - PI
+               THISDIH = (THISDIHS+THISDIHF)/2.0D0 - PI
             ELSE
                THISDIH = (THISDIHS+THISDIHF)/2.0D0
             ENDIF
             
-            
-
             REFDIH(J) = THISDIH 
             ! now compute and store the regularised versions
             IF (DABS(THISDIH-PI).LE.EPS3) THISDIH = SIGN(PI,THISDIH)
-            !THISDIH = THISDIH 
+            
             THISC0 = DCOS(THISDIH)
             THISS0 = DSIN(THISDIH)
             IF (DABS(THISC0).LE.EPS6) THISC0 = 0.0D0
@@ -361,18 +355,16 @@ MODULE DIHEDRAL_CONSTRAINTS
          NORM1 = EUC_NORM(N1)
          NORM2 = EUC_NORM(N2)
          NORMBC = EUC_NORM(RBC)
-         !NPROD = 1.0D0/(NORM1*NORM2*NORMBC)
+        
          N1(1:3) = N1(1:3)/NORM1
          N2(1:3) = N2(1:3)/NORM2
          
          NPROD = 1.0D0/(EUC_NORM(CROSS_PROD(N1,N2))) 
          
          !compute cos and sin components and get dihedral
-         COSPHI = DOTP(3,N1,N2)
-           
-         
+         COSPHI = DOTP(3,N1,N2)     
          SINPHI = DOTP(3,CROSS_PROD(N1,N2),RBC)/NORMBC
-         !SINPHI = EUC_NORM(CROSS_PROD(N1,N2))
+        
          !ATAN2(y,x)
          PHI = ATAN2(SINPHI,COSPHI) 
       END SUBROUTINE COMPUTE_DIH
@@ -475,9 +467,12 @@ MODULE DIHEDRAL_CONSTRAINTS
             DF = -2.0D0*KDIH*(PHI_REG-REFDIH(DIHREF))/SREG * REGTERM1
             
          ELSEIF (M.EQ.2) THEN
-            !We have planar dihedral, use cosine with multiplicity 2
+            !We have planar dihedral, use cosine with multiplicity 1
             M = 1
-            PHI_REG = PI - DSIGN(DACOS(CT1), DOTP(3,RBC,CROSS_PROD(N1,N2)))
+            !PHI_REG = PI - DSIGN(DACOS(CT1), DOTP(3,RBC,CROSS_PROD(N1,N2)))
+            
+            !This gives us correct dihedral angle, which corresponds to one given by VMD  
+            PHI_REG = DSIGN(DACOS(CT1), DOTP(3,RBC,CROSS_PROD(N1,N2)))
 
             COSPHI = DCOS(M*PHI_REG)
             SINPHI = DSIN(M*PHI_REG)
@@ -498,10 +493,10 @@ MODULE DIHEDRAL_CONSTRAINTS
             END IF
 
             DF = -M*KDIH * DF
-
+            M = 2
          ELSE
             ! We should never be here!
-            WRITE(*,*) "WARNING! We don't know what is Dihderal", DIHREF
+            WRITE(*,*) "WARNING! We don't know what is this dihderal number: ", DIHREF
             DF = 0.0D0
          END IF
 
@@ -549,22 +544,15 @@ MODULE DIHEDRAL_CONSTRAINTS
 
          ! Individual first derviatives with respect to the cartesian coords
          ! d(cos(phi))/d(R_xx)
-         !FREG1(1:3) = N2*Z12 - CT1*N1*Z1**2
-         !FREG2(1:3) = N1*Z12 - CT1*N2*Z2**2
+         FREG1(1:3) = N2*Z12 - CT1*N1*Z1**2
+         FREG2(1:3) = N1*Z12 - CT1*N2*Z2**2
          
-         FREG1 = N2*Z12 - CT1*N1*Z1**2
-         FREG2 = N1*Z12 - CT1*N2*Z2**2
-
-          ! The minus gradient is accounted for in this step!
+         ! The minus gradient is accounted for in this step!
          ! Now, we have force terms!
          ! F_xx = - dE/dcos * dcos/d(R_xx)
-         !FAB(1:3) =  DF* CROSS_PROD(FREG1,RBC)
-         !FBC(1:3) = -DF*(CROSS_PROD(FREG1,RAB) + CROSS_PROD(FREG2, RCD))
-         !FCD(1:3) =  DF* CROSS_PROD(FREG2,RBC)
-
-         FAB =  DF* CROSS_PROD(FREG1,RBC)
-         FBC = -DF*(CROSS_PROD(FREG1,RAB) + CROSS_PROD(FREG2, RCD))
-         FCD =  DF* CROSS_PROD(FREG2,RBC)
+         FAB(1:3) =  DF* CROSS_PROD(FREG1,RBC)
+         FBC(1:3) = -DF*(CROSS_PROD(FREG1,RAB) + CROSS_PROD(FREG2, RCD))
+         FCD(1:3) =  DF* CROSS_PROD(FREG2,RBC)
 
          !Note: sanity check - sum of forces on all atoms must be 0
          FA(1:3) =  FAB(1:3) 
