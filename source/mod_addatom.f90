@@ -45,23 +45,23 @@ MODULE ADDINGATOM
          USE CHIRALITY, ONLY: GET_ACTIVE_CHIRAL_CENTRES, NCHIRAL, CHIRALITY_CHECK, CHECK_SINGLE_CHIRAL_CENTRE
          USE AMBER_CONSTRAINTS, ONLY: GROUPLOOKUP, CURRENT_GROUP, CURRENTLY_ADDING_GROUP, INGROUP, PLACINGGROUPS, SIZEPLACINGGROUPS
          IMPLICIT NONE
-         INTEGER :: NTOADD, NADDED                          !number to be added and number already added
-         INTEGER :: NNREPSAVE, NREPSAVE                     !variables for saving repulsion list
-         LOGICAL :: MORETOADD                               !logical switch to stay in main loop
-         REAL(KIND = REAL64) :: INVDTOACTIVE(1:NATOMS)      !inverse distances of constraints to active atoms
-         INTEGER :: NMAXCON                                 !current largest number of constraints to active set from any inactive atom
-         LOGICAL :: CHOSENACID                              !switch whether we currently adding a residue in its entirety
-         INTEGER :: ACID                                    !id of residue currently added in full
-         INTEGER :: NEXTATOM, NCONTOACT                     !atom to be added and the number of constraints it has to the active set
-         REAL(KIND=REAL64) :: SHORTESTCON                   !shortest distance of constraint to active set for NEXTATOM
+         INTEGER :: NTOADD, NADDED                          !< number to be added and number already added
+         INTEGER :: NNREPSAVE, NREPSAVE                     !< variables for saving repulsion list
+         LOGICAL :: MORETOADD                               !< logical switch to stay in main loop
+         REAL(KIND = REAL64) :: INVDTOACTIVE(1:NATOMS)      !< inverse distances of constraints to active atoms
+         INTEGER :: NMAXCON                                 !< current largest number of constraints to active set from any inactive atom
+         LOGICAL :: CHOSENACID                              !< switch whether we currently adding a residue in its entirety
+         INTEGER :: ACID                                    !< id of residue currently added in full
+         INTEGER :: NEXTATOM, NCONTOACT                     !< atom to be added and the number of constraints it has to the active set
+         REAL(KIND=REAL64) :: SHORTESTCON                   !< shortest distance of constraint to active set for NEXTATOM
          REAL(KIND=REAL64) :: LOCALDIST(4)
          INTEGER :: NLOCAL, LOCALIDX(4)
-         LOGICAL :: ADDEDTHISCYCLE                          !have we added an atom this cycle?
-         REAL(KIND = REAL64), PARAMETER :: FRAC = 1.0D0     !fraction for linear interpolation
-         INTEGER :: THISIMAGE, NEWATOMOFFSET, CONONEOFFSET, ENDPOINT !offsets used to simplify linear interpolation
-         REAL(KIND = REAL64) :: STARTWEIGHT, ENDWEIGHT      !weights of endpoints in linear interpolation
-         REAL(KIND = REAL64) :: ELIN, ECON, EDIST, ETOTAL   !linear, constraint and distance measure-based energies
-         REAL(KIND = REAL64) :: XLIN(NIMAGES,3), XCON(NIMAGES,3), XDIST(NIMAGES,3) !saved coordinates for interpolations
+         LOGICAL :: ADDEDTHISCYCLE                          !< have we added an atom this cycle?
+         REAL(KIND = REAL64), PARAMETER :: FRAC = 1.0D0     !< fraction for linear interpolation
+         INTEGER :: THISIMAGE, NEWATOMOFFSET, CONONEOFFSET, ENDPOINT !< offsets used to simplify linear interpolation
+         REAL(KIND = REAL64) :: STARTWEIGHT, ENDWEIGHT      !< weights of endpoints in linear interpolation
+         REAL(KIND = REAL64) :: ELIN, ECON, EDIST, ETOTAL   !< linear, constraint and distance measure-based energies
+         REAL(KIND = REAL64) :: XLIN(NIMAGES,3), XCON(NIMAGES,3), XDIST(NIMAGES,3) !< saved coordinates for interpolations
          INTEGER :: J1, IDX1, IDX2, IDX3, IDX4
          CHARACTER(LEN=6) :: ATOMSTRING
          INTEGER :: INIT_NCHIRACTIVE, FINAL_NCHIRACTIVE, CHIRALCENTRE
@@ -468,7 +468,8 @@ MODULE ADDINGATOM
       SUBROUTINE TRILATERATION(P1,P2,P3,R1,R2,R3,SOL1,SOL2,FTEST)
          USE HELPER_FNCTS, ONLY: CROSS_PROD, NORM_VEC
          IMPLICIT NONE
-         REAL(KIND=REAL64), INTENT(IN) :: P1(3), P2(3), P3(3), R1, R2, R3
+         REAL(KIND=REAL64), INTENT(IN) :: P1(3), P2(3), P3(3)
+         REAL(KIND=REAL64), INTENT(IN) :: R1, R2, R3
          REAL(KIND=REAL64), INTENT(OUT) :: SOL1(3), SOL2(3)
          LOGICAL, INTENT(OUT) :: FTEST
          REAL(KIND=REAL64) :: V1(3), V2(3), V3(3), EX(3), EY(3), EZ(3)

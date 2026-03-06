@@ -254,12 +254,13 @@ MODULE DIHEDRAL_CONSTRAINTS
                CALL GET_ATOMID("C2",I,AT4)
                REFATOMS(NCONS,1) = AT1; REFATOMS(NCONS,2) = AT2; REFATOMS(NCONS,3) = AT3; REFATOMS(NCONS,4) = AT4 
                !experimental add fourth dihedral
-               !CALL GET_ATOMID("C4",I,AT1)
-               !CALL GET_ATOMID("N3",I,AT2)
-               !CALL GET_ATOMID("C2",I,AT3)
-               !CALL GET_ATOMID("N1",I,AT4)
-               !REFATOMS(NCONS,1) = AT1; REFATOMS(NCONS,2) = AT2; REFATOMS(NCONS,3) = AT3; REFATOMS(NCONS,4) = AT4 
-
+               NCONS = NCONS + 1
+               CALL GET_ATOMID("C4",I,AT1)
+               CALL GET_ATOMID("N3",I,AT2)
+               CALL GET_ATOMID("C2",I,AT3)
+               CALL GET_ATOMID("N1",I,AT4)
+               REFATOMS(NCONS,1) = AT1; REFATOMS(NCONS,2) = AT2; REFATOMS(NCONS,3) = AT3; REFATOMS(NCONS,4) = AT4 
+               
             END IF
          END DO
          WRITE(*,*) REFATOMS
@@ -306,13 +307,39 @@ MODULE DIHEDRAL_CONSTRAINTS
                WRITE(*,*) "WARNING Dihedral", J, "Difference between dihedral start and final angles is ", THISDIHF-THISDIHS,  "rad!!!"
             ENDIF
          
+           
+            
             
             !Define reference dihedral as average dihedral 
             IF (DIHMUL(J).EQ.2) THEN
+               
+               !iF phi is near PI, extra care is needed as the average might be zero!
+               !limit here is 5 degrees = 
+               IF(((PI+THISDIHS).LT.0.08726646259971647).AND.(THISDIHS.LT.0.0D0)) THISDIHS = 2*PI+THISDIHS
+               IF(((PI+THISDIHF).LT.0.08726646259971647).AND.(THISDIHF.LT.0.0D0)) THISDIHF = 2*PI+THISDIHF
+               
                !For cos potential we need delta=phi_0-PI
                !THISDIH = THISDIHS - PI
-               THISDIH = (THISDIHS+THISDIHF)/2.0D0 - PI
+               
+               IF(ABS(THISDIHS-THISDIHF).GT.DIHDIFTOL) THEN
+               WRITE(*,*) "WARNING2 Dihedral", J, "Difference between dihedral start and final angles is ", THISDIHF-THISDIHS,  "rad!!!"
+               ENDIF
+
+               THISDIH = (THISDIHS+THISDIHF)/2.0D0  
+               
+               !now make sure we are in [0,2PI> range
+               !IF(THISDIH.LE.0.0D0) THISDIH = THISDIH + 2*PI
+               
+               !For quadrants II & III we want range [0,2*PI>
+               IF((DCOS(THISDIH).LT.0.D0).AND.(DSIN(THISDIH).LT.0.D0).AND.(THISDIH.LT.0.0D0)) THISDIH = THISDIH + 2*PI
+
+               !For quadrants I & IV we want [-PI,PI]
+               IF((DCOS(THISDIH).GT.0.D0).AND.(DSIN(THISDIH).LT.0.D0).AND.(THISDIH.GT.0.0D0)) THISDIH = THISDIH - 2*PI
+
+               !THISDIH = THISDIH + PI
+
             ELSE
+               !doing this this way is only okay because we assume we are far from 0/2PI and PI!
                THISDIH = (THISDIHS+THISDIHF)/2.0D0
             ENDIF
             
@@ -366,7 +393,9 @@ MODULE DIHEDRAL_CONSTRAINTS
          SINPHI = DOTP(3,CROSS_PROD(N1,N2),RBC)/NORMBC
         
          !ATAN2(y,x)
-         PHI = ATAN2(SINPHI,COSPHI) 
+         !PHI = ATAN2(SINPHI,COSPHI)
+         
+         PHI = DSIGN(DACOS(COSPHI), DOTP(3,RBC,CROSS_PROD(N1,N2)))
       END SUBROUTINE COMPUTE_DIH
 
       SUBROUTINE CHECK_DIH_ACTIVE()
@@ -468,32 +497,51 @@ MODULE DIHEDRAL_CONSTRAINTS
             
          ELSEIF (M.EQ.2) THEN
             !We have planar dihedral, use cosine with multiplicity 1
-            M = 1
+            M= 1
             !PHI_REG = PI - DSIGN(DACOS(CT1), DOTP(3,RBC,CROSS_PROD(N1,N2)))
             
             !This gives us correct dihedral angle, which corresponds to one given by VMD  
             PHI_REG = DSIGN(DACOS(CT1), DOTP(3,RBC,CROSS_PROD(N1,N2)))
 
+            !For quadrants II & III we want range [0,2*PI>
+            IF((DCOS(PHI_REG).LT.0.D0).AND.(DSIN(PHI_REG).LT.0.D0).AND.(PHI_REG.LT.0.0D0)) PHI_REG = PHI_REG + 2*PI
+
+            !For quadrants I & IV we want [-PI,PI]
+            IF((DCOS(PHI_REG).GT.0.D0).AND.(DSIN(PHI_REG).LT.0.D0).AND.(PHI_REG.GT.0.0D0)) PHI_REG = PHI_REG - 2*PI
+            
+            
+            !IF((DABS(PHI_REG)).LT.0.08726646259971647) PHI_REG = SIGN(0.0D0,PHI_REG)
+            !IF((DABS(PHI_REG)-PI).LT.0.08726646259971647) PHI_REG = SIGN(PI,PHI_REG)
+
             COSPHI = DCOS(M*PHI_REG)
             SINPHI = DSIN(M*PHI_REG)
 
-
-            E = KDIH*(1+COSPHI*C0(DIHREF)+SINPHI*S0(DIHREF))*REGTERM1
-
+            !Normal cosine dihedral
+           ! E = KDIH*(1.0D0+COSPHI*C0(DIHREF)+SINPHI*S0(DIHREF))*REGTERM1
+            
             !use a regularised version of sine
-             SREG = DSIN(PHI_REG)+ SIGN(1.0d-18,SINPHI)
+            SREG = DSIN(PHI_REG)+ SIGN(1.0d-18,SINPHI)
 
             !First part of gradient calculation
             ! dE/d(cos(phi)) 
-            IF (ABS(SREG).LT.EPS6) THEN
+            !IF (ABS(SREG).LT.EPS6) THEN
             !for small sine values we take the limit of the exact form
-               DF = C0(DIHREF)*REGTERM1
-            ELSE
-               DF = (C0(DIHREF)*SINPHI - S0(DIHREF)*COSPHI)/SREG * REGTERM1
-            END IF
+            !   DF = C0(DIHREF) *REGTERM1
+            !ELSE
+            !   DF = (C0(DIHREF)*SINPHI - S0(DIHREF)*COSPHI)/SREG * REGTERM1
+            !END IF
 
-            DF = -M*KDIH * DF
-            M = 2
+            !DF = -M*KDIH*DF
+            !M = 2
+
+            !For quadratic potential use
+            E = KDIH*(PHI_REG-REFDIH(DIHREF))**2
+            DF = -2.0D0*KDIH*(PHI_REG-REFDIH(DIHREF))/SREG * REGTERM1
+
+            !quartic potential
+            !E = KDIH*(PHI_REG-REFDIH(DIHREF))**4 
+            !DF = -4.0*KDIH*(PHI_REG-REFDIH(DIHREF))**3/SREG * REGTERM1
+            
          ELSE
             ! We should never be here!
             WRITE(*,*) "WARNING! We don't know what is this dihderal number: ", DIHREF
@@ -560,20 +608,20 @@ MODULE DIHEDRAL_CONSTRAINTS
          FC(1:3) = -FCD(1:3) - FBC(1:3) 
          FD(1:3) =  FCD(1:3)
          
-         IF (M.EQ.2) THEN
-            FA = -FA
-            FB = -FB
-            FC = -FC
-            FD = -FD
-         ENDIF
+         !IF (M.EQ.2) THEN
+         !   FA = -FA
+         !   FB = -FB
+         !   FC = -FC
+         !   FD = -FD
+         !ENDIF
          
-         !WRITE(*,*) "dihedral> DIHREF", DIHREF, " S0", S0(DIHREF), " C0 ", C0(DIHREF), " SINHPHI ", SINPHI, " COSPHI ", COSPHI
-         !WRITE(*,*) "dihedral> E ", E, "PHI_0 ", REFDIH(DIHREF) , "PHI_REG ", PHI_REG,  "DF = ", DF
-         !WRITE(*,*) "M", M, "FREG1 ", FREG1, "FREG2", FREG2
-         !WRITE(*,*) "F_A ", FA 
-         !WRITE(*,*) "F_B ", FB 
-         !WRITE(*,*) "F_C ", FC 
-         !WRITE(*,*) "F_D ", FD 
+         WRITE(*,*) "dihedral> DIHREF", DIHREF, " S0", S0(DIHREF), " C0 ", C0(DIHREF), " SINHPHI ", SINPHI, " COSPHI ", COSPHI
+         WRITE(*,*) "dihedral> E ", E, "PHI_0 ", REFDIH(DIHREF) , "PHI_REG ", PHI_REG,  "DF = ", DF
+         WRITE(*,*) "M", M, "FREG1 ", FREG1, "FREG2", FREG2
+         WRITE(*,*) "F_A ", FA 
+         WRITE(*,*) "F_B ", FB 
+         WRITE(*,*) "F_C ", FC 
+         WRITE(*,*) "F_D ", FD 
 
          
 
