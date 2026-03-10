@@ -191,7 +191,7 @@ MODULE AMBER_CONSTRAINTS
 
 
          DO J1=1,NRES
-            IF (RESTYPE(J1).EQ."AA".OR.RESTYPE(J1).EQ."RNA".OR.RESTYPE(J1).EQ."DNA") THEN
+            IF (RESTYPE(J1).EQ."AA".OR.RESTYPE(J1).EQ."RNA".OR.RESTYPE(J1).EQ."DNA".OR.RESTYPE(J1).EQ."FANA") THEN
                NPLACINGGROUPS = NPLACINGGROUPS + 1
             END IF
          END DO
@@ -265,7 +265,8 @@ MODULE AMBER_CONSTRAINTS
                 .OR.(ATNAME.EQ.'HA').OR.(ATNAME.EQ.'CB').OR.(ATNAME.EQ.'HA2').OR.(ATNAME.EQ.'HA3').OR.(ATNAME.EQ.'P') &
                 .OR.(ATNAME.EQ.'OP1').OR.(ATNAME.EQ.'OP2').OR.(ATNAME.EQ."O5'").OR.(ATNAME.EQ."C5'").OR.(ATNAME.EQ."H5'") &
                 .OR.(ATNAME.EQ."H5''").OR.(ATNAME.EQ."C4'").OR.(ATNAME.EQ."H4'").OR.(ATNAME.EQ."O4'").OR.(ATNAME.EQ."C3'") &
-                .OR.(ATNAME.EQ."H3'").OR.(ATNAME.EQ."C2'").OR.(ATNAME.EQ."O3'").OR.(ATNAME.EQ."HO3'").OR.(ATNAME.EQ."HO5'")) THEN
+                .OR.(ATNAME.EQ."H3'").OR.(ATNAME.EQ."C2'").OR.(ATNAME.EQ."O3'").OR.(ATNAME.EQ."HO3'").OR.(ATNAME.EQ."HO5'") &
+                .OR.(ATNAME.EQ."F2'")) THEN
                NDUMMY = NDUMMY + 1
                DUMMY_BB(NDUMMY) = J1
             END IF
@@ -284,7 +285,7 @@ MODULE AMBER_CONSTRAINTS
          IMPLICIT NONE
         
          INTEGER :: NDUMMY, J1, OPOS1, CPOS1, CPOS2, HPOS2, ATOMID
-         LOGICAL :: AAT, RNAT, DNAT, CAPT, AALIST(NRES), ISTER(NRES), ISCAP(NRES), ISNA(NRES)
+         LOGICAL :: AAT, RNAT, DNAT, FANAT, CAPT, AALIST(NRES), ISTER(NRES), ISCAP(NRES), ISNA(NRES)
          INTEGER, ALLOCATABLE :: DUMMYC(:,:)
 
 
@@ -304,7 +305,7 @@ MODULE AMBER_CONSTRAINTS
          ! this is the first round to add constraints for planarity, the sugars in NAs etc.
          DO J1=1,NRES
             !find what kind of residue we have
-            CALL CHECK_RES(J1, AAT, DNAT, RNAT, CAPT)
+            CALL CHECK_RES(J1, AAT, DNAT, RNAT, FANAT, CAPT)
             IF (CAPT) THEN
                ISCAP(J1) = .TRUE.
                AALIST(J1) = .TRUE.
@@ -321,7 +322,7 @@ MODULE AMBER_CONSTRAINTS
                END IF
                AALIST(J1) = .TRUE.
                CALL GET_AA_CONSTR(J1)
-            ELSE IF (RNAT.OR.DNAT) THEN
+            ELSE IF (RNAT.OR.DNAT.OR.FANAT) THEN
                CALL GET_NA_CONSTR(J1)
                ISNA(J1) = .TRUE.
             END IF
@@ -428,7 +429,8 @@ MODULE AMBER_CONSTRAINTS
          NAME = RESNAMES(RESID)
          IF ((NAME.EQ.'A').OR.(NAME.EQ.'A3').OR.(NAME.EQ.'A5').OR.  &
              (NAME.EQ.'AN').OR.(NAME.EQ.'DA').OR.(NAME.EQ.'DA3').OR.  &
-             (NAME.EQ.'DA5').OR.(NAME.EQ.'DAN')) THEN
+             (NAME.EQ.'DA5').OR.(NAME.EQ.'DAN').OR.(NAME.EQ.'FA').OR. &
+             (NAME.EQ.'FA3').OR.(NAME.EQ.'FA5')) THEN
             NASIMPLE(RESID) = "A"
             CALL ADD_CONSTRAINT("N1  ","N9  ",RESID)        
             CALL ADD_CONSTRAINT("C2  ","N7  ",RESID) 
@@ -441,7 +443,8 @@ MODULE AMBER_CONSTRAINTS
 
          ELSE IF ((NAME.EQ.'C').OR.(NAME.EQ.'C3').OR.(NAME.EQ.'C5').OR.  &
                   (NAME.EQ.'CN').OR.(NAME.EQ.'DC').OR.(NAME.EQ.'DC3').OR.  &
-                  (NAME.EQ.'DC5').OR.(NAME.EQ.'DCN')) THEN
+                  (NAME.EQ.'DC5').OR.(NAME.EQ.'DCN').OR.(NAME.EQ.'FC').OR. &
+                  (NAME.EQ.'FC3').OR.(NAME.EQ.'FC5')) THEN
             NASIMPLE(RESID) = "C"
             CALL ADD_CONSTRAINT("N1  ","N4  ",RESID) 
             CALL ADD_CONSTRAINT("C2  ","H5  ",RESID) 
@@ -452,7 +455,8 @@ MODULE AMBER_CONSTRAINTS
         
          ELSE IF ((NAME.EQ.'G').OR.(NAME.EQ.'G3').OR.(NAME.EQ.'G5').OR.  &
                   (NAME.EQ.'GN').OR.(NAME.EQ.'DG').OR.(NAME.EQ.'DG3').OR.  &
-                  (NAME.EQ.'DG5').OR.(NAME.EQ.'DGN')) THEN
+                  (NAME.EQ.'DG5').OR.(NAME.EQ.'DGN').OR.(NAME.EQ.'FG').OR. &
+                  (NAME.EQ.'FG3').OR.(NAME.EQ.'FG5')) THEN
             NASIMPLE(RESID) = "G"
             CALL ADD_CONSTRAINT("N1  ","N9  ",RESID)        
             CALL ADD_CONSTRAINT("C2  ","N7  ",RESID) 
@@ -464,7 +468,8 @@ MODULE AMBER_CONSTRAINTS
             CALL ADD_CONSTRAINT("C8  ","C5  ",RESID) 
 
          ELSE IF ((NAME.EQ.'U').OR.(NAME.EQ.'U3').OR.(NAME.EQ.'U5').OR.  &
-                  (NAME.EQ.'UN')) THEN
+                  (NAME.EQ.'UN').OR.(NAME.EQ.'FU').OR.(NAME.EQ.'FU3').OR. &
+                  (NAME.EQ.'FU5')) THEN
             NASIMPLE(RESID) = "U"
             CALL ADD_CONSTRAINT("N1  ","O4  ",RESID) 
             CALL ADD_CONSTRAINT("C2  ","H5  ",RESID) 
@@ -473,8 +478,9 @@ MODULE AMBER_CONSTRAINTS
             CALL ADD_CONSTRAINT("C4  ","N1  ",RESID) 
             CALL ADD_CONSTRAINT("C5  ","O2  ",RESID)
                   
-         ELSE IF ((NAME.EQ.'DT').OR.(NAME.EQ.'DT3').OR.  &
-                  (NAME.EQ.'DT5').OR.(NAME.EQ.'DTN')) THEN
+         ELSE IF ((NAME.EQ.'DT').OR.(NAME.EQ.'DT3').OR.(NAME.EQ.'DT5').OR. &
+                  (NAME.EQ.'DTN').OR.(NAME.EQ.'FT').OR.(NAME.EQ.'FT3').OR.  &
+                  (NAME.EQ.'FT5')) THEN
             NASIMPLE(RESID) = "T"
             CALL ADD_CONSTRAINT("N1  ","O4  ",RESID) 
             CALL ADD_CONSTRAINT("C2  ","C7  ",RESID) 
@@ -490,7 +496,11 @@ MODULE AMBER_CONSTRAINTS
          CALL ADD_CONSTRAINT("C1' ","C3' ",RESID)         
 
          !constrain chiral centres
-         CALL ADD_CONSTRAINT("O2' ","O3' ",RESID)
+         IF (INDEX(NAME,"F").GT.0) THEN
+            CALL ADD_CONSTRAINT("F2' ","O3' ",RESID)
+         ELSE
+            CALL ADD_CONSTRAINT("O2' ","O3' ",RESID)
+         END IF
          CALL ADD_CONSTRAINT("H2''","O3' ",RESID)
          CALL ADD_CONSTRAINT("H3' ","C5' ",RESID)
          CALL ADD_CONSTRAINT("H3' ","H2' ",RESID)
@@ -917,10 +927,10 @@ MODULE AMBER_CONSTRAINTS
       END SUBROUTINE PARSE_TOPOLOGY
 
         ! check if residue is an amino acid - brute force ...
-      SUBROUTINE CHECK_RES(RESID,AAT,DNAT,RNAT,CAPT)
+      SUBROUTINE CHECK_RES(RESID,AAT,DNAT,RNAT,FANAT,CAPT)
          IMPLICIT NONE
          INTEGER, INTENT(IN) :: RESID
-         LOGICAL, INTENT(OUT) :: AAT, DNAT, RNAT, CAPT
+         LOGICAL, INTENT(OUT) :: AAT, DNAT, RNAT, FANAT, CAPT
          CHARACTER(4) :: DNAME
          LOGICAL :: TERTEST
          
@@ -928,6 +938,7 @@ MODULE AMBER_CONSTRAINTS
          AAT = .FALSE.
          RNAT = .FALSE.
          DNAT = .FALSE.
+         FANAT = .FALSE.
          CAPT = .FALSE.
          TERTEST = .FALSE.
 60       CONTINUE
@@ -954,7 +965,13 @@ MODULE AMBER_CONSTRAINTS
                   (DNAME.EQ."DG").OR.(DNAME.EQ."DG3").OR.(DNAME.EQ."DG5").OR.(DNAME.EQ."DGN").OR.  &
                   (DNAME.EQ."DT").OR.(DNAME.EQ."DT3").OR.(DNAME.EQ."DT5").OR.(DNAME.EQ."DTN")) THEN
             DNAT = .TRUE.
-            RESTYPE(RESID) = "DNA"            
+            RESTYPE(RESID) = "DNA"
+         ELSE IF ((DNAME.EQ."FA").OR.(DNAME.EQ."FA3").OR.(DNAME.EQ."FA5").OR.  &
+                  (DNAME.EQ."FC").OR.(DNAME.EQ."FC3").OR.(DNAME.EQ."FC5").OR.  &
+                  (DNAME.EQ."FG").OR.(DNAME.EQ."FG3").OR.(DNAME.EQ."FG5").OR.  &
+                  (DNAME.EQ."FU").OR.(DNAME.EQ."FU3").OR.(DNAME.EQ."FU5")) THEN  
+            FANAT = .TRUE.
+            RESTYPE(RESID) = "FANA"         
          ELSE IF ((DNAME.EQ."ACE").OR.(DNAME.EQ."NHE").OR.(DNAME.EQ."NME")) THEN
             CAPT = .TRUE. 
          ENDIF

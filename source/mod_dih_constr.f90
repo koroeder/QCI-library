@@ -143,7 +143,8 @@ MODULE DIHEDRAL_CONSTRAINTS
                CALL GET_ATOMID("CG",I,AT4)
                REFATOMS(NCONS,1) = AT1; REFATOMS(NCONS,2) = AT2; REFATOMS(NCONS,3) = AT3; REFATOMS(NCONS,4) = AT4 
             ELSE IF ((RESNAMES(I).EQ."A").OR.(RESNAMES(I).EQ."A3").OR.(RESNAMES(I).EQ."A5").OR. &
-               (RESNAMES(I).EQ."DA").OR.(RESNAMES(I).EQ."DA3").OR.(RESNAMES(I).EQ."DA5")) THEN
+               (RESNAMES(I).EQ."DA").OR.(RESNAMES(I).EQ."DA3").OR.(RESNAMES(I).EQ."DA5").OR.
+               (RESNAMES(I).EQ."FA").OR.(RESNAMES(I).EQ."FA3").OR.(RESNAMES(I).EQ."FA5")) THEN
                !first dihedral 
                NCONS = NCONS + 1
                CALL GET_ATOMID("N9",I,AT1)
@@ -177,7 +178,8 @@ MODULE DIHEDRAL_CONSTRAINTS
                REFATOMS(NCONS,1) = AT1; REFATOMS(NCONS,2) = AT2; REFATOMS(NCONS,3) = AT3; REFATOMS(NCONS,4) = AT4
                !WRITE(*,*) "DIHEDRAL check: C5-N7-C8-N9: ", REFATOMS(NCONS,1:4)
             ELSE IF ((RESNAMES(I).EQ."C").OR.(RESNAMES(I).EQ."C3").OR.(RESNAMES(I).EQ."C5").OR. &
-                  (RESNAMES(I).EQ."DC").OR.(RESNAMES(I).EQ."DC3").OR.(RESNAMES(I).EQ."DC5")) THEN
+                  (RESNAMES(I).EQ."DC").OR.(RESNAMES(I).EQ."DC3").OR.(RESNAMES(I).EQ."DC5").OR. &
+                  (RESNAMES(I).EQ."FC").OR.(RESNAMES(I).EQ."FC3").OR.(RESNAMES(I).EQ."FC5")) THEN
                !first dihedral 
                NCONS = NCONS + 1
                CALL GET_ATOMID("N1",I,AT1)
@@ -201,7 +203,8 @@ MODULE DIHEDRAL_CONSTRAINTS
                REFATOMS(NCONS,1) = AT1; REFATOMS(NCONS,2) = AT2; REFATOMS(NCONS,3) = AT3; REFATOMS(NCONS,4) = AT4 
                !might need fourth dihedral
             ELSE IF ((RESNAMES(I).EQ."G").OR.(RESNAMES(I).EQ."G3").OR.(RESNAMES(I).EQ."G5").OR. &
-                     (RESNAMES(I).EQ."DG").OR.(RESNAMES(I).EQ."DG3").OR.(RESNAMES(I).EQ."DG5")) THEN
+                     (RESNAMES(I).EQ."DG").OR.(RESNAMES(I).EQ."DG3").OR.(RESNAMES(I).EQ."DG5").OR. &
+                     (RESNAMES(I).EQ."FG").OR.(RESNAMES(I).EQ."FG3").OR.(RESNAMES(I).EQ."FG5")) THEN
                !first dihedral 
                NCONS = NCONS + 1
                CALL GET_ATOMID("N9",I,AT1)
@@ -231,7 +234,9 @@ MODULE DIHEDRAL_CONSTRAINTS
                CALL GET_ATOMID("N9",I,AT4)
                REFATOMS(NCONS,1) = AT1; REFATOMS(NCONS,2) = AT2; REFATOMS(NCONS,3) = AT3; REFATOMS(NCONS,4) = AT4 
             ELSE IF ((RESNAMES(I).EQ."U").OR.(RESNAMES(I).EQ."U3").OR.(RESNAMES(I).EQ."U5").OR. &
-                     (RESNAMES(I).EQ."DT").OR.(RESNAMES(I).EQ."DT3").OR.(RESNAMES(I).EQ."DT5")) THEN           
+                     (RESNAMES(I).EQ."DT").OR.(RESNAMES(I).EQ."DT3").OR.(RESNAMES(I).EQ."DT5").OR. & 
+                     (RESNAMES(I).EQ."FU").OR.(RESNAMES(I).EQ."FU3").OR.(RESNAMES(I).EQ."FU5").OR. &
+                     (RESNAMES(I).EQ."FT").OR.(RESNAMES(I).EQ."FT3").OR.(RESNAMES(I).EQ."FT5")) THEN           
                !first dihedral 
                NCONS = NCONS + 1
                CALL GET_ATOMID("N1",I,AT1)
