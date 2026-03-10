@@ -2,7 +2,7 @@ MODULE QCIPERMDIST
    USE QCIPREC
    USE QCIKEYS, ONLY: QCIFROZEN
    IMPLICIT NONE
-   ! number of permutational groups
+   !> number of permutational groups
    INTEGER :: NPERMGROUP = 0
    ! back up for NPERMGROUP
    INTEGER :: NPERMGROUPBACK = 0
@@ -403,7 +403,8 @@ MODULE QCIPERMDIST
          REAL(KIND = REAL64) :: XA, YA, ZA, XB, YB, ZB
          REAL(KIND = REAL64) :: CMXA, CMYA, CMZA, CMXB, CMYB, CMZB
          INTEGER :: NPERM
-         LOGICAL :: PERMUTABLE(NATOMS), PERMUTABLE2(NATOMS) !< lists of permutable atoms
+         LOGICAL :: PERMUTABLE(NATOMS) !< lists of permutable atoms
+         LOGICAL :: PERMUTABLE2(NATOMS) !< lists of permutable atoms
          INTEGER :: NDUMMY, NDUMMY2, J1, J2, J3, J4 !<counters etc
          REAL(KIND = REAL64) :: DUMMY(3*NATOMS), DUMMYA(3*NATOMS), DUMMYB(3*NATOMS), TEMPB(3*NATOMS) !< coordinates copies 
          REAL(KIND = REAL64) :: PDUMMYA(3*NATOMS), PDUMMYB(3*NATOMS), SPDUMMYA(3*NATOMS), SPDUMMYB(3*NATOMS) !< coordinates copies used in the bipartite matching

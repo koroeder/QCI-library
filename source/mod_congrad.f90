@@ -359,7 +359,7 @@ MODULE CONSTR_E_GRAD
          MAXCONSTR = IMAX
 
          IF (JMAX.GT.0) THEN
-            WRITE(*,*) ' congrad1> Highest constraint for image ',IMAX, ', con ',JMAX, ', atoms ',CONI(JMAX),CONJ(JMAX),' value=',EMAX
+            WRITE(*,*) ' congrad1> Highest constraint for image ',IMAX, ', con ',JMAX, ', atoms ',CONI(JMAX),CONJ(JMAX),' value=',EMAX, 'dist=', DIST
          ENDIF
       END SUBROUTINE GET_CONSTRAINT_E_NOINTERNAL
 

@@ -67,6 +67,7 @@ MODULE ADDINGATOM
          INTEGER :: INIT_NCHIRACTIVE, FINAL_NCHIRACTIVE, CHIRALCENTRE
          LOGICAL :: INIT_ACTIVE_CHIR_CENTRES(NCHIRAL), FINAL_ACTIVE_CHIR_CENTRES(NCHIRAL)
          LOGICAL :: ALLADDED
+         LOGICAL :: FAILED !< Have we failed to place the atom (via trilateration) ? 
       
          ! setup book keeping
          NTOADD = 1
@@ -155,7 +156,14 @@ MODULE ADDINGATOM
                   !build internal coordinates for interpolation
                   CALL PLACE_INTERNALS(NEXTATOM,NLOCAL,LOCALIDX)
                ELSE IF (QCITRILATERATION) THEN
-                  CALL TRILATERATE_ATOMS(NEXTATOM,LOCALIDX,LOCALDIST)
+                  !trilaterate atoms, if this fails use fall back option. 
+                  CALL TRILATERATE_ATOMS(NEXTATOM,LOCALIDX,LOCALDIST, FAILED)
+                  IF (FAILED) THEN
+                     WRITE(*,*) "addatom> Failed to add atom via trilateration, using place_atom instead"
+                     CALL PLACE_ATOM(NEXTATOM,NLOCAL,LOCALIDX)
+                  ELSE 
+                     WRITE(*,*) " trilaterate_atom> Added atom via trilateration"
+                  END IF
                ELSE
                   CALL PLACE_ATOM(NEXTATOM,NLOCAL,LOCALIDX)
                END IF
@@ -423,20 +431,22 @@ MODULE ADDINGATOM
       END SUBROUTINE GET_ATOMS_FOR_LOCAL_AXIS
 
 
-      SUBROUTINE TRILATERATE_ATOMS(NEWATOM,CONIDXLIST,CONDISTLIST)
+      SUBROUTINE TRILATERATE_ATOMS(NEWATOM,CONIDXLIST,CONDISTLIST, FAILED)
          USE QCIKEYS, ONLY: NATOMS, DEBUG, NIMAGES
          USE MOD_INTCOORDS, ONLY: XYZ         
          IMPLICIT NONE
          INTEGER, INTENT(IN) :: NEWATOM
          INTEGER, INTENT(IN) :: CONIDXLIST(4)        
          REAL(KIND=REAL64), INTENT(IN) :: CONDISTLIST(4)
+         LOGICAL, INTENT(OUT) :: FAILED !< Have we failed to place the new atom via trilateration?
          REAL(KIND=REAL64) :: P1(3), P2(3), P3(3), R1, R2, R3
          REAL(KIND=REAL64) :: SOL1(3), SOL2(3), PREV(3), D1SQ, D2SQ
          INTEGER :: IMAGEOFFSET
          INTEGER :: N1, N2, N3, IDX1, IDX2, IDX3, J1
          LOGICAL :: FTEST
 
-         WRITE(*,*) " trilaterate_atom> Adding atom via trilateration"
+         FAILED = .FALSE.
+         
 
          !set initial guess to the best three constrained atoms
          N1=1; N2=2; N3=3
@@ -460,6 +470,9 @@ MODULE ADDINGATOM
                ELSE
                   XYZ((IMAGEOFFSET+3*(NEWATOM-1)+1):(IMAGEOFFSET+3*(NEWATOM-1)+3)) = SOL2(1:3)
                END IF
+            ELSE
+               FAILED = .TRUE.
+               !WRITE(*,*) "WARNING: Used trilateration, failed to trilaterate!"
             END IF
          END DO
       END SUBROUTINE TRILATERATE_ATOMS
@@ -474,11 +487,27 @@ MODULE ADDINGATOM
          LOGICAL, INTENT(OUT) :: FTEST
          REAL(KIND=REAL64) :: V1(3), V2(3), V3(3), EX(3), EY(3), EZ(3)
          REAL(KIND=REAL64) :: NORM, NORM2, DOTX2, DOTY2, X, Y, Z, TEMP
+          
+         REAL(KIND=REAL64) :: CROSS_CHECK(3), COLLINEARITY_TOL
+         COLLINEARITY_TOL = 1.0D-10
 
          FTEST=.FALSE.
          !get vectors between centres
          V1(1:3) = P2(1:3) - P1(1:3)  
          V2(1:3) = P3(1:3) - P1(1:3)  
+
+
+         !check for colinearity: compute cross product V1 x V2
+         CALL NORM_VEC(CROSS_PROD(V1, V2), CROSS_CHECK, NORM )
+                  
+         IF (NORM .LT. COLLINEARITY_TOL) THEN
+            FTEST=.TRUE.
+            RETURN
+         END IF
+         
+         !Reset norm and temp
+         NORM = 0.D0
+         
          !get normalised version of V1 
          CALL NORM_VEC(V1,EX,NORM)     
 
@@ -720,6 +749,7 @@ MODULE ADDINGATOM
          INTEGER, INTENT(IN) :: IDX1, IDX2, IDX3, IDX4
          INTEGER, INTENT(IN) :: IMAGE
          REAL(KIND=REAL64), INTENT(OUT) :: B1(3), B2(3), B3(3)
+         REAL(KIND=REAL64) :: V1(3), V2(3), V3(3) 
          REAL(KIND=REAL64) :: VEC1(3), VEC2(3), VEC3(3), NORM, DOT12, NORM1, NORM2, CP1(3), CP2(3), VOL
          REAL(KIND=REAL64), PARAMETER :: VOLCUT=0.1D0
          INTEGER :: IMAGEOFFSET
@@ -735,18 +765,23 @@ MODULE ADDINGATOM
          CALL NORM_VEC(VEC1,B1,NORM)
          CALL NORM_VEC(VEC2,B2,NORM)
          CALL NORM_VEC(VEC3,B3,NORM)
+
          CALL NORM_VEC(CROSS_PROD(B1,B2),CP1,NORM1)
          CALL NORM_VEC(CROSS_PROD(B1,B3),CP2,NORM2)
          VOL = DOTP(3,B1,CROSS_PROD(B2,B3))
          
          !B1 (first base vector) is the normed VEC1
-         CALL NORM_VEC(VEC1,B1,NORM)
+         V1 = VEC1
+         CALL NORM_VEC(V1,B1,NORM)
          !to get the second base vector (B2) we use the orthogonal component of VEC2 to VEC1
-         CALL NORM_VEC(VEC2-GS_PROJECTION(VEC2,VEC1),B2,NORM)
+         V2 = VEC2-GS_PROJECTION(VEC2,VEC1)
+         CALL NORM_VEC(V2,B2,NORM)
          !The final base vector is the orthogonal component of VEC3 to VEC1 and VEC2
          IF (VOL.GT.VOLCUT) THEN
             !WRITE(*,*) "local_axis> Local volume indicates this is not a planer set of axis, using Gram-Schmidt projection"
-            CALL NORM_VEC(VEC3-GS_PROJECTION(VEC3,VEC1)-GS_PROJECTION(VEC3,VEC2),B3,NORM)
+            !V3 = VEC3-GS_PROJECTION(VEC3,VEC1)-GS_PROJECTION(VEC3,VEC2)
+            V3 = VEC3-GS_PROJECTION(V3,V1)-GS_PROJECTION(V3,V2)
+            CALL NORM_VEC(V3,B3,NORM)
          ELSE
             !WRITE(*,*) "local_axis> Local volume indicates this is a planer set of axis, using normal vector"
             CALL NORM_VEC(CROSS_PROD(B1,B2),B3,NORM)
@@ -884,7 +919,7 @@ MODULE ADDINGATOM
 
 
       SUBROUTINE UPDATE_CONSTRAINTS(NEWATOM,NCONNEWATOM,BESTCONDIST,BESTCONIDX)
-         USE QCIKEYS, ONLY: NATOMS, DEBUG
+         USE QCIKEYS, ONLY: NATOMS, QCIFROZEN, DEBUG
          USE INTERPOLATION_KEYS, ONLY: CONACTIVE, ATOMACTIVE, NCONSTRAINTON
          USE QCI_CONSTRAINT_KEYS, ONLY: NCONSTRAINT, CONI, CONJ, CONDISTREF, MAXCONUSE
          USE HELPER_FNCTS, ONLY: DISTANCE_TWOATOMS
@@ -922,7 +957,6 @@ MODULE ADDINGATOM
                WRITE(*,*) " New constraint: ", ATOM1, ATOM2, "new atom: ", NEWATOM, " distance: ", CONDISTREF(J1)
             END IF              
          END DO
-
          
          IF (DEBUG) THEN
             WRITE(*,*) " get_constraints_by_dist> Constraints including new atom by average reference distance:"
@@ -955,12 +989,12 @@ MODULE ADDINGATOM
          USE HELPER_FNCTS, ONLY: DISTANCE_TWOATOMS
          USE MOD_INTCOORDS, ONLY: XSTART, XFINAL
          IMPLICIT NONE
-         INTEGER, INTENT(IN) :: NEWATOM                         !new atom id
-         INTEGER, INTENT(IN) :: CONSTIDX(NATOMS)                !atoms ids for primary constraints
-         INTEGER, INTENT(IN) :: NCONSTR                         !number of primary constraints        
-         REAL(KIND=REAL64), INTENT(OUT) :: SECCONDIST(NATOMS)   !sorted list of average distances for secondary constraints
-         INTEGER, INTENT(OUT) :: SECCONIDX(NATOMS)              !associated list of atom ids
-         INTEGER, INTENT(OUT) :: NSECCONSTR                     !number of atoms found for secondary constraints
+         INTEGER, INTENT(IN) :: NEWATOM                         !< new atom id
+         INTEGER, INTENT(IN) :: CONSTIDX(NATOMS)                !< atoms ids for primary constraints
+         INTEGER, INTENT(IN) :: NCONSTR                         !< number of primary constraints        
+         REAL(KIND=REAL64), INTENT(OUT) :: SECCONDIST(NATOMS)   !< sorted list of average distances for secondary constraints
+         INTEGER, INTENT(OUT) :: SECCONIDX(NATOMS)              !< associated list of atom ids
+         INTEGER, INTENT(OUT) :: NSECCONSTR                     !< number of atoms found for secondary constraints
          INTEGER :: PRIMARYIDX, IDX1, IDX2
          REAL(KIND = REAL64) :: DF, DS, AVD, DEV
          LOGICAL :: SECCONSTATOMS(NATOMS)
@@ -970,9 +1004,13 @@ MODULE ADDINGATOM
          INTEGER :: BOND_DIST(NATOMS)
          LOGICAL :: BONDED_ACTIVE(NATOMS)
          INTEGER :: NBACTIVE
+         REAL(KIND=REAL64) :: MAX_ITERATIONS 
+         INTEGER :: COUNTER
+         MAX_ITERATIONS = NATOMS * NBOND 
+         COUNTER = 0
 
          !TODO: bonded bits can be removed again ...
-
+         WRITE(*,*) "Get secondary constraints ..." 
          IF (NBOND.GT.0) THEN
             !set every atom to be not connected
             USE_BOND_DIST = .TRUE.
@@ -983,6 +1021,7 @@ MODULE ADDINGATOM
             BOND_DIST(NEWATOM) = 0
             NBACTIVE = 1
             DO WHILE (NBACTIVE.LT.NATOMS)
+               COUNTER = COUNTER + 1
                DO J1=1,NBOND
                   IDX1 = BONDS(J1,1)
                   IDX2 = BONDS(J1,2)
@@ -1004,6 +1043,8 @@ MODULE ADDINGATOM
                      NBACTIVE = NBACTIVE + 1
                   END IF
                END DO
+               !Exit the loop if counter reached maximum value. 
+               IF (COUNTER.GE.MAX_ITERATIONS) EXIT
             END DO
          ELSE
             USE_BOND_DIST = .FALSE.
@@ -1129,7 +1170,7 @@ MODULE ADDINGATOM
       END SUBROUTINE GET_ATOMS_BY_DISTANCE
 
       SUBROUTINE FIND_NEXT_ATOM(CHOSENACID,ACID,NEWATOM,NCONTOACT,SHORTESTCON)
-         USE QCIKEYS, ONLY: QCILINEART, INLINLIST, ATOMS2RES, QCIDOBACK, ISBBATOM, QCIUSEGROUPS
+         USE QCIKEYS, ONLY: QCILINEART, INLINLIST, ATOMS2RES, QCIDOBACK, ISBBATOM, QCIUSEGROUPS, QCIFROZEN
          USE INTERPOLATION_KEYS, ONLY: ATOMACTIVE, CONACTIVE, NACTIVE
          USE QCI_CONSTRAINT_KEYS, ONLY: NCONSTRAINT, CONDISTREF, CONI, CONJ
          USE AMBER_CONSTRAINTS, ONLY: CURRENTLY_ADDING_GROUP, CHECK_IN_GROUP
@@ -1156,7 +1197,7 @@ MODULE ADDINGATOM
             ELSE IF (ATOMACTIVE(CONJ(J1)).AND.(.NOT.ATOMACTIVE(CONI(J1)))) THEN
                IDXACTIVE = CONJ(J1)
                IDXINACTIVE = CONI(J1) 
-            ELSE IF (ATOMACTIVE(CONJ(J1)).AND.ATOMACTIVE(CONI(J1))) THEN
+            ELSE IF ( (ATOMACTIVE(CONJ(J1)).AND.ATOMACTIVE(CONI(J1)) ) .AND. ((.NOT.QCIFROZEN(CONI(J1))).OR.(.NOT.QCIFROZEN(CONJ(J1)))) ) THEN
                WRITE(*,*) " find_next_atom> WARNING: atoms ", CONI(J1), " and ", CONJ(J1), " are active, but the constraint", J1," between them is not!"
                CYCLE
             ELSE 

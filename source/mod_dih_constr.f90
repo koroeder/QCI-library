@@ -143,7 +143,7 @@ MODULE DIHEDRAL_CONSTRAINTS
                CALL GET_ATOMID("CG",I,AT4)
                REFATOMS(NCONS,1) = AT1; REFATOMS(NCONS,2) = AT2; REFATOMS(NCONS,3) = AT3; REFATOMS(NCONS,4) = AT4 
             ELSE IF ((RESNAMES(I).EQ."A").OR.(RESNAMES(I).EQ."A3").OR.(RESNAMES(I).EQ."A5").OR. &
-               (RESNAMES(I).EQ."DA").OR.(RESNAMES(I).EQ."DA3").OR.(RESNAMES(I).EQ."DA5").OR.
+               (RESNAMES(I).EQ."DA").OR.(RESNAMES(I).EQ."DA3").OR.(RESNAMES(I).EQ."DA5").OR. &
                (RESNAMES(I).EQ."FA").OR.(RESNAMES(I).EQ."FA3").OR.(RESNAMES(I).EQ."FA5")) THEN
                !first dihedral 
                NCONS = NCONS + 1
@@ -270,7 +270,7 @@ MODULE DIHEDRAL_CONSTRAINTS
          END DO
          WRITE(*,*) REFATOMS
          !assign arrays for dihedrals
-         NDIH = NCHIRAL + NCONS
+         NDIH = NCHIRAL !+ NCONS
          CALL ALLOC_DIHVARS()
          DIHACTIVE(1:NDIH) = .FALSE.
          REFDIH(1:NDIH) = 0.0D0
@@ -282,14 +282,14 @@ MODULE DIHEDRAL_CONSTRAINTS
             DIHMUL(J) = 1
          WRITE(*,*) "DIHEDRALS-CHIR_INFO:  J=", J, "atoms: ", DIHEDRALS(J,1:4)
          END DO
-         DO J=1,NCONS
-            DIHEDRALS(NCHIRAL+J,1) = REFATOMS(J,1)
-            DIHEDRALS(NCHIRAL+J,2) = REFATOMS(J,2)
-            DIHEDRALS(NCHIRAL+J,3) = REFATOMS(J,3)
-            DIHEDRALS(NCHIRAL+J,4) = REFATOMS(J,4)            
-            DIHMUL(NCHIRAL+J) = 2  
-         WRITE(*,*) "DIHEDRALS-:  J=", J, "atoms: ",  DIHEDRALS(NCHIRAL+J,1:4)
-         END DO
+         !DO J=1,NCONS
+         !   DIHEDRALS(NCHIRAL+J,1) = REFATOMS(J,1)
+         !   DIHEDRALS(NCHIRAL+J,2) = REFATOMS(J,2)
+         !   DIHEDRALS(NCHIRAL+J,3) = REFATOMS(J,3)
+         !   DIHEDRALS(NCHIRAL+J,4) = REFATOMS(J,4)            
+         !   DIHMUL(NCHIRAL+J) = 2  
+         !WRITE(*,*) "DIHEDRALS-:  J=", J, "atoms: ",  DIHEDRALS(NCHIRAL+J,1:4)
+         !END DO
           
          !DO J=1,NCONS
          !   DIHEDRALS(J,1) = REFATOMS(J,1)
@@ -620,13 +620,13 @@ MODULE DIHEDRAL_CONSTRAINTS
          !   FD = -FD
          !ENDIF
          
-         WRITE(*,*) "dihedral> DIHREF", DIHREF, " S0", S0(DIHREF), " C0 ", C0(DIHREF), " SINHPHI ", SINPHI, " COSPHI ", COSPHI
-         WRITE(*,*) "dihedral> E ", E, "PHI_0 ", REFDIH(DIHREF) , "PHI_REG ", PHI_REG,  "DF = ", DF
-         WRITE(*,*) "M", M, "FREG1 ", FREG1, "FREG2", FREG2
-         WRITE(*,*) "F_A ", FA 
-         WRITE(*,*) "F_B ", FB 
-         WRITE(*,*) "F_C ", FC 
-         WRITE(*,*) "F_D ", FD 
+         !WRITE(*,*) "dihedral> DIHREF", DIHREF, " S0", S0(DIHREF), " C0 ", C0(DIHREF), " SINHPHI ", SINPHI, " COSPHI ", COSPHI
+         !WRITE(*,*) "dihedral> E ", E, "PHI_0 ", REFDIH(DIHREF) , "PHI_REG ", PHI_REG,  "DF = ", DF
+         !WRITE(*,*) "M", M, "FREG1 ", FREG1, "FREG2", FREG2
+         !WRITE(*,*) "F_A ", FA 
+         !WRITE(*,*) "F_B ", FB 
+         !WRITE(*,*) "F_C ", FC 
+         !WRITE(*,*) "F_D ", FD 
 
          
 

@@ -15,7 +15,7 @@ MODULE AMBER_CONSTRAINTS
    INTEGER, ALLOCATABLE :: ANGLES(:,:)
    INTEGER, ALLOCATABLE :: BIOCONSTR(:,:)   
    INTEGER, ALLOCATABLE :: ELEMENT(:)
-   INTEGER :: NBOND = 0
+   INTEGER :: NBOND = 0 !< number of bonds
    INTEGER :: NANGLE = 0
    INTEGER :: NBIOCONSTR = 0 ! biological constraints - cis-trans and planarity
    INTEGER, ALLOCATABLE :: RES_START(:), RES_END(:)

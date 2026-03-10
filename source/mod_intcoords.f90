@@ -76,7 +76,12 @@ MODULE MOD_INTCOORDS
          END DO
          WRITE(*,*) "DEBUGGING: NCONSTRAINT: " , NCONSTRAINT
          DO J1=1,NCONSTRAINT
-            IF (QCILINEART.AND.(.NOT.INLINLIST(CONI(J1)).OR.(.NOT.INLINLIST(CONJ(J1))))) CYCLE            
+            !WRITE(*,*) "QCILINEART: ", QCILINEART
+            !WRITE(*,*) "INLINLIST(CONI(J1))" , INLINLIST(CONI(J1))
+            !WRITE(*,*) "INLINLIST(CONJ(J1))" , INLINLIST(CONJ(J1))
+
+            IF (QCILINEART.AND. (.NOT.(INLINLIST(CONI(J1))).OR.(.NOT.INLINLIST(CONJ(J1)))) ) CYCLE            
+            !WRITE(*,*) "HELLO"
             ! we want to collect the change in atom positions between the endpoints
             CALL DISTANCE_ATOM_DIFF_IMAGES(NATOMS, XSTART, XFINAL, CONI(J1), D1)
             CALL DISTANCE_ATOM_DIFF_IMAGES(NATOMS, XSTART, XFINAL, CONJ(J1), D2)

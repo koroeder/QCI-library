@@ -46,7 +46,8 @@ MODULE HELPER_FNCTS
 
       END FUNCTION CROSS_PROD
 
-      !Gram-Schmidt projection for vector V1 using V2
+      !>Gram-Schmidt projection for vector V1 on vector V2
+      !! U = <V1,V2>/<V2,V2> * V2
       FUNCTION GS_PROJECTION(V1,V2) RESULT(U)
          REAL(KIND = REAL64) :: V1(3), V2(3), U(3)
 
