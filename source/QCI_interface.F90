@@ -79,7 +79,7 @@ MODULE QCI_INTERFACE
       ! Subroutine to get the information at the end of the interpolation
       ! As the number of images may change, we need to get this information first before we can pull the coordinates.
       ! The second variable provides the information whether the interpolation converged or not.
-      ! Note: In either case, we have activated all atoms. Not activating all atoms is considered an error and leads to temrination.
+      ! Note: In either case, we have activated all atoms. Not activating all atoms is considered an error and leads to termination.
       SUBROUTINE GET_QCI_INFO(NQCIIMAGES,COMPLETED)
 #ifdef __QCI   
          USE QCIKEYS, ONLY: NIMAGES

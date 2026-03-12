@@ -199,6 +199,7 @@ MODULE QCISETUP
          ! which potential is used?
          ELSE IF (ENTRY.EQ."QCIMODE") THEN
             IF (VAL.EQ."AMBER") THEN
+               !QUESTION do we need these keywords to be separate?
                QCIAMBERT = .TRUE.
                CHECKCHIRAL = .TRUE.
             ELSE IF (VAL.EQ."HIRE") THEN

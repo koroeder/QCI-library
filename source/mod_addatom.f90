@@ -67,7 +67,7 @@ MODULE ADDINGATOM
          INTEGER :: INIT_NCHIRACTIVE, FINAL_NCHIRACTIVE, CHIRALCENTRE
          LOGICAL :: INIT_ACTIVE_CHIR_CENTRES(NCHIRAL), FINAL_ACTIVE_CHIR_CENTRES(NCHIRAL)
          LOGICAL :: ALLADDED
-         LOGICAL :: FAILED !< Have we failed to place the atom (via trilateration) ? 
+         LOGICAL :: FAILED !< Have we failed to place the atom (via trilateration)? 
       
          ! setup book keeping
          NTOADD = 1
@@ -104,7 +104,7 @@ MODULE ADDINGATOM
             WRITE(*,'(A,I6,A,I4,A,I4)') "  addatom> Adding atom ", NEXTATOM, ", which has ", NCONTOACT, " constraints to active set out of maximum ", NMAXCON
             WRITE(*,'(A,F8.4)') "           Shortest distance constraint to active set is: ", SHORTESTCON
 
-            ! We update the cosntraints and get a list of constraint and closest atoms to construct local 
+            ! We update the constraints and get a list of constraint and closest atoms to construct local 
             ! if we have four atoms, we use all four to build the local axis system, if we have three, we use three, otherwise we go linear
             CALL GET_ATOMS_FOR_LOCAL_AXIS(NEXTATOM,NLOCAL,LOCALIDX,LOCALDIST)
             !update the repulsions
@@ -265,7 +265,7 @@ MODULE ADDINGATOM
          END DO
 
          !check number of chiral centres after addition
-         IF (CHECKCHIRAL.AND..NOT.CURRENTLY_ADDING_GROUP) THEN
+         IF (CHECKCHIRAL.AND. (.NOT.CURRENTLY_ADDING_GROUP)) THEN
             CALL GET_ACTIVE_CHIRAL_CENTRES(FINAL_NCHIRACTIVE,FINAL_ACTIVE_CHIR_CENTRES)
          
             IF (INIT_NCHIRACTIVE.NE.FINAL_NCHIRACTIVE) THEN
@@ -729,10 +729,14 @@ MODULE ADDINGATOM
          REAL(KIND=REAL64) :: NORM
          INTEGER :: IMAGEOFFSET
 
+         !place_atoms uses Image range 1 to NIMAGES+2 (including npoints)
+         !correct imageoffset is IMAGE-1
          IMAGEOFFSET = (IMAGE-1)*3*NATOMS
+         
          A(1:3) = XYZ((IMAGEOFFSET+3*(IDX1-1)+1):(IMAGEOFFSET+3*(IDX1-1)+3))
          B(1:3) = XYZ((IMAGEOFFSET+3*(IDX2-1)+1):(IMAGEOFFSET+3*(IDX2-1)+3))
          C(1:3) = XYZ((IMAGEOFFSET+3*(IDX3-1)+1):(IMAGEOFFSET+3*(IDX3-1)+3))
+         
          BC(1:3) = C(1:3) - B(1:3)
          BA(1:3) = A(1:3) - B(1:3)
 

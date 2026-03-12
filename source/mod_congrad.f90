@@ -260,7 +260,7 @@ MODULE CONSTR_E_GRAD
          REAL(KIND=REAL64) :: DIST, DUMMY, DUMMY2    !< distance and related measure
          REAL(KIND=REAL64) :: G2(3), GRADAB(3)
          REAL(KIND=REAL64) :: EMAX, FMIN, FMAX
-         REAL(KIND=REAL64) :: LOCALCONFACTOR 
+         REAL(KIND=REAL64) :: LOCALCONFACTOR, DIST_MAXE
          INTEGER :: IMAX, JMAX
 
 
@@ -340,6 +340,7 @@ MODULE CONSTR_E_GRAD
                      IMAX = J1
                      JMAX = J2
                      EMAX = DUMMY
+                     DIST_MAXE = DIST
                   END IF
                   
                   GGG(NI1+1:NI1+3)=GGG(NI1+1:NI1+3)+GRADAB(1:3)
@@ -359,13 +360,13 @@ MODULE CONSTR_E_GRAD
          MAXCONSTR = IMAX
 
          IF (JMAX.GT.0) THEN
-            WRITE(*,*) ' congrad1> Highest constraint for image ',IMAX, ', con ',JMAX, ', atoms ',CONI(JMAX),CONJ(JMAX),' value=',EMAX, 'dist=', DIST
+            WRITE(*,*) ' congrad1> Highest constraint for image ',IMAX, ', con ',JMAX, ', atoms ',CONI(JMAX),CONJ(JMAX),' value=',EMAX, 'dist=', DIST_MAXE
          ENDIF
       END SUBROUTINE GET_CONSTRAINT_E_NOINTERNAL
 
       SUBROUTINE GET_DIH_CON_E(XYZ,GGG,EEE,EDIH)
          USE QCIKEYS, ONLY: NIMAGES, NATOMS
-         USE DIHEDRAL_CONSTRAINTS, ONLY: DIHEDRAL, DIHEDRALS, NDIH, REFDIH, ALLDIHACTIVE, DIHACTIVE, &
+         USE DIHEDRAL_CONSTRAINTS, ONLY: DIHEDRAL,DIHEDRAL2, DIHEDRALS, NDIH, REFDIH, ALLDIHACTIVE, DIHACTIVE, &
                                          CHECK_DIH_ACTIVE, KDIH
          IMPLICIT NONE
          REAL(KIND = REAL64), INTENT(IN) :: XYZ(3*NATOMS*(NIMAGES+2))   !< input coordinates
@@ -377,7 +378,7 @@ MODULE CONSTR_E_GRAD
          REAL(KIND = REAL64) :: FA(3), FB(3), FC(3), FD(3) !returned gradient for individual atoms
          REAL(KIND = REAL64) :: PHIREF, THISE
 
-         REAL(KIND = REAL64) :: EMAX, FMIN, FMAX
+         REAL(KIND = REAL64) :: EMAX, FMIN, FMAX, FX(4)
          INTEGER :: MAXDIHIMAGE, JMAX, MAXDIHR, IMAX
 
          EDIH = 0.0D0
@@ -385,7 +386,8 @@ MODULE CONSTR_E_GRAD
          EEE = 0.0D0
 
          EMAX = -HUGE(1.0D0)
-
+         FMAX = -HUGE(1.0D0)
+         FMIN =  HUGE(1.0D0)
          ! if not all dihedral constraints are activated, update the list
          IF (.NOT.ALLDIHACTIVE) CALL CHECK_DIH_ACTIVE()
          DO J=1,NDIH
@@ -406,7 +408,10 @@ MODULE CONSTR_E_GRAD
                XC(1:3) = XYZ(N+3*C-2:N+3*C)
                XD(1:3) = XYZ(N+3*D-2:N+3*D)
                !call routine to compute dihedral and get forces
-               CALL DIHEDRAL(XA, XB, XC, XD, J, THISE, FA, FB, FC, FD)
+               !CALL DIHEDRAL(XA, XB, XC, XD, J, THISE, FA, FB, FC, FD)
+               
+               CALL DIHEDRAL2(I, XA, XB, XC, XD, J, THISE, FA, FB, FC, FD)
+
                !add results to appropriate variables
                EDIH = EDIH + THISE
                EEE(I) = EEE(I) + THISE
@@ -422,10 +427,15 @@ MODULE CONSTR_E_GRAD
                GGG(N+3*B-2:N+3*B) = GGG(N+3*B-2:N+3*B) + FB(1:3)
                GGG(N+3*C-2:N+3*C) = GGG(N+3*C-2:N+3*C) + FC(1:3)
                GGG(N+3*D-2:N+3*D) = GGG(N+3*D-2:N+3*D) + FD(1:3)
+               
+               FX = [ MAXVAL(FA), MAXVAL(FB), MAXVAL(FC), MAXVAL(FD) ]
+               FMAX = MAX(FMAX, MAXVAL(FX))
+               FX = [ MINVAL(FA), MINVAL(FB), MINVAL(FC), MINVAL(FD)]
+               FMIN = MIN(FMIN, MINVAL(FX))
+               
             END DO
          END DO
-         FMIN=MINVAL(GGG(3*NATOMS+1:3*NATOMS*(NIMAGES+1)))
-         FMAX=MAXVAL(GGG(3*NATOMS+1:3*NATOMS*(NIMAGES+1)))
+         
          IF (-FMIN.GT.FMAX) FMAX=-FMIN
          FDIHTEST=FMAX
          CONVERGENCEDIHTEST=EMAX/KDIH

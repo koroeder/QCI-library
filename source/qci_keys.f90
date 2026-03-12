@@ -23,6 +23,7 @@ MODULE QCIKEYS
 
    CHARACTER(5), ALLOCATABLE :: NAMES(:) 
 
+   !> Add entire residue at the time
    LOGICAL :: QCIADDACIDT = .FALSE.
    LOGICAL :: QCIDOBACKALL = .FALSE.
 
@@ -132,7 +133,7 @@ MODULE QCIKEYS
 
    INTEGER :: CHECKREPINTERVAL = 1
 
-   !> checking chirality
+   !> checking chirality (TRUE for Amber)
    LOGICAL :: CHECKCHIRAL = .FALSE.
 
    !> using groups of atoms in AMBER
@@ -148,7 +149,8 @@ MODULE QCIKEYS
    !> permutational stuff
    INTEGER :: QCIPERMCHECKINT = 100
    LOGICAL :: QCIPERMT = .FALSE.
-   REAL(KIND=REAL64) :: QCIPERMCUT = 0.8D0 !< used in LOPERMDIST
+   !> used in LOPERMDIST
+   REAL(KIND=REAL64) :: QCIPERMCUT = 0.8D0 
    !> for myorient
    REAL(KIND=REAL64) :: ORBITTOL = 0.3D0
 

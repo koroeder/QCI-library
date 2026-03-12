@@ -508,7 +508,7 @@ MODULE AMBER_CONSTRAINTS
 
       END SUBROUTINE GET_NA_CONSTR
 
-      !deals only with canonical base pairing
+      !> deals only with canonical base pairing
       SUBROUTINE GET_BP_CONSTRAINTS(ISNA)
          USE QCIKEYS, ONLY: NATOMS
          USE MOD_INTCOORDS, ONLY: XSTART, XFINAL
