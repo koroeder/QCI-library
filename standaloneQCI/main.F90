@@ -1,5 +1,6 @@
 PROGRAM QCI_STANDALONE
    USE QCI_INTERFACE
+   USE TIMER_MODULE
    IMPLICIT NONE
    INTEGER, PARAMETER  :: REAL64 = SELECTED_REAL_KIND(15, 307)
    
@@ -23,6 +24,10 @@ PROGRAM QCI_STANDALONE
       WRITE(STDOUT,'(A,I4)') "Expecting two arguments, but got ", NARGS
       STOP
    END IF
+
+   !Start the clock
+   CALL TIMER_START()
+
    ! Read in coordinates
    ALLOCATE(XS(3*NATOMS),XF(3*NATOMS))
    OPEN(XUNIT, FILE="start")
@@ -54,4 +59,7 @@ PROGRAM QCI_STANDALONE
    !...
    CALL QCI_TERMINATE()
    DEALLOCATE(XS,XF,XYZ)
+   
+   !Stop the timer and output time elapsed
+   CALL TIMER_STOP()
 END PROGRAM QCI_STANDALONE

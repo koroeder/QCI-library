@@ -754,12 +754,24 @@ MODULE CONSTR_E_GRAD
 
                NI=3*(NREPI(J2)-1) !X-coord of atom I 
                NJ=3*(NREPJ(J2)-1) !X-coord of arom J
-               G1(1:3)=X1(NI+1:NI+3)-X1(NJ+1:NJ+3) !vector from j to i in image 1
-               G2(1:3)=X2(NI+1:NI+3)-X2(NJ+1:NJ+3) !vector from j to i in image 2
+
+               !Explicit index subtraction is faster here
+               !G1(1:3)=X1(NI+1:NI+3)-X1(NJ+1:NJ+3) !vector from j to i in image 1
+               G1(1)=X1(NI+1)-X1(NJ+1)
+               G1(2)=X1(NI+2)-X1(NJ+2)
+               G1(3)=X1(NI+3)-X1(NJ+3)
+
+               !G2(1:3)=X2(NI+1:NI+3)-X2(NJ+1:NJ+3) !vector from j to i in image 2
+               G2(1)=X2(NI+1)-X2(NJ+1)
+               G2(2)=X2(NI+2)-X2(NJ+2)
+               G2(3)=X2(NI+3)-X2(NJ+3)
+               
                ! squared distance between atoms in image 1 (theta = pi/2)
-               DSQ1=G1(1)**2 + G1(2)**2 + G1(3)**2
+               !DSQ1=G1(1)**2 + G1(2)**2 + G1(3)**2
+               DSQ1=DOT_PRODUCT(G1,G1)
                ! squared distance between atoms in image 2 (theta = 0)
-               DSQ2=G2(1)**2 + G2(2)**2 + G2(3)**2
+               !DSQ2=G2(1)**2 + G2(2)**2 + G2(3)**2
+               DSQ2=DOT_PRODUCT(G2,G2)
                DCUT = NREPCUT(J2)**2
                ! don't look for an internal minimum if both repulsions outside cutoff
                IF ((DSQ1.GT.DCUT).AND.(DSQ2.GT.DCUT)) CYCLE

@@ -159,6 +159,7 @@ MODULE ADDINGATOM
                   !trilaterate atoms, if this fails use fall back option. 
                   CALL TRILATERATE_ATOMS(NEXTATOM,LOCALIDX,LOCALDIST, FAILED)
                   IF (FAILED) THEN
+                     !This is fine for smaller systems <1k atoms, produces garbage for large system 
                      !WRITE(*,*) "addatom> Failed to add atom via trilateration, using place_atom instead"
                      !CALL PLACE_ATOM(NEXTATOM,NLOCAL,LOCALIDX)
                   ELSE 
