@@ -179,6 +179,20 @@ MODULE DIHEDRAL_CONSTRAINTS
                CALL GET_ATOMID("N9",I,AT4)
                REFATOMS(NCONS,1) = AT1; REFATOMS(NCONS,2) = AT2; REFATOMS(NCONS,3) = AT3; REFATOMS(NCONS,4) = AT4
                !WRITE(*,*) "DIHEDRAL check: C5-N7-C8-N9: ", REFATOMS(NCONS,1:4)
+               !Try fifth dihedral
+               NCONS = NCONS + 1
+               CALL GET_ATOMID("C4",I,AT1)
+               CALL GET_ATOMID("N3",I,AT2)
+               CALL GET_ATOMID("C2",I,AT3)
+               CALL GET_ATOMID("N1",I,AT4)
+               REFATOMS(NCONS,1) = AT1; REFATOMS(NCONS,2) = AT2; REFATOMS(NCONS,3) = AT3; REFATOMS(NCONS,4) = AT4 
+               !Try sixth dihedral
+               NCONS = NCONS + 1
+               CALL GET_ATOMID("N7",I,AT1)
+               CALL GET_ATOMID("C8",I,AT2)
+               CALL GET_ATOMID("N9",I,AT3)
+               CALL GET_ATOMID("C4",I,AT4)
+               REFATOMS(NCONS,1) = AT1; REFATOMS(NCONS,2) = AT2; REFATOMS(NCONS,3) = AT3; REFATOMS(NCONS,4) = AT4 
             ELSE IF ((RESNAMES(I).EQ."C").OR.(RESNAMES(I).EQ."C3").OR.(RESNAMES(I).EQ."C5").OR. &
                   (RESNAMES(I).EQ."DC").OR.(RESNAMES(I).EQ."DC3").OR.(RESNAMES(I).EQ."DC5").OR. &
                   (RESNAMES(I).EQ."FC").OR.(RESNAMES(I).EQ."FC3").OR.(RESNAMES(I).EQ."FC5")) THEN
@@ -235,6 +249,20 @@ MODULE DIHEDRAL_CONSTRAINTS
                CALL GET_ATOMID("C8",I,AT3)
                CALL GET_ATOMID("N9",I,AT4)
                REFATOMS(NCONS,1) = AT1; REFATOMS(NCONS,2) = AT2; REFATOMS(NCONS,3) = AT3; REFATOMS(NCONS,4) = AT4 
+               !Try fifth dihedral
+               NCONS = NCONS + 1
+               CALL GET_ATOMID("C4",I,AT1)
+               CALL GET_ATOMID("N3",I,AT2)
+               CALL GET_ATOMID("C2",I,AT3)
+               CALL GET_ATOMID("N1",I,AT4)
+               REFATOMS(NCONS,1) = AT1; REFATOMS(NCONS,2) = AT2; REFATOMS(NCONS,3) = AT3; REFATOMS(NCONS,4) = AT4 
+               !Try sixth dihedral
+               NCONS = NCONS + 1
+               CALL GET_ATOMID("N7",I,AT1)
+               CALL GET_ATOMID("C8",I,AT2)
+               CALL GET_ATOMID("N9",I,AT3)
+               CALL GET_ATOMID("C4",I,AT4)
+               REFATOMS(NCONS,1) = AT1; REFATOMS(NCONS,2) = AT2; REFATOMS(NCONS,3) = AT3; REFATOMS(NCONS,4) = AT4 
             ELSE IF ((RESNAMES(I).EQ."U").OR.(RESNAMES(I).EQ."U3").OR.(RESNAMES(I).EQ."U5").OR. &
                      (RESNAMES(I).EQ."DT").OR.(RESNAMES(I).EQ."DT3").OR.(RESNAMES(I).EQ."DT5").OR. & 
                      (RESNAMES(I).EQ."FU").OR.(RESNAMES(I).EQ."FU3").OR.(RESNAMES(I).EQ."FU5").OR. &
@@ -259,20 +287,12 @@ MODULE DIHEDRAL_CONSTRAINTS
                CALL GET_ATOMID("C6",I,AT2)
                CALL GET_ATOMID("N1",I,AT3)
                CALL GET_ATOMID("C2",I,AT4)
-               REFATOMS(NCONS,1) = AT1; REFATOMS(NCONS,2) = AT2; REFATOMS(NCONS,3) = AT3; REFATOMS(NCONS,4) = AT4 
-               !experimental add fourth dihedral
-               NCONS = NCONS + 1
-               CALL GET_ATOMID("C4",I,AT1)
-               CALL GET_ATOMID("N3",I,AT2)
-               CALL GET_ATOMID("C2",I,AT3)
-               CALL GET_ATOMID("N1",I,AT4)
-               REFATOMS(NCONS,1) = AT1; REFATOMS(NCONS,2) = AT2; REFATOMS(NCONS,3) = AT3; REFATOMS(NCONS,4) = AT4 
-               
+               REFATOMS(NCONS,1) = AT1; REFATOMS(NCONS,2) = AT2; REFATOMS(NCONS,3) = AT3; REFATOMS(NCONS,4) = AT4                
             END IF
          END DO
          
          !assign arrays for dihedrals
-         NDIH = NCHIRAL + NCONS
+         NDIH = NCHIRAL !+ NCONS
          CALL ALLOC_DIHVARS()
          DIHACTIVE(1:NDIH) = .FALSE.
          REFDIH(1:NDIH) = 0.0D0
@@ -289,14 +309,14 @@ MODULE DIHEDRAL_CONSTRAINTS
             DIHMUL(J) = 1
          WRITE(*,*) "DIHEDRALS-CHIR_INFO:  J=", J, "atoms: ", DIHEDRALS(J,1:4)
          END DO
-         DO J=1,NCONS
-            DIHEDRALS(NCHIRAL+J,1) = REFATOMS(J,1)
-            DIHEDRALS(NCHIRAL+J,2) = REFATOMS(J,2)
-            DIHEDRALS(NCHIRAL+J,3) = REFATOMS(J,3)
-            DIHEDRALS(NCHIRAL+J,4) = REFATOMS(J,4)            
-            DIHMUL(NCHIRAL+J) = 2  
-         WRITE(*,*) "DIHEDRALS-:  J=", J, "atoms: ",  DIHEDRALS(NCHIRAL+J,1:4)
-         END DO
+         !DO J=1,NCONS
+         !   DIHEDRALS(NCHIRAL+J,1) = REFATOMS(J,1)
+         !   DIHEDRALS(NCHIRAL+J,2) = REFATOMS(J,2)
+         !   DIHEDRALS(NCHIRAL+J,3) = REFATOMS(J,3)
+         !   DIHEDRALS(NCHIRAL+J,4) = REFATOMS(J,4)            
+         !   DIHMUL(NCHIRAL+J) = 2  
+         !WRITE(*,*) "DIHEDRALS-:  J=", J, "atoms: ",  DIHEDRALS(NCHIRAL+J,1:4)
+         !END DO
           
          !DO J=1,NCONS
          !   DIHEDRALS(J,1) = REFATOMS(J,1)
@@ -688,12 +708,12 @@ MODULE DIHEDRAL_CONSTRAINTS
 
          M = DIHMUL(DIHREF)
          
-         W = (NIMAGES+2-I)/(NIMAGES+1)
+         W = 1.0D0*(NIMAGES+2-I)/(NIMAGES+1)
 
          !SINSUM = ((NIMAGES+2-I)*DSIN(REFDIHS(DIHREF)) + (I-1)*DSIN(REFDIHF(DIHREF))) / (NIMAGES+1)
          !COSSUM = ((NIMAGES+2-I)*DCOS(REFDIHS(DIHREF)) + (I-1)*COS(REFDIHF(DIHREF))) / (NIMAGES+1)
-         SINSUM = W*DSIN(REFDIHS(DIHREF)) + (1-W)*DSIN(REFDIHF(DIHREF))
-         COSSUM = W*DCOS(REFDIHS(DIHREF)) + (1-W)*DCOS(REFDIHF(DIHREF))
+         SINSUM = W*DSIN(REFDIHS(DIHREF)) + (1.0D0-W)*DSIN(REFDIHF(DIHREF))
+         COSSUM = W*DCOS(REFDIHS(DIHREF)) + (1.0D0-W)*DCOS(REFDIHF(DIHREF))
          THISREF = ATAN2(SINSUM, COSSUM)
          !DIFF = PHI_REG - REFDIH(DIHREF)
          !DIFF = ATAN2(DSIN(PHI_REG - THISREF), DCOS(PHI_REG - THISREF))

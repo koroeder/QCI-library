@@ -32,6 +32,7 @@ MODULE MOD_INTCOORDS
          !When we call this XSTART and XFINAL should be aligned already 
          XYZ(1:(3*NATOMS))=XSTART(1:3*NATOMS)
          XYZ((3*NATOMS)*(NIMAGES+1)+1:(3*NATOMS)*(NIMAGES+2))=XFINAL(1:3*NATOMS)
+         !Initial guess is linear interpolation
          DO J1=1,NIMAGES+2
             XYZ((J1-1)*(3*NATOMS)+1:J1*(3*NATOMS))=((NIMAGES+2-J1)*XSTART(1:3*NATOMS)+(J1-1)*XFINAL(1:3*NATOMS))/(NIMAGES+1)
          ENDDO

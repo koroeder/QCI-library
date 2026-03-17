@@ -520,9 +520,11 @@ MODULE CONSTR_E_GRAD
                G2(1:3)=XYZ(NI2+1:NI2+3)-XYZ(NJ2+1:NJ2+3) !vector from j to i in image 2
 
                ! squared distance between atoms in image 1 (theta = pi/2)
-               DSQ1=G1(1)**2 + G1(2)**2 + G1(3)**2
+               !DSQ1=G1(1)**2 + G1(2)**2 + G1(3)**2
+               DSQ1=DOT_PRODUCT(G1,G1)
                ! squared distance between atoms in image 2 (theta = 0)
-               DSQ2=G2(1)**2 + G2(2)**2 + G2(3)**2
+               !DSQ2=G2(1)**2 + G2(2)**2 + G2(3)**2
+               DSQ2=DOT_PRODUCT(G2,G2)
                DP_G12 = DOTP(3,G1,G2)
                DINTMIN = DSQ1+DSQ2-2.0D0*DP_G12
 
@@ -913,7 +915,8 @@ MODULE CONSTR_E_GRAD
          MAXCONSTR = IMAX
       END SUBROUTINE GET_REPULSION_E
 
-      ! should be the same as GET_REPULSION_E, but the iteration inverts the order - outer loops is repulsions
+      !> should be the same as GET_REPULSION_E, but the iteration inverts the order - outer loops is repulsions
+      !! Runs approx. 2x slower than GET_REPULSION_E
       SUBROUTINE GET_REPULSION_E2(XYZ,GGG,EEE,EREP)
          USE QCIKEYS, ONLY: NIMAGES, NATOMS, INTMINFAC, QCICONSTRREP, QCIINTREPMINSEP, K_REP
          USE REPULSION, ONLY: NNREPULSIVE, NREPI, NREPJ, NREPCUT
