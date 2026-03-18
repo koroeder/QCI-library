@@ -338,7 +338,7 @@ MODULE DIHEDRAL_CONSTRAINTS
             REFDIHF(J) = THISDIHF 
             
             !This should give a bisection of the angle 
-            THISDIH = ATAN2(DSIN(THISDIHS)+DSIN(THISDIHF),DCOS(THISDIHS)+DCOS(THISDIHF))
+            THISDIH = ATAN2(0.5D0*(DSIN(THISDIHS)+DSIN(THISDIHF)),0.5D0*(DCOS(THISDIHS)+DCOS(THISDIHF)))
             REFDIH(J) = THISDIH 
             
             ! now compute and store the regularised versions

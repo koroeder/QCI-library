@@ -10,7 +10,7 @@
 ! However, use of EEE(J1-1)=EEE(J1-1)+DUMMY/2 causes error at the order of epsilon every time we do this 
 ! This is due to the compiler 
 ! Insted we sum all the energies into EEE2 term, chsift at the end and add back to EEE array.
-! Similiar thing needs to be done for gradients, but here the cshif it 3*NATOMS
+! Similar thing needs to be done for gradients, but here the cshif is 3*NATOMS
 
 MODULE CONSTR_E_GRAD
    USE QCIPREC
@@ -1256,8 +1256,7 @@ MODULE CONSTR_E_GRAD
          IF ((DUMMY.GT.0.0D0).AND.(DUMMY.LT.1.0D0)) THEN
             NOINT=.FALSE.
             DP_G12_SQ = DP_G12**2
-            !DUMMY2 = DP_G12_SQ - DSQ1*DSQ2
-            !WARNING changed equation here
+            
             DUMMY2 =  DSQ1*DSQ2 - DP_G12_SQ 
             !WRITE(*,*) "DP_G12_SQL ", DP_G12_SQ, "DSQ1*DSQ2", DSQ1*DSQ2, "DUMMY2: ", DUMMY2, " DINTMIN: ", DINTMIN
             DSQI = MAX(DUMMY2/DINTMIN,0.0D0)
@@ -1266,11 +1265,9 @@ MODULE CONSTR_E_GRAD
             IF (DINT.LE.0.0D0) THEN
                NOINT = .TRUE.
             ELSE IF (DINT.LE.QCIREPCUT) THEN
-               !WRITE(*,*) "We have internal minimum - repulsion"
                DUMMY2 = DP_G12_SQ - DSQ1*DSQ2
                DUMMY = DINT*DINTMIN**2
                ! to convert derivatives of distance^2 to derivative of distance
-               !Warning (dummy2 now changed the signs)
                G1INT(1:3)= (DUMMY2*(G1(1:3) - G2(1:3)) + DINTMIN*(G1(1:3)*DSQ2 -G2(1:3)*DP_G12))/DUMMY
                G2INT(1:3)= (DUMMY2*(G2(1:3) - G1(1:3)) + DINTMIN*(G2(1:3)*DSQ1 -G1(1:3)*DP_G12))/DUMMY
             END IF              
@@ -1318,12 +1315,8 @@ MODULE CONSTR_E_GRAD
             DP_G12_SQ = DP_G12**2
             !QUESTION should this be other way around?  CS inequality...this will always evaluate negative
             !d(theta*) = |G1|^2|G2|^2 - |G1*G2|^2 
-            !DUMMY2 = DP_G12_SQ - DSQ1*DSQ2
-            !WARNING changed equation here
             DUMMY2 =  DSQ1*DSQ2 - DP_G12_SQ 
-            !WRITE(*,*) "DP_G12_SQL ", DP_G12_SQ, "DSQ1*DSQ2", DSQ1*DSQ2, "DUMMY2: ", DUMMY2, " DINTMIN: ", DINTMIN
             DSQI = MAX(DUMMY2/DINTMIN,0.0D0)
-            !WRITE(*,*) "DSQI: ", DSQI
             DINT = SQRT(DSQI)
             IF (DINT.LE.0.0D0) THEN
                NOINT = .TRUE.
@@ -1338,7 +1331,6 @@ MODULE CONSTR_E_GRAD
                !dd_AB/dx = dd^2/dx /2*d_AB
                
                DUMMY2 = DP_G12_SQ - DSQ1*DSQ2 
-               !Warning added minus here (dummy2 now changed the signs)
                G1INT(1:3)= (DUMMY2*(G1(1:3) - G2(1:3)) + DINTMIN*(G1(1:3)*DSQ2 -G2(1:3)*DP_G12))/DUMMY
                G2INT(1:3)= (DUMMY2*(G2(1:3) - G1(1:3)) + DINTMIN*(G2(1:3)*DSQ1 -G1(1:3)*DP_G12))/DUMMY   
 

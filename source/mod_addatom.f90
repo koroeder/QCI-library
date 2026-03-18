@@ -160,7 +160,8 @@ MODULE ADDINGATOM
                   CALL TRILATERATE_ATOMS(NEXTATOM,LOCALIDX,LOCALDIST, FAILED)
                   IF (FAILED) THEN
                      !This is fine for smaller systems <1k atoms, produces garbage for large system 
-                     !WRITE(*,*) "addatom> Failed to add atom via trilateration, using place_atom instead"
+                     WRITE(*,*) "addatom> Failed to add atom via trilateration, using place_linear_atom instead"
+                     CALL PLACE_LINEAR_ATOM(NEXTATOM,NLOCAL,LOCALIDX)
                      !CALL PLACE_ATOM(NEXTATOM,NLOCAL,LOCALIDX)
                   ELSE 
                      WRITE(*,*) " trilaterate_atom> Added atom via trilateration"
@@ -181,26 +182,27 @@ MODULE ADDINGATOM
             END IF
             !if we haven't suceeded in adding the atom or it is QCIlinear, go for a linear interpolation for new atom based on the tightest constraint
             IF ((.NOT.ADDEDTHISCYCLE).OR.QCILINEART) THEN
-               DO J1=1,NIMAGES
-                  ! the images are technically running from 2 to NIMAGES+1, but the offset is (J1-1)*3*NATOMs, 
-                  ! so we can just use a shifted range from 1 to NIMAGES
-                  THISIMAGE = J1*3*NATOMS
-                  ENDPOINT = 3*NATOMS*(NIMAGES+1)
-                  NEWATOMOFFSET = 3*(NEXTATOM-1)
-                  !there is always at least one constraint!
-                  CONONEOFFSET = 3*(LOCALIDX(1)-1)
-                  STARTWEIGHT = FRAC*(NIMAGES+1-J1)/(NIMAGES+1) 
-                  ENDWEIGHT = 1.0D0*J1/(NIMAGES+1) !need to keep this 1.0D0* in here to convert the type correctly
-                  !X coordinate
-                  XYZ(THISIMAGE+NEWATOMOFFSET+1) = XYZ(THISIMAGE+CONONEOFFSET+1) + STARTWEIGHT*(XYZ(NEWATOMOFFSET+1)-XYZ(CONONEOFFSET+1)) + &
-                                                   ENDWEIGHT*(XYZ(ENDPOINT+NEWATOMOFFSET+1)-XYZ(ENDPOINT+CONONEOFFSET+1))
-                  !Y coordinate
-                  XYZ(THISIMAGE+NEWATOMOFFSET+2) = XYZ(THISIMAGE+CONONEOFFSET+2) + STARTWEIGHT*(XYZ(NEWATOMOFFSET+2)-XYZ(CONONEOFFSET+2)) + &
-                                                   ENDWEIGHT*(XYZ(ENDPOINT+NEWATOMOFFSET+2)-XYZ(ENDPOINT+CONONEOFFSET+2))
-                  !Z coordinate
-                  XYZ(THISIMAGE+NEWATOMOFFSET+3) = XYZ(THISIMAGE+CONONEOFFSET+3) + STARTWEIGHT*(XYZ(NEWATOMOFFSET+3)-XYZ(CONONEOFFSET+3)) + &
-                                                   ENDWEIGHT*(XYZ(ENDPOINT+NEWATOMOFFSET+3)-XYZ(ENDPOINT+CONONEOFFSET+3))    
-               END DO                                                                                
+               CALL PLACE_LINEAR_ATOM(NEXTATOM,NLOCAL,LOCALIDX)
+ !              DO J1=1,NIMAGES
+ !                 ! the images are technically running from 2 to NIMAGES+1, but the offset is (J1-1)*3*NATOMs, 
+ !                 ! so we can just use a shifted range from 1 to NIMAGES
+ !                 THISIMAGE = J1*3*NATOMS
+ !                 ENDPOINT = 3*NATOMS*(NIMAGES+1)
+ !                 NEWATOMOFFSET = 3*(NEXTATOM-1)
+ !                 !there is always at least one constraint!
+ !                 CONONEOFFSET = 3*(LOCALIDX(1)-1)
+ !                 STARTWEIGHT = FRAC*(NIMAGES+1-J1)/(NIMAGES+1) 
+ !                 ENDWEIGHT = 1.0D0*J1/(NIMAGES+1) !need to keep this 1.0D0* in here to convert the type correctly
+ !                 !X coordinate
+ !                 XYZ(THISIMAGE+NEWATOMOFFSET+1) = XYZ(THISIMAGE+CONONEOFFSET+1) + STARTWEIGHT*(XYZ(NEWATOMOFFSET+1)-XYZ(CONONEOFFSET+1)) + &
+ !                                                  ENDWEIGHT*(XYZ(ENDPOINT+NEWATOMOFFSET+1)-XYZ(ENDPOINT+CONONEOFFSET+1))
+ !                 !Y coordinate
+ !                 XYZ(THISIMAGE+NEWATOMOFFSET+2) = XYZ(THISIMAGE+CONONEOFFSET+2) + STARTWEIGHT*(XYZ(NEWATOMOFFSET+2)-XYZ(CONONEOFFSET+2)) + &
+ !                                                  ENDWEIGHT*(XYZ(ENDPOINT+NEWATOMOFFSET+2)-XYZ(ENDPOINT+CONONEOFFSET+2))
+ !                 !Z coordinate
+ !                 XYZ(THISIMAGE+NEWATOMOFFSET+3) = XYZ(THISIMAGE+CONONEOFFSET+3) + STARTWEIGHT*(XYZ(NEWATOMOFFSET+3)-XYZ(CONONEOFFSET+3)) + &
+ !                                                  ENDWEIGHT*(XYZ(ENDPOINT+NEWATOMOFFSET+3)-XYZ(ENDPOINT+CONONEOFFSET+3))    
+ !              END DO                                                                                
 
                CALL CHECKREP(XYZ,NNREPSAVE,NREPSAVE+1)
                ! call congrad routine
@@ -292,6 +294,7 @@ MODULE ADDINGATOM
          QCILINEART = .FALSE.
       END SUBROUTINE ADDATOM
 
+      !> This routine needs tidying up/ potentially rewriting!
       SUBROUTINE GET_ATOMS_FOR_LOCAL_AXIS(NEWATOM,NLOCAL,LOCALIDX,LOCALDIST)
          USE QCIKEYS, ONLY: NATOMS
          INTEGER , INTENT(IN) :: NEWATOM
@@ -380,7 +383,8 @@ MODULE ADDINGATOM
             END IF
          END IF
 
-         IF (NLOCAL.LT.4) THEN
+         !IF (NLOCAL.LT.4) THEN
+         IF (NCOUNT.LT.4) THEN
             IF (NDISTS.NE.0) THEN
                IF (NCOUNT.EQ.0) THEN
                   DO J = 1,NDISTS
@@ -534,6 +538,43 @@ MODULE ADDINGATOM
          END IF
       END SUBROUTINE TRILATERATION
 
+      SUBROUTINE PLACE_LINEAR_ATOM(NEWATOM,NLOCAL,CONIDXLIST)
+         USE QCIFILEHANDLER, ONLY: FILE_OPEN
+         USE HELPER_FNCTS, ONLY: DOTP, EUC_NORM, NORM_VEC
+         USE QCIKEYS, ONLY: NATOMS, DEBUG, NIMAGES, USEFOURATOMST
+         USE MOD_INTCOORDS, ONLY: XYZ
+         IMPLICIT NONE
+         INTEGER, INTENT(IN) :: NEWATOM
+         INTEGER, INTENT(IN) :: NLOCAL
+         INTEGER, INTENT(IN) :: CONIDXLIST(4)
+
+         INTEGER :: J1, THISIMAGE,ENDPOINT, NEWATOMOFFSET,CONONEOFFSET  
+         REAL(KIND=REAL64) ::  STARTWEIGHT, ENDWEIGHT, FRAC
+
+         FRAC = 1.0D0
+         DO J1=1,NIMAGES
+            ! the images are technically running from 2 to NIMAGES+1, but the offset is (J1-1)*3*NATOMs, 
+            ! so we can just use a shifted range from 1 to NIMAGES
+            THISIMAGE = J1*3*NATOMS
+            ENDPOINT = 3*NATOMS*(NIMAGES+1)
+            NEWATOMOFFSET = 3*(NEWATOM-1)
+            !there is always at least one constraint!
+            CONONEOFFSET = 3*(CONIDXLIST(1)-1)
+            STARTWEIGHT = FRAC*(NIMAGES+1-J1)/(NIMAGES+1) 
+            ENDWEIGHT = 1.0D0*J1/(NIMAGES+1) !need to keep this 1.0D0* in here to convert the type correctly
+            !X coordinate
+            XYZ(THISIMAGE+NEWATOMOFFSET+1) = XYZ(THISIMAGE+CONONEOFFSET+1) + STARTWEIGHT*(XYZ(NEWATOMOFFSET+1)-XYZ(CONONEOFFSET+1)) + &
+                                             ENDWEIGHT*(XYZ(ENDPOINT+NEWATOMOFFSET+1)-XYZ(ENDPOINT+CONONEOFFSET+1))
+            !Y coordinate
+            XYZ(THISIMAGE+NEWATOMOFFSET+2) = XYZ(THISIMAGE+CONONEOFFSET+2) + STARTWEIGHT*(XYZ(NEWATOMOFFSET+2)-XYZ(CONONEOFFSET+2)) + &
+                                             ENDWEIGHT*(XYZ(ENDPOINT+NEWATOMOFFSET+2)-XYZ(ENDPOINT+CONONEOFFSET+2))
+            !Z coordinate
+            XYZ(THISIMAGE+NEWATOMOFFSET+3) = XYZ(THISIMAGE+CONONEOFFSET+3) + STARTWEIGHT*(XYZ(NEWATOMOFFSET+3)-XYZ(CONONEOFFSET+3)) + &
+                                             ENDWEIGHT*(XYZ(ENDPOINT+NEWATOMOFFSET+3)-XYZ(ENDPOINT+CONONEOFFSET+3))    
+         END DO                                                                                
+
+      
+      END SUBROUTINE PLACE_LINEAR_ATOM
 
       SUBROUTINE PLACE_INTERNALS(NEWATOM,NLOCAL,CONIDXLIST)
          USE QCIFILEHANDLER, ONLY: FILE_OPEN
@@ -1220,13 +1261,26 @@ MODULE ADDINGATOM
                IF (.NOT.CHECK_IN_GROUP(IDXINACTIVE)) CYCLE
             END IF
 
-            IF (NCONTOACTIVE(IDXINACTIVE).GE.NCONTOACT) THEN
-               IF (CONDISTREF(J1).LT.SHORTESTCON) THEN
-                  SHORTESTCON = CONDISTREF(J1)
-                  NEWATOM = IDXINACTIVE
-                  NCONTOACT = NCONTOACTIVE(IDXINACTIVE)
-               END IF
+            !IF (NCONTOACTIVE(IDXINACTIVE).GE.NCONTOACT) THEN
+            !   IF (CONDISTREF(J1).LT.SHORTESTCON) THEN
+            !      SHORTESTCON = CONDISTREF(J1)
+            !      NEWATOM = IDXINACTIVE
+            !      NCONTOACT = NCONTOACTIVE(IDXINACTIVE)
+            !   END IF
+            !END IF
+
+            IF (NCONTOACTIVE(IDXINACTIVE).GT.NCONTOACT) THEN
+               ! New atom has more constraints, so higher priority
+               SHORTESTCON = CONDISTREF(J1)
+               NEWATOM = IDXINACTIVE
+               NCONTOACT = NCONTOACTIVE(IDXINACTIVE)
+            ELSE IF (NCONTOACTIVE(IDXINACTIVE).EQ.NCONTOACT .AND. CONDISTREF(J1).LT.SHORTESTCON) THEN
+               ! Same number of constraints, but closer
+               SHORTESTCON = CONDISTREF(J1)
+               NEWATOM = IDXINACTIVE
+               NCONTOACT = NCONTOACTIVE(IDXINACTIVE)
             END IF
+
          END DO
 
          !sanity check that we have found an atom to be added - if not we terminate
@@ -1240,16 +1294,18 @@ MODULE ADDINGATOM
          END IF
       END SUBROUTINE FIND_NEXT_ATOM
 
-
+      
       SUBROUTINE CREATE_NCONTOACTIVE_LIST(INVDTOACTIVE,NBEST)
          USE QCIKEYS, ONLY: NATOMS
          USE INTERPOLATION_KEYS, ONLY: NACTIVE, ATOMACTIVE, CONACTIVE
          USE QCI_CONSTRAINT_KEYS, ONLY: NCONSTRAINT, CONI, CONJ, CONDISTREF
+         IMPLICIT  NONE
          INTEGER, INTENT(OUT) :: NBEST ! maximum number of constraintson inactive atom
          REAL(KIND = REAL64), INTENT(OUT) :: INVDTOACTIVE(1:NATOMS)  !inverse distance
+         
          INTEGER :: I, ATOM1, ATOM2
          REAL(KIND = REAL64) :: INVDIST 
-
+         
          NBEST = 0
          NCONTOACTIVE(1:NATOMS) = 0
          INVDTOACTIVE(1:NATOMS) = 0.0D0

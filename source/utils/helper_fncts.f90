@@ -19,11 +19,13 @@ MODULE HELPER_FNCTS
          REAL(KIND = REAL64), INTENT(IN) :: V1(NSIZE), V2(NSIZE) !the vectors to be used
          INTEGER :: I !iteration variable
          
-         DOTP = 0.0D0
+         !DOTP = 0.0D0
          !use element-wise addition by iterating from 1 to NSIZE
-         DO I=1,NSIZE
-            DOTP = DOTP + V1(I)*V2(I)
-         END DO
+         !DO I=1,NSIZE
+         !   DOTP = DOTP + V1(I)*V2(I)
+         !END DO
+
+         DOTP = DOT_PRODUCT(V1,V2)
       END FUNCTION DOTP
 
       !> subroutine to get norm and normed vector

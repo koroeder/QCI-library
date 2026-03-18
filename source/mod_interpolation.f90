@@ -363,10 +363,10 @@ MODULE QCIINTERPOLATION
                         NLASTGOODE=NITERDONE
                         MOREIMAGES = .TRUE. !if we add an atom we will stay in the loop and check whether we should add more images
                      END IF
-                     IF ((CURRMINSEP.LT.IMSEPMIN).AND.(NIMAGES.GT.1)) THEN
+                     IF (((CURRMINSEP.LT.IMSEPMIN).AND.(NIMAGES.GT.1)).OR.(NIMAGES.GT.MAXINTIMAGE)) THEN
                         IF (IDXMIN.EQ.1) IDXMIN = 2
                         WRITE(*,*) " QCIinterp> Removing image ", IDXMIN
-                        CALL REMOVE_IMAGE(IDXMAX,ETOTAL,RMS)
+                        CALL REMOVE_IMAGE(IDXMIN,ETOTAL,RMS)
                         NITERUSE = 0
                         !scale gradient if necessary
                         IF (MAXGRADCOMP.GT.0.0D0) CALL SCALEGRAD(DIMS,G,RMS,MAXGRADCOMP)
@@ -501,8 +501,9 @@ MODULE QCIINTERPOLATION
 
          EXITSTATUS = 0
          !is the simulation converged?
-         IF ((FCONTEST.LT.QCIRMSTOL).AND.(FREPTEST.LT.QCIRMSTOL).AND.(FDIHTEST.LT.QCIRMSTOL).AND.(CONVERGECONTEST.LT.MAXCONE)&
-            &.AND.(CONVERGEREPTEST.LT.MAXCONE).AND.(CONVERGENCEDIHTEST.LT.MAXCONE).AND.(NITERDONE.GT.1)) THEN
+         IF ((FCONTEST.LT.QCIRMSTOL).AND.(FREPTEST.LT.QCIRMSTOL).AND.(FDIHTEST.LT.QCIRMSTOL).AND.&
+            (CONVERGECONTEST.LT.MAXCONE).AND.(CONVERGEREPTEST.LT.MAXCONE).AND.(CONVERGENCEDIHTEST.LT.MAXCONE)&
+            .AND.(NITERDONE.GT.1)) THEN
             EXITSTATUS = 1
          END IF
 
@@ -548,7 +549,7 @@ MODULE QCIINTERPOLATION
          SUME2 = SUME2/(NIMAGES-1)
          SIGMAE = SQRT(MAX(SUME2-SUME**2,1.0D-100))
          WRITE(*,'(A,I6,A,F20.5,A,F20.5,A)') " get_interp_stat> The highest image ", JMAX, " with energy ", MAXE, " is ", ABS(MAXE-SUME)/SIGMAE, " sigma from the mean"
-         WRITE(*,'(A,F20.5,A,F20.5)') "                  The average energy per image is ", SUME, " with variance of ", SUME2
+         WRITE(*,'(A,F20.5,A,F20.5)') "                  The average energy per image is ", SUME, " with variance of ", SIGMAE
          WRITE(*,*)
 
       END SUBROUTINE GET_STATISTIC_INTERP
