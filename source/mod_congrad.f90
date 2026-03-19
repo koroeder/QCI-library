@@ -18,44 +18,34 @@ MODULE CONSTR_E_GRAD
    INTEGER :: MAXCONIMAGE, MAXREPIMAGE, MAXSPRIMAGE                          !< image with highest constraint / repulsion
    INTEGER :: MAXCONSTR, MAXREP, MAXDIH                                      !< index for worst constraint / repulsion
    REAL(KIND=REAL64) :: CONVERGECONTEST, CONVERGEREPTEST, CONVERGENCEDIHTEST !< energy of that term
-   REAL(KIND=REAL64) :: FCONTEST, FREPTEST, FDIHTEST
+   !REAL(KIND=REAL64) :: FCONTEST, FREPTEST, FDIHTEST
    REAL(KIND=REAL64) :: EMAXSPR
    REAL(KIND=REAL64) :: FCONMAX, FREPMAX, FDIHMAX                 !< maximum gradient 
+   REAL(KIND=REAL64) :: FMAX  !< Maximum force on an atom
    INTEGER :: CALLN = 0
    
      
    CONTAINS
 
-      SUBROUTINE CONGRAD(ETOTAL, XYZ, GGG, EEE, RMS, WRITE_OUTPUT)
+      SUBROUTINE CONGRAD(ETOTAL, XYZ, GGG, EEE, RMS)
          USE QCIKEYS, ONLY: NIMAGES, NATOMS, CHECKCONINT
          REAL(KIND = REAL64), INTENT(IN) :: XYZ(3*NATOMS*(NIMAGES+2))   !< input coordinates
          REAL(KIND = REAL64), INTENT(OUT) :: GGG(3*NATOMS*(NIMAGES+2))  !< gradient for each atom in each image
          REAL(KIND = REAL64), INTENT(OUT) :: EEE(NIMAGES+2)             !< energy for each image
          REAL(KIND = REAL64), INTENT(OUT) :: ETOTAL                    !< overall energy
          REAL(KIND = REAL64), INTENT(OUT) :: RMS                       !< total force
-         LOGICAL, INTENT(IN), OPTIONAL :: WRITE_OUTPUT                 ! output energies only when we need to
-         LOGICAL :: W_O 
-
-         !initialise dihedral convergence test, so we can still have convergence if we don't use dihedrals
-         CONVERGENCEDIHTEST = -(HUGE(1.0D0))
-         FDIHTEST = -(HUGE(1.0D0))
-
-         W_O = .FALSE.
-         IF (PRESENT(WRITE_OUTPUT)) W_O= WRITE_OUTPUT
-
-
 
          ! call correct congrad routine
          IF (CHECKCONINT) THEN
-            CALL CONGRAD2(ETOTAL, XYZ, GGG, EEE, RMS, W_O)
+            CALL CONGRAD2(ETOTAL, XYZ, GGG, EEE, RMS)
             ELSE
-            CALL CONGRAD1(ETOTAL, XYZ, GGG, EEE, RMS, W_O)
+            CALL CONGRAD1(ETOTAL, XYZ, GGG, EEE, RMS)
          END IF
          
       END SUBROUTINE CONGRAD
 
 
-      SUBROUTINE CONGRAD1(ETOTAL, XYZ, GGG, EEE, RMS, WRITE_OUTPUT)
+      SUBROUTINE CONGRAD1(ETOTAL, XYZ, GGG, EEE, RMS)
          USE QCIKEYS, ONLY: NIMAGES, NATOMS, QCICONSTRREP, KINT, QCIFREEZET, QCIFROZEN, INTCONSTRAINTDEL, &
                             USEDIHEDRALCONST
          USE OUT_PRINT, ONLY: SAVE_OUT
@@ -65,7 +55,6 @@ MODULE CONSTR_E_GRAD
          REAL(KIND = REAL64), INTENT(OUT) :: EEE(NIMAGES+2)             ! energy for each image
          REAL(KIND = REAL64), INTENT(OUT) :: ETOTAL                    ! overall energy
          REAL(KIND = REAL64), INTENT(OUT) :: RMS                       ! total force
-         LOGICAL, INTENT(IN), OPTIONAL :: WRITE_OUTPUT                 ! output energies only when we need to 
         
          REAL(KIND = REAL64) :: ECON, EREP, ESPR, EDIH      ! QUERY: should these be globals in keys?
          REAL(KIND = REAL64) :: EEEC(NIMAGES+2), GGGC(3*NATOMS*(NIMAGES+2))
@@ -73,10 +62,6 @@ MODULE CONSTR_E_GRAD
          REAL(KIND = REAL64) :: EEES(NIMAGES+2), GGGS(3*NATOMS*(NIMAGES+2))
          REAL(KIND = REAL64) :: EEED(NIMAGES+2), GGGD(3*NATOMS*(NIMAGES+2))
          INTEGER :: J1, J2
-         LOGICAL :: W_O 
-
-         W_O = .FALSE.
-         IF (PRESENT(WRITE_OUTPUT)) W_O= WRITE_OUTPUT
 
          CALLN = CALLN + 1
 
@@ -96,15 +81,28 @@ MODULE CONSTR_E_GRAD
          ! QUERY: what is INTCONSTRAINTDEL? seems like a scaling for the potential
          IF (.NOT.(INTCONSTRAINTDEL.EQ.0.0D0)) THEN
             CALL GET_CONSTRAINT_E_NOINTERNAL(XYZ,GGGC,EEEC,ECON)
+         ELSE
+             !Set convergence criteria to 0 if we don't use constraints. 
+             CONVERGECONTEST = 0.0D0
+             FCONMAX = 0.0D0
          END IF
+         
          IF (.NOT.(QCICONSTRREP.EQ.0.0D0)) THEN
             CALL GET_REPULSION_E(XYZ,GGGR,EEER,EREP)
+         ELSE
+            CONVERGEREPTEST = 0.0D0
+            FREPMAX = 0.0D0
          END IF
+         
          IF (.NOT.(KINT.EQ.0.0D0)) THEN
             CALL GET_SPRING_E(XYZ, GGGS, EEES, ESPR)
          END IF
+         
          IF (USEDIHEDRALCONST) THEN
             CALL GET_DIH_CON_E(XYZ,GGGD,EEED,EDIH)
+         ELSE
+            CONVERGENCEDIHTEST = 0.0D0
+            FDIHMAX = 0.0D0
          END IF
 
          ! add all contributions
@@ -134,22 +132,23 @@ MODULE CONSTR_E_GRAD
                RMS = RMS + GGG((3*NATOMS)*(J1-1)+J2)**2
             END DO
          END DO
+
+         FMAX = MAX( MAXVAL(GGG), DABS(MINVAL(GGG)))
          RMS = SQRT(RMS/(3*NATOMS*NIMAGES))
          ETOTAL = SUM(EEE(2:NIMAGES+1))
          
          !Save outputs, so we can choose when to print
-         CALL SAVE_OUT(ETOTAL, RMS, EREP, ECON, ESPR, EDIH, FCONTEST, FREPTEST, FDIHTEST, CONVERGECONTEST, CONVERGEREPTEST, CONVERGENCEDIHTEST)
+         CALL SAVE_OUT(ETOTAL, RMS, EREP, ECON, ESPR, EDIH, FCONMAX, FREPMAX, FDIHMAX, CONVERGECONTEST, CONVERGEREPTEST, CONVERGENCEDIHTEST)
 
-         !IF (W_O) THEN
          !   WRITE(*,*) " congrad1> E total: ", ETOTAL, "RMS: ", RMS, " E rep: ", SUM(EEER), " E constr: ", SUM(EEEC)
          !   WRITE(*,*) "                                              E spring: ", SUM(EEES), " E dih: ", SUM(EEED)
-         !   WRITE(*,*) " congrad1> FCONTEST: ", FCONTEST, " FREPTEST: ", FREPTEST
+         !   WRITE(*,*) " congrad1> FCONMAX: ", FCONMAX, " FREPMAX: ", FREPMAX
          !   WRITE(*,*) " congrad1> CONVERGECONTEST: ", CONVERGECONTEST, " CONVERGEREPTEST: ", CONVERGEREPTEST
-         !ENDIF 
+
       END SUBROUTINE CONGRAD1
 
 
-      SUBROUTINE CONGRAD2(ETOTAL, XYZ, GGG, EEE, RMS, WRITE_OUTPUT)
+      SUBROUTINE CONGRAD2(ETOTAL, XYZ, GGG, EEE, RMS)
          USE QCIKEYS, ONLY: NIMAGES, NATOMS, KINT, QCIFREEZET, QCIFROZEN, QCICONSTRREP, INTCONSTRAINTDEL, &
                             USEDIHEDRALCONST
          USE OUT_PRINT, ONLY: SAVE_OUT
@@ -159,7 +158,6 @@ MODULE CONSTR_E_GRAD
          REAL(KIND = REAL64), INTENT(OUT) :: EEE(NIMAGES+2)             ! energy for each image
          REAL(KIND = REAL64), INTENT(OUT) :: ETOTAL                    ! overall energy
          REAL(KIND = REAL64), INTENT(OUT) :: RMS                       ! total force
-         LOGICAL, INTENT(IN), OPTIONAL :: WRITE_OUTPUT                 ! output energies only when we need to 
 
          REAL(KIND = REAL64) :: ECON, EREP, ESPR, EDIH      ! QUERY: should these be globals in keys?
          REAL(KIND = REAL64) :: EEEC(NIMAGES+2), GGGC(3*NATOMS*(NIMAGES+2))
@@ -167,11 +165,6 @@ MODULE CONSTR_E_GRAD
          REAL(KIND = REAL64) :: EEES(NIMAGES+2), GGGS(3*NATOMS*(NIMAGES+2))
          REAL(KIND = REAL64) :: EEED(NIMAGES+2), GGGD(3*NATOMS*(NIMAGES+2))
          INTEGER :: J1, J2
-
-         LOGICAL :: W_O 
-
-         W_O = .FALSE.
-         IF (PRESENT(WRITE_OUTPUT)) W_O= WRITE_OUTPUT
 
          ! initiate some variables
          EEE(1:NIMAGES+2)=0.0D0
@@ -190,15 +183,28 @@ MODULE CONSTR_E_GRAD
          IF (.NOT.(INTCONSTRAINTDEL.EQ.0.0D0)) THEN
             !use the constraint energy including the internal extrema
             CALL GET_CONSTRAINT_E(XYZ,GGGC,EEEC,ECON)
+         ELSE
+             !Set convergence criteria to 0 if we don't use constraints. 
+             CONVERGECONTEST = 0.0D0
+             FCONMAX = 0.0D0
          END IF
+   
          IF (.NOT.(QCICONSTRREP.EQ.0.0D0)) THEN
             CALL GET_REPULSION_E2(XYZ,GGGR,EEER,EREP)
+         ELSE
+            CONVERGEREPTEST = 0.0D0
+            FREPMAX = 0.0D0
          END IF
+
          IF (.NOT.(KINT.EQ.0.0D0)) THEN
             CALL GET_SPRING_E(XYZ, GGGS, EEES, ESPR)
          END IF
+         
          IF (USEDIHEDRALCONST) THEN
             CALL GET_DIH_CON_E(XYZ,GGGD,EEED,EDIH)
+         ELSE
+            CONVERGENCEDIHTEST = 0.0D0
+            FDIHMAX = 0.0D0
          END IF
 
          ! add all contributions
@@ -230,15 +236,16 @@ MODULE CONSTR_E_GRAD
             END DO
          END DO
          RMS = SQRT(RMS/(3*NATOMS*NIMAGES))
+         FMAX = MAX( MAXVAL(GGG), DABS(MINVAL(GGG)))
          ETOTAL = SUM(EEE(2:NIMAGES+1))
          
-         CALL SAVE_OUT(ETOTAL, RMS, EREP, ECON, ESPR, EDIH, FCONTEST, FREPTEST, FDIHTEST, CONVERGECONTEST, CONVERGEREPTEST, CONVERGENCEDIHTEST)
-         !IF (W_O) THEN
+         CALL SAVE_OUT(ETOTAL, RMS, EREP, ECON, ESPR, EDIH, FCONMAX, FREPMAX, FDIHMAX, CONVERGECONTEST, CONVERGEREPTEST, CONVERGENCEDIHTEST)
+         
          !   WRITE(*,*) " congrad2> E total: ", ETOTAL, "RMS: ", RMS, " E rep: ", SUM(EEER), " E constr: ", SUM(EEEC)
          !   WRITE(*,*) "                                              E spring: ", SUM(EEES), " E dih: ", SUM(EEED)
-         !   WRITE(*,*) " congrad2> FCONTEST: ", FCONTEST, " FREPTEST: ", FREPTEST
+         !   WRITE(*,*) " congrad2> FCONMAX: ", FCONMAX, " FREPMAX: ", FREPMAX
          !   WRITE(*,*) " congrad2> CONVERGECONTEST: ", CONVERGECONTEST, " CONVERGEREPTEST: ", CONVERGEREPTEST
-         !ENDIF
+        
 
          END SUBROUTINE CONGRAD2    
 
@@ -320,22 +327,19 @@ MODULE CONSTR_E_GRAD
                   ! calculate gradient and energy
                                                      
                   !GRADAB(1:3)=2.0D0*K_CONST*LOCALCONFACTOR*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G2(1:3)
-
-
                   GRADAB(1:3)=2.0D0*K_CONST*LOCALCONFACTOR*((DUMMY2-CCLOCAL2)/CCLOCAL2**2)*DUMMY*G2(1:3)
                   
                   ! Eq(8) J.Chem.Theory Comput. 2012, 8, 5020-5034
                   ! Deviation from published equation ... added /CCLOCAL**2  
                   !old equation: V_con(d^i_AB) = (k_con* ((d^i_AB - ave(d_AB))^2 -(C^con_AB)^2 )^2 )/ 2*(C^con_AB)^2
+                  !DUMMY = 0.5D0*K_CONST*LOCALCONFACTOR*((DUMMY/CCLOCAL)**2-1.0D0)**2 *CCLOCAL2
                   ! new: V_con(d^i_AB) = (k_con* ((d^i_AB - ave(d_AB))^2 -(C^con_AB)^2 )^2 )/ 2*(C^con_AB)^4
                   DUMMY = K_CONST*LOCALCONFACTOR*((DUMMY2-CCLOCAL2)**2/(2.0D0*CCLOCAL2**2))
-                  
-                  !DUMMY = 0.5D0*K_CONST*LOCALCONFACTOR*((DUMMY/CCLOCAL)**2-1.0D0)**2 *CCLOCAL2
-                  
+                                    
                   EEE(J1) = EEE(J1) + DUMMY
                   ECON = ECON + DUMMY
-                  !!!!!!debugging WRITE(*,*) " For image ", J1, " dist: ", DIST, " dummy: ", DIST - CONDISTREFLOCAL(J2), " energy: ", DUMMY 
-                  ! save largest contribution to ECON
+                   
+                  ! save largest contribution to EMAX
                   IF (DUMMY.GT.EMAX) THEN
                      IMAX = J1
                      JMAX = J2
@@ -345,6 +349,7 @@ MODULE CONSTR_E_GRAD
                   
                   GGG(NI1+1:NI1+3)=GGG(NI1+1:NI1+3)+GRADAB(1:3)
                   GGG(NJ1+1:NJ1+3)=GGG(NJ1+1:NJ1+3)-GRADAB(1:3)
+                  
                   DUMMY2=MINVAL(GRADAB)
                   IF (DUMMY2.LT.FMIN) FMIN=DUMMY2
                   DUMMY2=MAXVAL(GRADAB)
@@ -354,7 +359,7 @@ MODULE CONSTR_E_GRAD
          END DO
          !QUERY: FIs FMAX definitely for the same JMAX and IMAX as EMAX?
          IF (-FMIN.GT.FMAX) FMAX=-FMIN
-         FCONTEST=FMAX
+         FCONMAX=FMAX
          CONVERGECONTEST=EMAX/K_CONST
          MAXCONIMAGE = JMAX
          MAXCONSTR = IMAX
@@ -437,7 +442,7 @@ MODULE CONSTR_E_GRAD
          END DO
          
          IF (-FMIN.GT.FMAX) FMAX=-FMIN
-         FDIHTEST=FMAX
+         FDIHMAX=FMAX
          CONVERGENCEDIHTEST=EMAX/KDIH
          MAXDIHIMAGE = JMAX
          MAXDIHR = IMAX
@@ -511,6 +516,7 @@ MODULE CONSTR_E_GRAD
             ! go through all images 
             ! QUERY: here we differ from the no internal minimum routine - why are we going up to NIMAGES+2
             DO J1=2,NIMAGES+2
+               
                NI1=(3*NATOMS)*(J1-2)+3*(CONI(J2)-1)
                NI2=(3*NATOMS)*(J1-1)+3*(CONI(J2)-1)
                NJ1=(3*NATOMS)*(J1-2)+3*(CONJ(J2)-1)
@@ -552,13 +558,12 @@ MODULE CONSTR_E_GRAD
                   
                   !CONSTGRAD(1:3)=2.0D0*K_CONST*INTCONSTRAINTDEL*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G2(1:3)
                   !DUMMY=INTCONSTRAINTDEL*(DUMMY**2-CCLOCAL**2)**2/(2.0D0*CCLOCAL**2)
-                  ! We are missing eps_con
+                 
                  
                   !CONSTGRAD(1:3)=2.0D0*K_CONST*LOCALCONFACTOR*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G2(1:3)
-                  !CONSTGRAD(1:3)=2.0D0*K_CONST*LOCALCONFACTOR*((DUMMY/CCLOCAL)-1.0D0)*((DUMMY/CCLOCAL)+1.0D0)*DUMMY*G2(1:3)
-                  CONSTGRAD(1:3)=2.0D0*K_CONST*LOCALCONFACTOR*((DUMMY**2-CCLOCAL**2)/CCLOCAL**4)*DUMMY*G2(1:3)      
+                   CONSTGRAD(1:3)=2.0D0*K_CONST*LOCALCONFACTOR*((DUMMY**2-CCLOCAL**2)/CCLOCAL**4)*DUMMY*G2(1:3)      
                   ! V_con(d^i_AB) = eps_con ((d^i_AB-ave*(d^i_AB))^2 - C_con_AB^2 )^2 / 2(C_con_AB)^2
-                  !Changed equrion from the published one by factor (1/CCLOCAL**2)
+                  !Changed eqution from the published one by factor (1/CCLOCAL**2)
                   DUMMY=K_CONST*LOCALCONFACTOR*((DUMMY**2-CCLOCAL**2)**2)/(2.0D0*CCLOCAL**4)                  
                  
                   !DUMMY=0.5D0*K_CONST*LOCALCONFACTOR*(((DUMMY/CCLOCAL)-1.0D0)*((DUMMY/CCLOCAL)+1.0D0)*CCLOCAL)**2
@@ -575,7 +580,7 @@ MODULE CONSTR_E_GRAD
                   GGG(NJ2+1:NJ2+3)=GGG(NJ2+1:NJ2+3)-CONSTGRAD(1:3)
 
                   !Added block to track FMAX
-                   DUMMY=MINVAL(CONSTGRAD)
+                  DUMMY=MINVAL(CONSTGRAD)
                   IF (DUMMY.LT.FMIN) FMIN=DUMMY
                   DUMMY=MAXVAL(CONSTGRAD)
                   IF (DUMMY.GT.FMAX) FMAX=DUMMY
@@ -659,7 +664,7 @@ MODULE CONSTR_E_GRAD
          CONVERGECONTEST=EMAX/K_CONST
 
          IF (-FMIN.GT.FMAX) FMAX=-FMIN
-         FCONTEST=FMAX
+         FCONMAX=FMAX
          MAXCONIMAGE = JMAX
          MAXCONSTR = IMAX
 
@@ -834,6 +839,11 @@ MODULE CONSTR_E_GRAD
                   GGG(NI2+1:NI2+3)=GGG(NI2+1:NI2+3)+REPGRAD(1:3)
                   GGG(NJ2+1:NJ2+3)=GGG(NJ2+1:NJ2+3)-REPGRAD(1:3)
 
+                  !Added block to track FMAX
+                  DUMMY=MINVAL(REPGRAD)
+                  IF (DUMMY.LT.FMIN) FMIN=DUMMY
+                  DUMMY=MAXVAL(REPGRAD)
+                  IF (DUMMY.GT.FMAX) FMAX=DUMMY
                END IF  
                ! For internal minima we are counting edges. 
                ! Edge J1 is between images J1-1 and J1, starting from J1=2.
@@ -882,34 +892,37 @@ MODULE CONSTR_E_GRAD
                   GGG2(NI1+1:NI1+3)=GGG2(NI1+1:NI1+3)+REPGRAD(1:3)
                   GGG2(NJ1+1:NJ1+3)=GGG2(NJ1+1:NJ1+3)-REPGRAD(1:3)
                   
-                  !QUESTION what is this?
-                  !DUMMY2=MINVAL(REPGRAD)
-                  
+                  !Added block to track FMAX
+                  DUMMY=MINVAL(REPGRAD)
+                  IF (DUMMY.LT.FMIN) FMIN=DUMMY
+                  DUMMY=MAXVAL(REPGRAD)
+                  IF (DUMMY.GT.FMAX) FMAX=DUMMY
+                 
                   ! Gradient contributions for image J1
                   ! This one can be added normally
                   REPGRAD(1:3)=INTMINFAC*DUMMY*G2INT(1:3)
                                                    
                   GGG(NI2+1:NI2+3)=GGG(NI2+1:NI2+3)+REPGRAD(1:3)
                   GGG(NJ2+1:NJ2+3)=GGG(NJ2+1:NJ2+3)-REPGRAD(1:3)
+
+                  !Added block to track FMAX
+                  DUMMY=MINVAL(REPGRAD)
+                  IF (DUMMY.LT.FMIN) FMIN=DUMMY
+                  DUMMY=MAXVAL(REPGRAD)
+                  IF (DUMMY.GT.FMAX) FMAX=DUMMY
                   
                END IF
-               !WRITE(*,*) " EREP1: ", EREP1, " EREP2: ", EREP2
             END DO
-            
          END DO
 
          GGG2 = CSHIFT(GGG2,SHIFT=3*NATOMS)
          GGG(1:3*NATOMS*(NIMAGES+2)) = GGG(1:3*NATOMS*(NIMAGES+2))+ GGG2(1:3*NATOMS*(NIMAGES+2))
-
-         !WRITE(*,*) "Before CShift EEE2 ", EEE2
+         
          EEE2 = CSHIFT(EEE2,SHIFT=1)
-         !WRITE(*,*) "After CShift EEE2 ", EEE2
          EEE(1:NIMAGES+2)=EEE(1:NIMAGES+2)+EEE2(1:NIMAGES+2) 
-       
-         FMIN=MINVAL(GGG(3*NATOMS+1:3*NATOMS*(NIMAGES+1)))
-         FMAX=MAXVAL(GGG(3*NATOMS+1:3*NATOMS*(NIMAGES+1)))
+         
          IF (-FMIN.GT.FMAX) FMAX=-FMIN
-         FREPTEST=FMAX
+         FREPMAX=FMAX
          CONVERGEREPTEST=EMAX/K_REP
          MAXCONIMAGE = JMAX
          MAXCONSTR = IMAX
@@ -1107,7 +1120,7 @@ MODULE CONSTR_E_GRAD
          FMIN=MINVAL(GGG(3*NATOMS+1:3*NATOMS*(NIMAGES+1)))
          FMAX=MAXVAL(GGG(3*NATOMS+1:3*NATOMS*(NIMAGES+1)))
          IF (-FMIN.GT.FMAX) FMAX=-FMIN
-         FREPTEST=FMAX
+         FREPMAX=FMAX
          !QUESTION why this convergence test?
          !CONVERGEREPTEST=EMAX/QCICONSTRREP
          CONVERGEREPTEST=EMAX/K_REP
@@ -1180,14 +1193,15 @@ MODULE CONSTR_E_GRAD
             DO J2=1,NATOMS
                SPGRAD = 0.0D0
                IF ((.NOT.QCISPRINGACTIVET).OR.ATOMACTIVE(J2)) THEN 
+                  
                   SPGRAD(1:3)=DUMMY*(XYZ(NI1+3*(J2-1)+1:NI1+3*(J2-1)+3)-XYZ(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3))
                   
                   !Image J-1
                   !GGG(NI1+3*(J2-1)+1:NI1+3*(J2-1)+3)=GGG(NI1+3*(J2-1)+1:NI1+3*(J2-1)+3)+SPGRAD(1:3)
                   GGG2(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)=GGG2(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)+SPGRAD(1:3)
-                  
                   !Image J
                   GGG(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)=GGG(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)-SPGRAD(1:3)
+
                ENDIF
             ENDDO
          END DO
