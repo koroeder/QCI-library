@@ -698,6 +698,7 @@ MODULE CONSTR_E_GRAD
          REAL(KIND = REAL64) :: DINT, DSQI, G1INT(3), G2INT(3)       !< information for internal minimum contribution
          REAL(KIND=REAL64) :: EMAX, FMIN, FMAX
          REAL(KIND=REAL64) :: DUMMY, DUMMY2
+         REAL(KIND=REAL64) :: TEMPF
          INTEGER :: IMAX, JMAX
 
          !variables to try make sence of indices and what goes wrong
@@ -728,7 +729,7 @@ MODULE CONSTR_E_GRAD
          
          DINT=0.0D0; DSQI=0.0D0; G1INT(3)=0.0D0; G2INT(3)=0.0D0
          DUMMY=0.0D0; DUMMY2=0.0D0
-        
+         TEMPF=0.0D0
 
 
          EMAX = -(HUGE(1.0D0))
@@ -840,10 +841,10 @@ MODULE CONSTR_E_GRAD
                   GGG(NJ2+1:NJ2+3)=GGG(NJ2+1:NJ2+3)-REPGRAD(1:3)
 
                   !Added block to track FMAX
-                  DUMMY=MINVAL(REPGRAD)
-                  IF (DUMMY.LT.FMIN) FMIN=DUMMY
-                  DUMMY=MAXVAL(REPGRAD)
-                  IF (DUMMY.GT.FMAX) FMAX=DUMMY
+                  TEMPF=MINVAL(REPGRAD)
+                  IF (TEMPF.LT.FMIN) FMIN=TEMPF
+                  TEMPF=MAXVAL(REPGRAD)
+                  IF (TEMPF.GT.FMAX) FMAX=TEMPF
                END IF  
                ! For internal minima we are counting edges. 
                ! Edge J1 is between images J1-1 and J1, starting from J1=2.
@@ -893,10 +894,10 @@ MODULE CONSTR_E_GRAD
                   GGG2(NJ1+1:NJ1+3)=GGG2(NJ1+1:NJ1+3)-REPGRAD(1:3)
                   
                   !Added block to track FMAX
-                  DUMMY=MINVAL(REPGRAD)
-                  IF (DUMMY.LT.FMIN) FMIN=DUMMY
-                  DUMMY=MAXVAL(REPGRAD)
-                  IF (DUMMY.GT.FMAX) FMAX=DUMMY
+                  TEMPF=MINVAL(REPGRAD)
+                  IF (TEMPF.LT.FMIN) FMIN=TEMPF
+                  TEMPF=MAXVAL(REPGRAD)
+                  IF (TEMPF.GT.FMAX) FMAX=TEMPF
                  
                   ! Gradient contributions for image J1
                   ! This one can be added normally
@@ -906,10 +907,10 @@ MODULE CONSTR_E_GRAD
                   GGG(NJ2+1:NJ2+3)=GGG(NJ2+1:NJ2+3)-REPGRAD(1:3)
 
                   !Added block to track FMAX
-                  DUMMY=MINVAL(REPGRAD)
-                  IF (DUMMY.LT.FMIN) FMIN=DUMMY
-                  DUMMY=MAXVAL(REPGRAD)
-                  IF (DUMMY.GT.FMAX) FMAX=DUMMY
+                  TEMPF=MINVAL(REPGRAD)
+                  IF (TEMPF.LT.FMIN) FMIN=TEMPF
+                  TEMPF=MAXVAL(REPGRAD)
+                  IF (TEMPF.GT.FMAX) FMAX=TEMPF
                   
                END IF
             END DO
