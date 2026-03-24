@@ -920,4 +920,173 @@ MODULE CHIRALITY
          ENDDO
       END SUBROUTINE CHECK_BOND 
 
+
+
+      SUBROUTINE ONLY_CHECK_SINGLE_CHIRAL_CENTRE(CHIRALGROUP, XYZ, CHANGED)
+         USE INTERPOLATION_KEYS, ONLY: ATOMACTIVE
+         USE QCIKEYS, ONLY: NATOMS, DEBUG, NIMAGES, ATOMS2RES
+         USE AMBER_CONSTRAINTS, ONLY: NBOND, BONDS, ELEMENT
+         INTEGER, INTENT(IN) :: CHIRALGROUP
+         REAL(KIND = REAL64), INTENT(IN) :: XYZ((3*NATOMS)*(NIMAGES+2))
+         LOGICAL, INTENT(OUT) :: CHANGED
+         INTEGER :: CHIRALCENTRE
+         INTEGER :: J1, J2, J3, IDX1, IDX2
+         REAL(KIND = REAL64) :: NEIGHBOUR_COORDS(12), CENTRE_COORDS(3)
+         REAL(KIND = REAL64) :: COORDSA(3*NATOMS), COORDSB(3*NATOMS)
+         INTEGER :: ATOMID
+         INTEGER :: NCHANGE, CHANGEAT(NATOMS), THISIMAGE, PREVIMAGE, OFFSET, OFFSET2
+         LOGICAL :: CENTREACTIVE
+         LOGICAL :: THIS_SR, PREV_SR
+         INTEGER :: NCONSTPERATOM(4), SORTED_IDX(4), SORTED_NB(4), SORTED_ELS(4), NB, EL
+         INTEGER :: SWITCH1, SWITCH2
+
+         CHANGED = .FALSE.
+         !we set the number initially to -1 to discount the bond to the chiral centre
+         NCONSTPERATOM(1:4) = -1
+         !get the number of bonds to active atoms for the four connected atoms
+         DO J1=1,NBOND
+            IDX1 = BONDS(J1,1)
+            IDX2 = BONDS(J1,2)
+            IF (ATOMACTIVE(IDX1).AND.ATOMACTIVE(IDX2)) THEN
+               DO J2=1,4
+                  ATOMID = CHIR_INFO(CHIRALGROUP,J2+1)
+                  IF ((IDX1.EQ.ATOMID).OR.(IDX2.EQ.ATOMID)) THEN
+                     NCONSTPERATOM(J2) = NCONSTPERATOM(J2) + 1
+                  END IF
+               END DO
+            END IF
+         END DO
+
+         !get a priority list based on (1) number of bonds (the lower the better) and (2) the element
+         SORTED_IDX(1:4) = -1
+         SORTED_NB(1:4) = 100
+         SORTED_ELS(1:4) = 100
+
+         DO J1=1,4
+            IDX1 = CHIR_INFO(CHIRALGROUP,J1+1)
+            NB = NCONSTPERATOM(J1)
+            EL = ELEMENT(IDX1)
+            DO J2=1,4
+               IF ((NB.LT.SORTED_NB(J2)).OR.((NB.EQ.SORTED_NB(J2)).AND.(EL.LT.SORTED_ELS(J2)))) THEN
+                  DO J3=4,J2+1,-1
+                     SORTED_NB(J3)=SORTED_NB(J3-1)
+                     SORTED_ELS(J3)=SORTED_ELS(J3-1)
+                     SORTED_IDX(J3)=SORTED_IDX(J3-1)
+                  END DO
+                  SORTED_NB(J2) = NB
+                  SORTED_ELS(J2) = EL
+                  SORTED_IDX(J2) = IDX1
+                  EXIT
+               END IF
+            END DO
+         END DO
+         SWITCH1 = SORTED_IDX(1)
+         SWITCH2 = SORTED_IDX(2)
+
+         CHIRALCENTRE = CHIR_INFO(CHIRALGROUP,1)
+         WRITE(*,*) " check_single_centre> Checking chirality for atom ", CHIRALCENTRE
+         WRITE(*,*) " check_single_centre> Atoms attached: ", SORTED_IDX
+         WRITE(*,*) " check_single_centre> Bonds to active atoms: ", SORTED_NB
+         WRITE(*,*) " check_single_centre> Elements: ", SORTED_ELS
+         PREV_SR = .FALSE.
+         !apply the actual check            
+         DO J1=1,NIMAGES+2
+            CENTRE_COORDS(1) = XYZ(3*NATOMS*(J1-1)+3*CHIRALCENTRE-2)
+            CENTRE_COORDS(2) = XYZ(3*NATOMS*(J1-1)+3*CHIRALCENTRE-1)
+            CENTRE_COORDS(3) = XYZ(3*NATOMS*(J1-1)+3*CHIRALCENTRE)
+
+            DO J2=1,4
+               ATOMID = CHIR_INFO(CHIRALGROUP,J2+1)
+               NEIGHBOUR_COORDS(3*J2-2) = XYZ(3*NATOMS*(J1-1)+3*ATOMID-2)
+               NEIGHBOUR_COORDS(3*J2-1) = XYZ(3*NATOMS*(J1-1)+3*ATOMID-1)
+               NEIGHBOUR_COORDS(3*J2)   = XYZ(3*NATOMS*(J1-1)+3*ATOMID)
+            END DO
+
+            ! if this is the first image (i.e. the starting point), set SR for the current group
+            IF (J1.EQ.1) THEN
+               PREV_SR = ASSIGNMENT_SR(NEIGHBOUR_COORDS,CENTRE_COORDS)
+               CYCLE
+            END IF
+            ! S/R assignment for current image
+            THIS_SR = ASSIGNMENT_SR(NEIGHBOUR_COORDS,CENTRE_COORDS)
+            IF (THIS_SR.NEQV.PREV_SR) THEN
+               WRITE(*,*) " check_single_centre> Atom ", CHIRALCENTRE, " image ", J1, " chirality changed"
+               CHANGED = .TRUE.                 
+            END IF
+         END DO
+      END SUBROUTINE ONLY_CHECK_SINGLE_CHIRAL_CENTRE
+
+      
+      SUBROUTINE CHIRALITY_CHECK_ONLY(XYZ, CHANGED)
+         USE INTERPOLATION_KEYS, ONLY: ATOMACTIVE
+         USE MOD_INTCOORDS, ONLY: WRITE_BAND
+         USE QCIKEYS, ONLY: NATOMS, DEBUG, NIMAGES, ATOMS2RES
+         USE AMBER_CONSTRAINTS, ONLY: RES_START, RES_END
+         USE QCIMINDIST, ONLY: ALIGNXBTOA
+         IMPLICIT NONE
+         REAL(KIND = REAL64), INTENT(INOUT) :: XYZ((3*NATOMS)*(NIMAGES+2)) !< all atom coordinates
+         LOGICAL, INTENT(OUT) :: CHANGED
+         REAL(KIND = REAL64) :: NEIGHBOUR_COORDS(12), CENTRE_COORDS(3) !intent needed?
+         REAL(KIND = REAL64) :: COORDSA(3*NATOMS), COORDSB(3*NATOMS)
+         INTEGER :: CHIRALCENTRE
+         INTEGER :: J1, J2, J3, J4, ATOMID, ACID
+         INTEGER :: NCHANGE, CHANGEAT(NATOMS), THISIMAGE, PREVIMAGE, OFFSET, OFFSET2
+         LOGICAL :: CENTREACTIVE
+         LOGICAL :: THIS_SR, PREV_SR
+
+         IF (DEBUG) WRITE(*,*) " chirality-check> Running check for chirality conservation across all images"
+
+         IF (NCHIRAL.EQ.-1) THEN
+            WRITE(*,*) " chirality-check> The number of chiral centres is -1. It looks like FIND_CHIRAL was not run. Is QCIAMBER set?"
+            CALL INT_ERR_TERMINATE()
+         ELSE IF (NCHIRAL.EQ.0) THEN
+            WRITE(*,*) " chirality-check>  There are no chiral centres - check this is correct as CHECKCHIRAL is set to true."
+            RETURN
+         END IF
+
+         PREV_SR = .FALSE.
+         CHANGED = .FALSE.
+         DO J1=1,NCHIRAL
+            CENTREACTIVE = .TRUE.
+            CHIRALCENTRE = CHIR_INFO(J1,1)
+            !check whether the chiral centre and connected atoms are active
+            IF (.NOT.ATOMACTIVE(CHIRALCENTRE)) CENTREACTIVE = .FALSE.
+            DO J2=2,5
+               IF (.NOT.ATOMACTIVE(CHIR_INFO(J1,J2))) CENTREACTIVE = .FALSE.
+            END DO
+            IF (.NOT.CENTREACTIVE) CYCLE
+            !now apply the actual check   
+            !QUESTION here we go from J3=1 to NIMAGES+2?  
+            DO J3=1,NIMAGES+2
+
+               NEIGHBOUR_COORDS = 0.0D0
+               CENTRE_COORDS = 0.0D0
+
+               CENTRE_COORDS(1) = XYZ(3*NATOMS*(J3-1)+3*CHIRALCENTRE-2) !x
+               CENTRE_COORDS(2) = XYZ(3*NATOMS*(J3-1)+3*CHIRALCENTRE-1) !y
+               CENTRE_COORDS(3) = XYZ(3*NATOMS*(J3-1)+3*CHIRALCENTRE)   !z
+
+               DO J4=1,4
+                  ATOMID = CHIR_INFO(J1,J4+1)
+                  NEIGHBOUR_COORDS(3*J4-2) = XYZ(3*NATOMS*(J3-1)+3*ATOMID-2)
+                  NEIGHBOUR_COORDS(3*J4-1) = XYZ(3*NATOMS*(J3-1)+3*ATOMID-1)
+                  NEIGHBOUR_COORDS(3*J4)   = XYZ(3*NATOMS*(J3-1)+3*ATOMID)
+               END DO
+               ! if this is the first image (i.e. the starting point), set SR for the current group
+               IF (J3.EQ.1) THEN
+                  PREV_SR = ASSIGNMENT_SR(NEIGHBOUR_COORDS,CENTRE_COORDS)
+                  CYCLE
+               END IF
+               ! S/R assignment for current image
+               THIS_SR = ASSIGNMENT_SR(NEIGHBOUR_COORDS,CENTRE_COORDS)
+               IF (THIS_SR.NEQV.PREV_SR) THEN
+                  WRITE(*,*) "chirality_check_only> Chirality changed! CHIRAL CENTRE", CHIRALCENTRE 
+                  CHANGED = .TRUE.                  
+                  EXIT
+
+               END IF
+            END DO
+         END DO
+      END SUBROUTINE CHIRALITY_CHECK_ONLY
+
 END MODULE CHIRALITY

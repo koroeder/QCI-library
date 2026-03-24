@@ -204,6 +204,12 @@ MODULE QCIINTERPOLATION
             !if not all atoms are active, we add an atom now to the active set and hence the images
             IF (ADDATOMT.AND.(NACTIVE.LT.NATOMS)) THEN
                WRITE(*,*) " QCIinterp> Adding the next atom to active set" 
+               
+               IF (CHECKCHIRAL) THEN
+                  WRITE(*,*) " QCIinterp> Checking chirality across band"
+                  CALL CHIRALITY_CHECK(XYZ) 
+               END IF
+               
                CALL ADDATOM()
                !scale gradient if necessary
                IF (MAXGRADCOMP.GT.0.0D0) CALL SCALEGRAD(DIMS,G,RMS,MAXGRADCOMP)
