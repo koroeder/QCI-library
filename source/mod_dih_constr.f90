@@ -307,7 +307,7 @@ MODULE DIHEDRAL_CONSTRAINTS
             DIHEDRALS(J,3) = CHIR_INFO(J,3)
             DIHEDRALS(J,4) = CHIR_INFO(J,4)
             DIHMUL(J) = 1
-         WRITE(*,*) "DIHEDRALS-CHIR_INFO:  J=", J, "atoms: ", DIHEDRALS(J,1:4)
+         !WRITE(*,*) "DIHEDRALS-CHIR_INFO:  J=", J, "atoms: ", DIHEDRALS(J,1:4)
          END DO
          !DO J=1,NCONS
          !   DIHEDRALS(NCHIRAL+J,1) = REFATOMS(J,1)
@@ -656,7 +656,7 @@ MODULE DIHEDRAL_CONSTRAINTS
          REAL(KIND = REAL64), PARAMETER :: EPS9 = 1.0D-9
          REAL(KIND = REAL64), PARAMETER :: EPS6 = 1.0D-6
          REAL(KIND = REAL64), PARAMETER :: EPS3 = 1.0D-3
-         REAL(KIND = REAL64), PARAMETER :: P9999 = 0.9999
+         REAL(KIND = REAL64), PARAMETER :: P9999 = 0.99999999999999999999
 
          ! compute the vectors between atoms in order
          RAB(1:3) = B(1:3) - A(1:3)
@@ -693,7 +693,7 @@ MODULE DIHEDRAL_CONSTRAINTS
          ! second step of regularisation: restrict values to correct range (-1 to 1)
          CT0 = MIN(P9999,DOT12*Z12)
          CT1 = MAX(-P9999,CT0)
-         CT1 = DOT12*Z12
+         !CT1 = DOT12*Z12
 
          !This gives us correct dihedral angle, which corresponds to one given by VMD  
          PHI_REG = DSIGN(DACOS(CT1), DOTP(3,RBC,CROSS_PROD(N1,N2)))
@@ -719,20 +719,20 @@ MODULE DIHEDRAL_CONSTRAINTS
          !DIFF = ATAN2(DSIN(PHI_REG - THISREF), DCOS(PHI_REG - THISREF))
          
          !define M to choose which form of potential to use
-         !M=1
+        ! M=1
          IF (M.EQ.1) THEN
             !We have chiral center and use quadratic potential
                     
             DIFF = ATAN2(DSIN(PHI_REG - THISREF), DCOS(PHI_REG - THISREF))
                       
-            E = KDIH*DIFF**2  
+            E = KDIH*DIFF**2  * REGTERM1
             
             !First part of gradient calculation
             ! dE/d(cos(phi))          
             IF(DABS(DIFF).LT.EPS9) THEN
                DF = 0.0D0
             ELSE               
-               DF = 2.0D0*KDIH*DIFF
+               DF = 2.0D0*KDIH*DIFF*REGTERM1
             END IF
             
                 

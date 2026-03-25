@@ -8,6 +8,7 @@ SUBROUTINE INT_ERR_TERMINATE()
 
    WRITE(*,*) " terminateQCI> An error was encountered - QCI is terminated"
    WRITE(*,*) " terminateQCI> Deallocating variables"
+ 
    CALL FINISH_QCI()
    STOP
 END SUBROUTINE INT_ERR_TERMINATE
