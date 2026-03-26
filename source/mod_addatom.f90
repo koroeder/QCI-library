@@ -74,6 +74,7 @@ MODULE ADDINGATOM
          INTEGER :: SAVENEXTATOM
          REAL(KIND = REAL64) :: SAVEXYZ(3*NATOMS*(NIMAGES+2)), TRYXYZ(3*NATOMS*(NIMAGES+2))
 
+         FAILED = .FALSE.
          SWAPPED = .FALSE.
          SSWAPPED = .FALSE.
          !save current coords
@@ -115,15 +116,6 @@ MODULE ADDINGATOM
             !find the next atom to be added
             !the priorities are: 1. QCILINEAR, 2. CHOOSEACID, 3. QCIDOBACK, and then the highest number of constraints to the active set
             CALL FIND_NEXT_ATOM(CHOSENACID,ACID,NEXTATOM,NCONTOACT,SHORTESTCON)
-
-         ! Moved down
-           ! !set chosenacid if needed
-           ! IF ((QCIADDACIDT.AND.(.NOT.QCIDOBACK)).OR.QCIDOBACKALL) THEN
-           !    IF (.NOT.CHOSENACID) THEN
-           !       ACID = ATOMS2RES(NEXTATOM)
-           !       CHOSENACID = .TRUE.
-           !    END IF
-           ! END IF
             
             WRITE(*,'(A,I6,A,I4,A,I4)') "  addatom> Adding atom ", NEXTATOM, ", which has ", NCONTOACT, " constraints to active set out of maximum ", NMAXCON
             WRITE(*,'(A,F8.4)') "           Shortest distance constraint to active set is: ", SHORTESTCON
@@ -148,40 +140,26 @@ MODULE ADDINGATOM
                   CALL PLACE_INTERNALS(NEXTATOM,NLOCAL,LOCALIDX)
                ELSE IF (QCITRILATERATION) THEN
                   !trilaterate atoms, if this fails use fall back option. 
+                  
+                  !First use PLACE_LINEAR_ATOM to get a sensible values in cases where trilateration fails                  
+                  CALL PLACE_LINEAR_ATOM(NEXTATOM,NLOCAL,LOCALIDX)
                   CALL TRILATERATE_ATOMS(NEXTATOM,LOCALIDX,LOCALDIST, FAILED)
                   IF (FAILED) THEN
-                     WRITE(*,*) "addatom> Failed to add atom via trilateration, using place_linear_atom instead"
-                     CALL PLACE_LINEAR_ATOM(NEXTATOM,NLOCAL,LOCALIDX)
+                     WRITE(*,*) "addatom> Failed to add atom via trilateration"
                   ELSE 
-                     WRITE(*,*) " trilaterate_atom> Added atom via trilateration"
+                     WRITE(*,*) "addatom> Added atom via trilateration"
                   END IF
 
                   !check have we changed chirality by adding the atom
-                  CALL GET_ACTIVE_CHIRAL_CENTRES(FINAL_NCHIRACTIVE,FINAL_ACTIVE_CHIR_CENTRES)
-         
-                  IF (INIT_NCHIRACTIVE.NE.FINAL_NCHIRACTIVE) THEN
-                     
-                        DO J1=1,NCHIRAL
-                           IF (.NOT.INIT_ACTIVE_CHIR_CENTRES(J1).AND.FINAL_ACTIVE_CHIR_CENTRES(J1)) THEN
-                           CHIRALCENTRE=J1
-                           END IF
-                        END DO
-                        WRITE(*,*) " addatom> New chiral centre has been activated - checking this centre"
-                        CALL ONLY_CHECK_SINGLE_CHIRAL_CENTRE(CHIRALCENTRE,XYZ, SWAPPED)
-                        IF( SWAPPED) SSWAPPED = .TRUE.
-                  ELSE 
-                     WRITE(*,*) "addatom> We haven't changed the number of chiral centres! Checking chirality anyways"
-                     CALL CHIRALITY_CHECK_ONLY(XYZ,SWAPPED)
-
-                  END IF
-
-                  !Save next atom and new coordinates and also revert to old coordinates, so we can try again
-                  SAVENEXTATOM = NEXTATOM
-                  TRYXYZ = XYZ
-               
-
+                  WRITE(*,*) " addatom> Call chirality check after adding the atom.... "
+                  CALL CHIRALITY_CHECK_ONLY(XYZ,SWAPPED,NEXTATOM)
+      
                   IF (SWAPPED) THEN
-                  
+                     
+                     !Save next atom and new coordinates and also revert to old coordinates, so we can try again
+                     SAVENEXTATOM = NEXTATOM
+                     TRYXYZ = XYZ
+
                      XYZ = SAVEXYZ
                      NEXTATOM = 0
                      FAILED = .FALSE.
@@ -196,9 +174,14 @@ MODULE ADDINGATOM
                      ELSE
                         WRITE(*,*) "addatom> Found alternative atom ", NEXTATOM, " to add. Attempting to add this atom instead."
                         CALL GET_ATOMS_FOR_LOCAL_AXIS(NEXTATOM,NLOCAL,LOCALIDX,LOCALDIST)    
+                        CALL PLACE_LINEAR_ATOM(NEXTATOM,NLOCAL,LOCALIDX)
                         CALL TRILATERATE_ATOMS(NEXTATOM,LOCALIDX,LOCALDIST, FAILED)
                      ENDIF   
                      
+                      !check have we changed chirality by adding the atom
+                      WRITE(*,*) " addatom> Call chirality check after adding the atom.... "
+                      CALL CHIRALITY_CHECK_ONLY(XYZ,FAILED,NEXTATOM)
+
                      !If we failed again revert to previous coordinates and continue.
                      IF (FAILED) THEN 
                         XYZ = TRYXYZ
@@ -211,8 +194,8 @@ MODULE ADDINGATOM
                   ELSE 
                      WRITE(*,*) " addatom> Chirality check ok"
                   END IF
-                  XYZ = TRYXYZ
-                  NEXTATOM = SAVENEXTATOM
+                  !XYZ = TRYXYZ
+                  !NEXTATOM = SAVENEXTATOM
                ELSE
                   CALL PLACE_ATOM(NEXTATOM,NLOCAL,LOCALIDX)
                END IF
@@ -369,7 +352,6 @@ MODULE ADDINGATOM
       END SUBROUTINE ADDATOM
 
       !> This routine needs tidying up/ potentially rewriting!
-      !! Modifies contraints, shouldn't do that
       SUBROUTINE GET_ATOMS_FOR_LOCAL_AXIS(NEWATOM,NLOCAL,LOCALIDX,LOCALDIST)
          USE QCIKEYS, ONLY: NATOMS
          INTEGER , INTENT(IN) :: NEWATOM
@@ -396,10 +378,11 @@ MODULE ADDINGATOM
          NCONST = MIN(4,NCONNEWATOM)
          NDISTS = MIN(4,NDISTNEWATOM)
          NCOUNT = 0
-         !WARNING/QUESTION what this NLOCAL & should this be 0?
+        
          NLOCAL = 0
          LOCALDIST(1:4) = 0.0D0
          LOCALIDX(1:4) = -1
+         
          IF (NCONST.NE.0) THEN
             DO J = 1,NCONST
                LOCALDIST(J) = BESTCONDIST(J)
@@ -459,7 +442,7 @@ MODULE ADDINGATOM
             END IF
          END IF
 
-         !IF (NLOCAL.LT.4) THEN
+         !Fall back to atoms sorted by distance if we don't have enough constraints or secondary constraints
          IF (NCOUNT.LT.4) THEN
             IF (NDISTS.NE.0) THEN
                IF (NCOUNT.EQ.0) THEN
@@ -511,53 +494,136 @@ MODULE ADDINGATOM
          NLOCAL = NCOUNT
       END SUBROUTINE GET_ATOMS_FOR_LOCAL_AXIS
 
-      !> Atom trilateration based on four constraints,
+      !> Atom trilateration routine
       !! directly modifies XYZ
-      SUBROUTINE TRILATERATE_ATOMS(NEWATOM,CONIDXLIST,CONDISTLIST, FAILED)
+      SUBROUTINE TRILATERATE_ATOMS(NEWATOM,CONIDXLIST,CONDISTLIST, TFAILED)
          USE QCIKEYS, ONLY: NATOMS, DEBUG, NIMAGES
          USE MOD_INTCOORDS, ONLY: XYZ         
          IMPLICIT NONE
          INTEGER, INTENT(IN) :: NEWATOM
          INTEGER, INTENT(IN) :: CONIDXLIST(4)        
          REAL(KIND=REAL64), INTENT(IN) :: CONDISTLIST(4)
-         LOGICAL, INTENT(OUT) :: FAILED !< Have we failed to place the new atom via trilateration?
-         REAL(KIND=REAL64) :: P1(3), P2(3), P3(3), R1, R2, R3
+         LOGICAL, INTENT(OUT) :: TFAILED !< Have we failed to place the new atom via trilateration?
+         REAL(KIND=REAL64) :: P1(3), P2(3), P3(3), P4(3), R1, R2, R3, R4
          REAL(KIND=REAL64) :: SOL1(3), SOL2(3), PREV(3), D1SQ, D2SQ
          INTEGER :: IMAGEOFFSET
-         INTEGER :: N1, N2, N3, IDX1, IDX2, IDX3, J1
-         LOGICAL :: FTEST
+         INTEGER :: N1, N2, N3, N4, IDX1, IDX2, IDX3, IDX4, J1, I
+         LOGICAL :: FTEST, HAVE_4TH_CONSTRAINT
          INTEGER :: N_IMAGES_FAILED
+         LOGICAL :: FAILED(NIMAGES+2), DFAILED(NIMAGES+2)
+         INTEGER :: NEAREST_BEFORE, NEAREST_AFTER
+         REAL(KIND=REAL64) :: FRAC_BEFORE, FRAC_AFTER
+         REAL(KIND=REAL64), PARAMETER :: FAIL_TOLERANCE_FRACTION = 0.1D0
+         REAL(KIND=REAL64) :: XYZ_BEFORE(3), XYZ_AFTER(3)
          FAILED = .FALSE.
+         DFAILED = .FALSE.
+         TFAILED = .FALSE.
          N_IMAGES_FAILED = 0
 
          !set initial guess to the best three constrained atoms
-         N1=1; N2=2; N3=3
+         N1=1; N2=2; N3=3; N4=4  
          IDX1 = CONIDXLIST(N1); IDX2 = CONIDXLIST(N2); IDX3 = CONIDXLIST(N3)
+         IDX4 = CONIDXLIST(N4)
+
+         HAVE_4TH_CONSTRAINT = (IDX4.NE.-1)
 
          DO J1=2,NIMAGES+1
             IMAGEOFFSET = (J1-1)*3*NATOMS
             P1(1:3)=XYZ((IMAGEOFFSET+3*(IDX1-1)+1):(IMAGEOFFSET+3*(IDX1-1)+3))
             P2(1:3)=XYZ((IMAGEOFFSET+3*(IDX2-1)+1):(IMAGEOFFSET+3*(IDX2-1)+3))
-            P3(1:3)=XYZ((IMAGEOFFSET+3*(IDX3-1)+1):(IMAGEOFFSET+3*(IDX3-1)+3))           
+            P3(1:3)=XYZ((IMAGEOFFSET+3*(IDX3-1)+1):(IMAGEOFFSET+3*(IDX3-1)+3))     
+              
             R1=CONDISTLIST(N1)
             R2=CONDISTLIST(N2)
             R3=CONDISTLIST(N3) 
             CALL TRILATERATION(P1,P2,P3,R1,R2,R3,SOL1,SOL2,FTEST)
+                    
             IF (.NOT.FTEST) THEN
                PREV(1:3) = XYZ((IMAGEOFFSET+3*(NEWATOM-1)+1):(IMAGEOFFSET+3*(NEWATOM-1)+3))
-               D1SQ = (SOL1(1)-PREV(1))**2 + (SOL1(2)-PREV(2))**2 + (SOL1(3)-PREV(3))**2
-               D2SQ = (SOL2(1)-PREV(1))**2 + (SOL2(2)-PREV(2))**2 + (SOL2(3)-PREV(3))**2
+               
+               !IF(HAVE_4TH_CONSTRAINT) THEN
+               !   P4(1:3)=XYZ((IMAGEOFFSET+3*(IDX4-1)+1):(IMAGEOFFSET+3*(IDX4-1)+3))
+               !   R4=CONDISTLIST(N4)
+               !
+               !   D1SQ = SQRT((SOL1(1)-P4(1))**2 + (SOL1(2)-P4(2))**2 + (SOL1(3)-P4(3))**2)
+               !   D2SQ = SQRT((SOL2(1)-P4(1))**2 + (SOL2(2)-P4(2))**2 + (SOL2(3)-P4(3))**2)
+               !ELSE
+                  D1SQ = (SOL1(1)-PREV(1))**2 + (SOL1(2)-PREV(2))**2 + (SOL1(3)-PREV(3))**2
+                  D2SQ = (SOL2(1)-PREV(1))**2 + (SOL2(2)-PREV(2))**2 + (SOL2(3)-PREV(3))**2
+               !END IF
+               
                IF (D1SQ.LT.D2SQ) THEN
                   XYZ((IMAGEOFFSET+3*(NEWATOM-1)+1):(IMAGEOFFSET+3*(NEWATOM-1)+3)) = SOL1(1:3)
                ELSE
                   XYZ((IMAGEOFFSET+3*(NEWATOM-1)+1):(IMAGEOFFSET+3*(NEWATOM-1)+3)) = SOL2(1:3)
                END IF
             ELSE
-               FAILED = .TRUE.
+               FAILED(J1) = .TRUE.
+               DFAILED(J1) = .TRUE.
+               TFAILED = .TRUE.
                N_IMAGES_FAILED = N_IMAGES_FAILED + 1
             END IF
          END DO
-         IF (FAILED) THEN
+
+         WRITE(*,*) " trilaterate_atom> Failed to trilaterate" , N_IMAGES_FAILED, "images out of ", NIMAGES, " images."
+         
+         ! Interpolate failed images if we have some successful ones
+         IF ((N_IMAGES_FAILED.GT.0).AND.(N_IMAGES_FAILED*1.0D0.LT.NIMAGES*FAIL_TOLERANCE_FRACTION)) THEN
+            WRITE(*,*) " trilaterate_atom> Attempting to fix failed images by interpolation, as failure fraction is below tolerance of ", FAIL_TOLERANCE_FRACTION   
+            DO I = 2, NIMAGES+1
+               
+               IF( .NOT.(FAILED(I))) CYCLE !skip successful images
+               
+               !Find nearest successful image before this one
+               NEAREST_BEFORE = 0
+               DO J1 = I-1, 1, -1
+                  IF (.NOT. FAILED(J1)) THEN
+                     NEAREST_BEFORE = J1
+                     EXIT
+                  END IF
+               END DO
+               
+               !Find nearest successful image after this one
+               NEAREST_AFTER = 0
+               DO J1 = I+1, NIMAGES+2
+                  IF (.NOT. FAILED(J1)) THEN
+                     NEAREST_AFTER = J1
+                     EXIT
+                  END IF
+               END DO    
+            
+               !Linear interpolate if we have a successful image both before and after
+               IF ((NEAREST_BEFORE.GT.0) .AND. (NEAREST_AFTER.GT.0)) THEN
+                  !Linear interpolation between two successful images
+                  FRAC_BEFORE = 1.0D0*(NEAREST_AFTER - I)/ (1.0D0*(NEAREST_AFTER - NEAREST_BEFORE))
+                  FRAC_AFTER  = 1.0D0*(I - NEAREST_BEFORE)/ (1.0D0*(NEAREST_AFTER - NEAREST_BEFORE))
+                  
+                  IMAGEOFFSET = (NEAREST_BEFORE-1)*3*NATOMS+3*(NEWATOM-1)
+                  XYZ_BEFORE(1:3) = XYZ(IMAGEOFFSET+1:IMAGEOFFSET+3)
+               
+                  IMAGEOFFSET = (NEAREST_AFTER-1)*3*NATOMS+3*(NEWATOM-1)
+                  XYZ_AFTER(1:3) = XYZ(IMAGEOFFSET+1:IMAGEOFFSET+3)
+                  
+
+                  IMAGEOFFSET = (I-1)*3*NATOMS+3*(NEWATOM-1)
+
+                  XYZ(IMAGEOFFSET+1: IMAGEOFFSET+3) = FRAC_BEFORE * XYZ_BEFORE(1:3) + FRAC_AFTER * XYZ_AFTER(1:3)
+                  
+                  !Don't want to use images generated by interpolation to try to fix other images
+                  !use DFAILED to track total number of failed images
+                  DFAILED(I) = .FALSE. 
+               END IF
+            END DO
+      
+            ! Recount failures after interpolation
+            N_IMAGES_FAILED = COUNT(DFAILED)
+        
+         END IF
+   
+         ! Check if failure fraction exceeds tolerance
+         IF(N_IMAGES_FAILED.EQ.0) TFAILED = .FALSE. 
+
+         IF (TFAILED) THEN
             WRITE(*,*) " trilaterate_atom> Failed to trilaterate atom ", NEWATOM, " in ", N_IMAGES_FAILED, " out of ", NIMAGES, " images."
          END IF
       END SUBROUTINE TRILATERATE_ATOMS
@@ -573,8 +639,8 @@ MODULE ADDINGATOM
          REAL(KIND=REAL64) :: V1(3), V2(3), V3(3), EX(3), EY(3), EZ(3)
          REAL(KIND=REAL64) :: NORM, NORM2, DOTX2, DOTY2, X, Y, Z, TEMP
           
-         REAL(KIND=REAL64) :: CROSS_CHECK(3), COLLINEARITY_TOL
-         COLLINEARITY_TOL = 1.0D-10
+         REAL(KIND=REAL64) :: CROSS_CHECK(3)
+         REAL(KIND=REAL64), PARAMETER :: TOL = 1.0D-6
 
          FTEST=.FALSE.
          !get vectors between centres
@@ -585,12 +651,12 @@ MODULE ADDINGATOM
          !check for colinearity: compute cross product V1 x V2
          CALL NORM_VEC(CROSS_PROD(V1, V2), CROSS_CHECK, NORM )
                   
-         IF (NORM .LT. COLLINEARITY_TOL) THEN
+         IF (NORM .LT. TOL) THEN
             FTEST=.TRUE.
             RETURN
          END IF
          
-         !Reset norm and temp
+         !Reset norm 
          NORM = 0.D0
          
          !get normalised version of V1 
@@ -602,6 +668,11 @@ MODULE ADDINGATOM
          EZ = CROSS_PROD(EX,EY)
 
          DOTY2 = EY(1)*V2(1) + EY(2)*V2(2) + EY(3)*V2(3) 
+
+         IF ((NORM .LT. TOL).OR.(DOTY2 .LT. TOL)) THEN
+            FTEST=.TRUE.
+            RETURN
+         END IF
 
          X=(R1*R1 - R2*R2 + NORM*NORM) / (2.0D0*NORM)
          Y=(R1*R1 - R3*R3 -2.0D0*DOTX2*X + DOTX2*DOTX2 + DOTY2*DOTY2) / (2.0D0*DOTY2)
@@ -762,7 +833,7 @@ MODULE ADDINGATOM
          WRITE(*,'(A,I8)') " place_atom> New atom: ", NEWATOM
 
          !Setting up local axis system for the start image
-         IF ((NLOCAL.GT.3).AND.(USEFOURATOMST)) THEN
+         IF ((NLOCAL.GT.3)) THEN !.AND.(USEFOURATOMST)) THEN
             CALL GET_LOCAL_AXIS2(IDX1,IDX2,IDX3,IDX4,1,B1,B2,B3)
             WRITE(*,'(A)') " place_atom> Using four atoms for placement"
             IF (DEBUG) THEN
@@ -1511,12 +1582,10 @@ MODULE ADDINGATOM
                NEWATOM = IDXINACTIVE
                NCONTOACT = NCONTOACTIVE(IDXINACTIVE)
             END IF
-
          END DO
 
          !If we didn't find a new atom, we need to go back to the first choice
          IF (NEWATOM*NCONTOACT.EQ.0) THEN
-            WRITE(*,*) NCONTOACTIVE
             WRITE(*,*) "Nactive: ", NACTIVE
             WRITE(*,*) "QCI linear: ", QCILINEART
             WRITE(*,*) NEWATOM, NCONTOACT

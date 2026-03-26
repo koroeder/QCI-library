@@ -1017,76 +1017,93 @@ MODULE CHIRALITY
       END SUBROUTINE ONLY_CHECK_SINGLE_CHIRAL_CENTRE
 
       
-      SUBROUTINE CHIRALITY_CHECK_ONLY(XYZ, CHANGED)
-         USE INTERPOLATION_KEYS, ONLY: ATOMACTIVE
-         USE MOD_INTCOORDS, ONLY: WRITE_BAND
-         USE QCIKEYS, ONLY: NATOMS, DEBUG, NIMAGES, ATOMS2RES
-         USE AMBER_CONSTRAINTS, ONLY: RES_START, RES_END
-         USE QCIMINDIST, ONLY: ALIGNXBTOA
-         IMPLICIT NONE
-         REAL(KIND = REAL64), INTENT(INOUT) :: XYZ((3*NATOMS)*(NIMAGES+2)) !< all atom coordinates
-         LOGICAL, INTENT(OUT) :: CHANGED
-         REAL(KIND = REAL64) :: NEIGHBOUR_COORDS(12), CENTRE_COORDS(3) !intent needed?
-         REAL(KIND = REAL64) :: COORDSA(3*NATOMS), COORDSB(3*NATOMS)
-         INTEGER :: CHIRALCENTRE
-         INTEGER :: J1, J2, J3, J4, ATOMID, ACID
-         INTEGER :: NCHANGE, CHANGEAT(NATOMS), THISIMAGE, PREVIMAGE, OFFSET, OFFSET2
-         LOGICAL :: CENTREACTIVE
-         LOGICAL :: THIS_SR, PREV_SR
+      SUBROUTINE CHIRALITY_CHECK_ONLY(XYZ, CHANGED, NEWATOMID)
+      USE INTERPOLATION_KEYS, ONLY: ATOMACTIVE
+      USE MOD_INTCOORDS, ONLY: WRITE_BAND
+      USE QCIKEYS, ONLY: NATOMS, DEBUG, NIMAGES, ATOMS2RES
+      USE AMBER_CONSTRAINTS, ONLY: RES_START, RES_END
+      USE QCIMINDIST, ONLY: ALIGNXBTOA
+      IMPLICIT NONE
+      REAL(KIND=REAL64), INTENT(IN) :: XYZ((3*NATOMS)*(NIMAGES+2))
+      LOGICAL, INTENT(OUT) :: CHANGED
+      INTEGER, INTENT(IN), OPTIONAL :: NEWATOMID
+      REAL(KIND=REAL64) :: NEIGHBOUR_COORDS(12), CENTRE_COORDS(3)
+      REAL(KIND=REAL64) :: COORDSA(3*NATOMS), COORDSB(3*NATOMS)
+      INTEGER :: CHIRALCENTRE
+      INTEGER :: J1, J2, J3, J4, ATOMID, ACID
+      INTEGER :: NCHANGE, CHANGEAT(NATOMS), THISIMAGE, PREVIMAGE, OFFSET, OFFSET2
+      LOGICAL :: CENTREACTIVE
+      LOGICAL :: THIS_SR, PREV_SR
+      LOGICAL :: ATOM_IS_ACTIVE
 
-         IF (DEBUG) WRITE(*,*) " chirality-check> Running check for chirality conservation across all images"
+      IF (DEBUG) WRITE(*,*) " chirality-check> Running check for chirality conservation across all images"
 
-         IF (NCHIRAL.EQ.-1) THEN
-            WRITE(*,*) " chirality-check> The number of chiral centres is -1. It looks like FIND_CHIRAL was not run. Is QCIAMBER set?"
-            CALL INT_ERR_TERMINATE()
-         ELSE IF (NCHIRAL.EQ.0) THEN
-            WRITE(*,*) " chirality-check>  There are no chiral centres - check this is correct as CHECKCHIRAL is set to true."
-            RETURN
-         END IF
+      IF (NCHIRAL.EQ.-1) THEN
+         WRITE(*,*) " chirality-check> The number of chiral centres is -1. It looks like FIND_CHIRAL was not run. Is QCIAMBER set?"
+         CALL INT_ERR_TERMINATE()
+      ELSE IF (NCHIRAL.EQ.0) THEN
+         WRITE(*,*) " chirality-check>  There are no chiral centres - check this is correct as CHECKCHIRAL is set to true."
+         RETURN
+      END IF
 
-         PREV_SR = .FALSE.
-         CHANGED = .FALSE.
-         DO J1=1,NCHIRAL
-            CENTREACTIVE = .TRUE.
-            CHIRALCENTRE = CHIR_INFO(J1,1)
-            !check whether the chiral centre and connected atoms are active
-            IF (.NOT.ATOMACTIVE(CHIRALCENTRE)) CENTREACTIVE = .FALSE.
-            DO J2=2,5
-               IF (.NOT.ATOMACTIVE(CHIR_INFO(J1,J2))) CENTREACTIVE = .FALSE.
-            END DO
-            IF (.NOT.CENTREACTIVE) CYCLE
-            !now apply the actual check   
-            !QUESTION here we go from J3=1 to NIMAGES+2?  
-            DO J3=1,NIMAGES+2
+      CHANGED = .FALSE.
 
-               NEIGHBOUR_COORDS = 0.0D0
-               CENTRE_COORDS = 0.0D0
+      DO J1 = 1, NCHIRAL
+         CENTREACTIVE = .TRUE.
+         CHIRALCENTRE = CHIR_INFO(J1, 1)
 
-               CENTRE_COORDS(1) = XYZ(3*NATOMS*(J3-1)+3*CHIRALCENTRE-2) !x
-               CENTRE_COORDS(2) = XYZ(3*NATOMS*(J3-1)+3*CHIRALCENTRE-1) !y
-               CENTRE_COORDS(3) = XYZ(3*NATOMS*(J3-1)+3*CHIRALCENTRE)   !z
-
-               DO J4=1,4
-                  ATOMID = CHIR_INFO(J1,J4+1)
-                  NEIGHBOUR_COORDS(3*J4-2) = XYZ(3*NATOMS*(J3-1)+3*ATOMID-2)
-                  NEIGHBOUR_COORDS(3*J4-1) = XYZ(3*NATOMS*(J3-1)+3*ATOMID-1)
-                  NEIGHBOUR_COORDS(3*J4)   = XYZ(3*NATOMS*(J3-1)+3*ATOMID)
-               END DO
-               ! if this is the first image (i.e. the starting point), set SR for the current group
-               IF (J3.EQ.1) THEN
-                  PREV_SR = ASSIGNMENT_SR(NEIGHBOUR_COORDS,CENTRE_COORDS)
-                  CYCLE
-               END IF
-               ! S/R assignment for current image
-               THIS_SR = ASSIGNMENT_SR(NEIGHBOUR_COORDS,CENTRE_COORDS)
-               IF (THIS_SR.NEQV.PREV_SR) THEN
-                  WRITE(*,*) "chirality_check_only> Chirality changed! CHIRAL CENTRE", CHIRALCENTRE 
-                  CHANGED = .TRUE.                  
-                  EXIT
-
-               END IF
-            END DO
+         ! Check whether the chiral centre and connected atoms are active
+         DO J2 = 1, 5
+            ATOMID = CHIR_INFO(J1, J2)
+            ATOM_IS_ACTIVE = ATOMACTIVE(ATOMID)
+            IF (PRESENT(NEWATOMID)) ATOM_IS_ACTIVE = ATOM_IS_ACTIVE .OR. (ATOMID.EQ.NEWATOMID)
+            IF (.NOT.ATOM_IS_ACTIVE) THEN
+               CENTREACTIVE = .FALSE.
+               EXIT
+            END IF
          END DO
-      END SUBROUTINE CHIRALITY_CHECK_ONLY
+
+         IF (.NOT.CENTREACTIVE) CYCLE
+
+         ! Now apply the actual check
+         PREV_SR = .FALSE.
+         DO J3 = 1, NIMAGES + 2
+
+            NEIGHBOUR_COORDS = 0.0D0
+            CENTRE_COORDS = 0.0D0
+
+            CENTRE_COORDS(1) = XYZ(3*NATOMS*(J3-1) + 3*CHIRALCENTRE - 2)  ! x
+            CENTRE_COORDS(2) = XYZ(3*NATOMS*(J3-1) + 3*CHIRALCENTRE - 1)  ! y
+            CENTRE_COORDS(3) = XYZ(3*NATOMS*(J3-1) + 3*CHIRALCENTRE)      ! z
+
+            DO J4 = 1, 4
+               ATOMID = CHIR_INFO(J1, J4+1)
+               NEIGHBOUR_COORDS(3*J4-2) = XYZ(3*NATOMS*(J3-1) + 3*ATOMID - 2)
+               NEIGHBOUR_COORDS(3*J4-1) = XYZ(3*NATOMS*(J3-1) + 3*ATOMID - 1)
+               NEIGHBOUR_COORDS(3*J4)   = XYZ(3*NATOMS*(J3-1) + 3*ATOMID)
+            END DO
+
+            ! If this is the first image (i.e. the starting point), set SR for the current group
+            IF (J3.EQ.1) THEN
+               PREV_SR = ASSIGNMENT_SR(NEIGHBOUR_COORDS, CENTRE_COORDS)
+               CYCLE
+            END IF
+
+            ! S/R assignment for current image
+            THIS_SR = ASSIGNMENT_SR(NEIGHBOUR_COORDS, CENTRE_COORDS)
+
+            IF (THIS_SR .NEQV. PREV_SR) THEN
+               IF (PRESENT(NEWATOMID)) THEN
+                  WRITE(*,*) "chirality_check_only> Chirality would change with NEWATOMID ", NEWATOMID
+               ELSE
+                  WRITE(*,*) "chirality_check_only> Chirality changed! CHIRAL CENTRE ", CHIRALCENTRE
+               END IF
+               CHANGED = .TRUE.
+               EXIT
+            END IF
+         END DO
+      END DO
+
+   END SUBROUTINE CHIRALITY_CHECK_ONLY
 
 END MODULE CHIRALITY
