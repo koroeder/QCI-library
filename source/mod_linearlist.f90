@@ -84,4 +84,62 @@ MODULE QCI_LINEAR
          IF (ALLOCATED(INLINLIST)) DEALLOCATE(INLINLIST)
       END SUBROUTINE DEALLOC_QCI_LINEAR
 
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      !IDEA FOR QUASI-RIGID BODY LINEAR LIST
+      !DO NOT USE 
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      
+      !SUBROUTINE DETECT_LINEAR()
+      !   USE QCIKEYS, ONLY: NATOMS, INLINLIST, LINEARBBT, ISBBATOM, QCIAMBERT, QCIHIRET       
+      !   USE MOD_INTCOORDS, ONLY: XSTART, XFINAL
+      !   USE HELPER_FNCTS, ONLY: DISTANCE_ATOM_DIFF_IMAGES
+      !   USE QCI_CONSTRAINT_KEYS
+      !   USE QCI_CONSTRAINT_KEYS, ONLY: NCONSTRAINT, CONI, CONJ, CONDISTREFLOCAL
+
+      !   IMPLICIT NONE
+
+       !  REAL(KIND=REAL64), PARAMETER :: TOLERANCE
+       !  INTEGER :: J1 
+
+       !  CHECK_RIGIDITY = .TRUE.
+       !  DO J1 = 1, NCONSTRAINT
+       !     A = CONI(J1)
+       !     B = CONJ(J1)
+       !  ! Check if either atom is in this group
+       !  IF (.NOT. ANY(ATOM_LIST(1:NATOMS) == A) .AND. &
+       !      .NOT. ANY(ATOM_LIST(1:NATOMS) == B)) THEN
+       !  CYCLE
+       !  END IF
+       !  
+       !  CHARACTER(LEN=4), INTENT(IN) :: ATNAME1, ATNAME2
+       !  INTEGER, INTENT(IN) :: RESID
+       !  INTEGER :: ID1, ID2 1
+      !
+      !   CALL GET_ATOMID(ATNAME1,RESID,ID1)
+      !   CALL GET_ATOMID(ATNAME2,RESID,ID2)
+
+         ! Bond length in start image
+!         DX = START_XYZ(B,1) - START_XYZ(A,1)
+!         DY = START_XYZ(B,2) - START_XYZ(A,2)
+!         DZ = START_XYZ(B,3) - START_XYZ(A,3)
+!         D_START = SQRT(DX*DX + DY*DY + DZ*DZ)
+!    
+1    ! Bond length in end image
+!    DX = END_XYZ(B,1) - END_XYZ(A,1)
+!    DY = END_XYZ(B,2) - END_XYZ(A,2)
+!    DZ = END_XYZ(B,3) - END_XYZ(A,3)
+!    D_END = SQRT(DX*DX + DY*DY + DZ*DZ)
+!    
+!    IF (ABS(D_END - D_START) > TOLERANCE) THEN
+!      CHECK_RIGIDITY = .FALSE.
+!      RETURN
+!    END IF
+!  END DO
+
+         
+     
+     
+ !     END SUBROUTINE
+
+
 END MODULE QCI_LINEAR
