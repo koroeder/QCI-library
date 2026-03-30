@@ -57,6 +57,7 @@ MODULE DIHEDRAL_CONSTRAINTS
          REAL(KIND=REAL64) :: THISDIHS, THISDIHF !phi_0 for start and final images
          REAL(KIND=REAL64) :: THISDIH, THISS0, THISC0
          NCONS = 0
+
          IF (DIHTYPE.EQ.2) THEN
             WRITE(*,*) "DIHTYPE, shoub be 2 ... DIHTYPE ", DIHTYPE
              
@@ -296,6 +297,7 @@ MODULE DIHEDRAL_CONSTRAINTS
                END IF
             END DO
          END IF
+
          !assign arrays for dihedrals
          NDIH = NCHIRAL + NCONS
          CALL ALLOC_DIHVARS()
@@ -314,6 +316,7 @@ MODULE DIHEDRAL_CONSTRAINTS
             DIHMUL(J) = 1
          !WRITE(*,*) "DIHEDRALS-CHIR_INFO:  J=", J, "atoms: ", DIHEDRALS(J,1:4)
          END DO
+
          IF (NCONS.NE.0) THEN
             WRITE(*,*) "NCONS should be 0 ...", NCONS
             DO J=1,NCONS
@@ -325,6 +328,7 @@ MODULE DIHEDRAL_CONSTRAINTS
             WRITE(*,*) "DIHEDRALS-:  J=", J, "atoms: ",  DIHEDRALS(NCHIRAL+J,1:4)
             END DO
          END IF
+
          !DO J=1,NCONS
          !   DIHEDRALS(J,1) = REFATOMS(J,1)
          !   DIHEDRALS(J,2) = REFATOMS(J,2)
@@ -660,10 +664,12 @@ MODULE DIHEDRAL_CONSTRAINTS
          REAL(KIND = REAL64) :: DIFF, THISREF, SINSUM, COSSUM, W
          INTEGER :: M
          !cutoffs used for regularisation
-         REAL(KIND = REAL64), PARAMETER :: EPS9 = 1.0D-9
-         REAL(KIND = REAL64), PARAMETER :: EPS6 = 1.0D-6
-         REAL(KIND = REAL64), PARAMETER :: EPS3 = 1.0D-3
-         REAL(KIND = REAL64), PARAMETER :: P9999 = 0.99999999999999999999
+         REAL(KIND = REAL64), PARAMETER :: EPS9 = 1.0D-15
+         REAL(KIND = REAL64), PARAMETER :: EPS6 = 1.0D-12
+         REAL(KIND = REAL64), PARAMETER :: EPS3 = 1.0D-9
+         REAL(KIND = REAL64), PARAMETER :: P9999 = 0.9999999999999999999
+         
+         REAL(KIND = REAL64), PARAMETER :: KDIH2 = 2.5D0 !temp kdih for cos potential 
 
          ! compute the vectors between atoms in order
          RAB(1:3) = B(1:3) - A(1:3)
@@ -700,7 +706,6 @@ MODULE DIHEDRAL_CONSTRAINTS
          ! second step of regularisation: restrict values to correct range (-1 to 1)
          CT0 = MIN(P9999,DOT12*Z12)
          CT1 = MAX(-P9999,CT0)
-         
 
          !This gives us correct dihedral angle, which corresponds to one given by VMD  
          PHI_REG = DSIGN(DACOS(CT1), DOTP(3,RBC,CROSS_PROD(N1,N2)))
@@ -715,13 +720,17 @@ MODULE DIHEDRAL_CONSTRAINTS
 
          M = DIHMUL(DIHREF)
          
-         W = 1.0D0*(NIMAGES+2-I)/(NIMAGES+1)
 
-        
-         SINSUM = W*DSIN(REFDIHS(DIHREF)) + (1.0D0-W)*DSIN(REFDIHF(DIHREF))
-         COSSUM = W*DCOS(REFDIHS(DIHREF)) + (1.0D0-W)*DCOS(REFDIHF(DIHREF))
-         THISREF = ATAN2(SINSUM, COSSUM)
-                 
+         !W = 1.0D0*(NIMAGES+2-I)/(NIMAGES+1)
+         !SINSUM = W*DSIN(REFDIHS(DIHREF)) + (1.0D0-W)*DSIN(REFDIHF(DIHREF))
+         !COSSUM = W*DCOS(REFDIHS(DIHREF)) + (1.0D0-W)*DCOS(REFDIHF(DIHREF))
+         !THISREF = ATAN2(SINSUM, COSSUM)
+         
+         THISREF = REFDIH(DIHREF)
+         !DIFF = PHI_REG - REFDIH(DIHREF)
+         !DIFF = ATAN2(DSIN(PHI_REG - THISREF), DCOS(PHI_REG - THISREF))
+         
+
          !define M to choose which form of potential to use
          ! M=1
          IF (M.EQ.1) THEN
@@ -744,14 +753,14 @@ MODULE DIHEDRAL_CONSTRAINTS
             !We have planar dihedral, use cosine with multiplicity 1   
             
             THISREF = THISREF + PI
-            DIFF = ATAN2(DSIN(PHI_REG - THISREF), DCOS(PHI_REG - THISREF))
-                        
+           
+                            
             !Normal cosine dihedral      
-            E = KDIH*(1.0D0+COSPHI*DCOS(THISREF)+SINPHI*DSIN(THISREF))*REGTERM1
+            E = KDIH2*(1.0D0+COSPHI*DCOS(THISREF)+SINPHI*DSIN(THISREF))*REGTERM1
            
             !First part of gradient calculation
             ! dE/d(phi)
-            DF = -KDIH*(DCOS(THISREF)*SINPHI - DSIN(THISREF)*COSPHI) * REGTERM1
+            DF = -KDIH2*(DCOS(THISREF)*SINPHI - DSIN(THISREF)*COSPHI) * REGTERM1
                        
          ELSE
             ! We should never be here!
