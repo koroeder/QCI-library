@@ -124,7 +124,7 @@ MODULE QCI_LINEAR
 !         DZ = START_XYZ(B,3) - START_XYZ(A,3)
 !         D_START = SQRT(DX*DX + DY*DY + DZ*DZ)
 !    
-1    ! Bond length in end image
+!    ! Bond length in end image
 !    DX = END_XYZ(B,1) - END_XYZ(A,1)
 !    DY = END_XYZ(B,2) - END_XYZ(A,2)
 !    DZ = END_XYZ(B,3) - END_XYZ(A,3)
