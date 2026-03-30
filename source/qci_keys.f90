@@ -39,6 +39,8 @@ MODULE QCIKEYS
    LOGICAL :: USEFOURATOMST = .FALSE.
    !> use trilateration for interpolation
    LOGICAL :: QCITRILATERATION = .FALSE.
+      !> use trilateration2 for interpolation
+   LOGICAL :: QCITRILATERATION2 = .FALSE.
 
    LOGICAL :: CHECKCONINT = .FALSE. !<which congrad should be used? TRUE=CONGRAD2, FALSE=CONGRAD1
 

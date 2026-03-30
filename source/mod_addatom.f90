@@ -35,7 +35,7 @@ MODULE ADDINGATOM
          USE MOD_INTCOORDS, ONLY: XYZ, EEE, GGG, RMS
          USE QCIKEYS, ONLY: QCIDOBACK, QCIADDACIDT, NATOMS, NIMAGES, DEBUG, QCILINEART, INLINLIST, &
                             QCITRILATERATION, QCIDOBACKALL, ATOMS2RES, ISBBATOM, CHECKCHIRAL, QCIUSEGROUPS, &
-                            USEINTERNALST
+                            USEINTERNALST, QCITRILATERATION2
          USE REPULSION, ONLY: NNREPULSIVE, NREPULSIVE, CHECKREP
          USE CONSTR_E_GRAD, ONLY: CONGRAD
          USE QCI_LINEAR, ONLY: NQCILINEAR
@@ -138,12 +138,15 @@ MODULE ADDINGATOM
                IF (USEINTERNALST) THEN
                   !build internal coordinates for interpolation
                   CALL PLACE_INTERNALS(NEXTATOM,NLOCAL,LOCALIDX)
-               ELSE IF (QCITRILATERATION) THEN
+                ELSE IF (QCITRILATERATION) THEN
+                  !trilaterate atoms, if this fails use fall back option. 
+                  CALL TRILATERATE_ATOMS(NEXTATOM,LOCALIDX,LOCALDIST, FAILED)
+               ELSE IF (QCITRILATERATION2) THEN
                   !trilaterate atoms, if this fails use fall back option. 
                   
                   !First use PLACE_LINEAR_ATOM to get a sensible values in cases where trilateration fails                  
                   CALL PLACE_LINEAR_ATOM(NEXTATOM,NLOCAL,LOCALIDX)
-                  CALL TRILATERATE_ATOMS(NEXTATOM,LOCALIDX,LOCALDIST, FAILED)
+                  CALL TRILATERATE_ATOMS2(NEXTATOM,LOCALIDX,LOCALDIST, FAILED)
                   IF (FAILED) THEN
                      WRITE(*,*) "addatom> Failed to add atom via trilateration"
                   ELSE 
@@ -175,7 +178,7 @@ MODULE ADDINGATOM
                         WRITE(*,*) "addatom> Found alternative atom ", NEXTATOM, " to add. Attempting to add this atom instead."
                         CALL GET_ATOMS_FOR_LOCAL_AXIS(NEXTATOM,NLOCAL,LOCALIDX,LOCALDIST)    
                         CALL PLACE_LINEAR_ATOM(NEXTATOM,NLOCAL,LOCALIDX)
-                        CALL TRILATERATE_ATOMS(NEXTATOM,LOCALIDX,LOCALDIST, FAILED)
+                        CALL TRILATERATE_ATOMS2(NEXTATOM,LOCALIDX,LOCALDIST, FAILED)
                      ENDIF   
                      
                       !check have we changed chirality by adding the atom
@@ -541,6 +544,7 @@ MODULE ADDINGATOM
             IF (.NOT.FTEST) THEN
                PREV(1:3) = XYZ((IMAGEOFFSET+3*(NEWATOM-1)+1):(IMAGEOFFSET+3*(NEWATOM-1)+3))
                
+               !Option to try with a distance from 4th constraint if it exists. 
                !IF(HAVE_4TH_CONSTRAINT) THEN
                !   P4(1:3)=XYZ((IMAGEOFFSET+3*(IDX4-1)+1):(IMAGEOFFSET+3*(IDX4-1)+3))
                !   R4=CONDISTLIST(N4)
@@ -627,6 +631,52 @@ MODULE ADDINGATOM
             WRITE(*,*) " trilaterate_atom> Failed to trilaterate atom ", NEWATOM, " in ", N_IMAGES_FAILED, " out of ", NIMAGES, " images."
          END IF
       END SUBROUTINE TRILATERATE_ATOMS
+
+   SUBROUTINE TRILATERATE_ATOMS2(NEWATOM,CONIDXLIST,CONDISTLIST, FAILED)
+         USE QCIKEYS, ONLY: NATOMS, DEBUG, NIMAGES
+         USE MOD_INTCOORDS, ONLY: XYZ         
+         IMPLICIT NONE
+         INTEGER, INTENT(IN) :: NEWATOM
+         INTEGER, INTENT(IN) :: CONIDXLIST(4)        
+         REAL(KIND=REAL64), INTENT(IN) :: CONDISTLIST(4)
+         LOGICAL, INTENT(OUT) :: FAILED !< Have we failed to place the new atom via trilateration?
+         REAL(KIND=REAL64) :: P1(3), P2(3), P3(3), R1, R2, R3
+         REAL(KIND=REAL64) :: SOL1(3), SOL2(3), PREV(3), D1SQ, D2SQ
+         INTEGER :: IMAGEOFFSET
+         INTEGER :: N1, N2, N3, IDX1, IDX2, IDX3, J1
+         LOGICAL :: FTEST
+
+         FAILED = .FALSE.
+         
+
+         !set initial guess to the best three constrained atoms
+         N1=1; N2=2; N3=3
+         IDX1 = CONIDXLIST(N1); IDX2 = CONIDXLIST(N2); IDX3 = CONIDXLIST(N3)
+
+         DO J1=2,NIMAGES+1
+            IMAGEOFFSET = (J1-1)*3*NATOMS
+            P1(1:3)=XYZ((IMAGEOFFSET+3*(IDX1-1)+1):(IMAGEOFFSET+3*(IDX1-1)+3))
+            P2(1:3)=XYZ((IMAGEOFFSET+3*(IDX2-1)+1):(IMAGEOFFSET+3*(IDX2-1)+3))
+            P3(1:3)=XYZ((IMAGEOFFSET+3*(IDX3-1)+1):(IMAGEOFFSET+3*(IDX3-1)+3))           
+            R1=CONDISTLIST(N1)
+            R2=CONDISTLIST(N2)
+            R3=CONDISTLIST(N3) 
+            CALL TRILATERATION(P1,P2,P3,R1,R2,R3,SOL1,SOL2,FTEST)
+            IF (.NOT.FTEST) THEN
+               PREV(1:3) = XYZ((IMAGEOFFSET+3*(NEWATOM-1)+1):(IMAGEOFFSET+3*(NEWATOM-1)+3))
+               D1SQ = (SOL1(1)-PREV(1))**2 + (SOL1(2)-PREV(2))**2 + (SOL1(3)-PREV(3))**2
+               D2SQ = (SOL2(1)-PREV(1))**2 + (SOL2(2)-PREV(2))**2 + (SOL2(3)-PREV(3))**2
+               IF (D1SQ.LT.D2SQ) THEN
+                  XYZ((IMAGEOFFSET+3*(NEWATOM-1)+1):(IMAGEOFFSET+3*(NEWATOM-1)+3)) = SOL1(1:3)
+               ELSE
+                  XYZ((IMAGEOFFSET+3*(NEWATOM-1)+1):(IMAGEOFFSET+3*(NEWATOM-1)+3)) = SOL2(1:3)
+               END IF
+            ELSE
+               FAILED = .TRUE.
+               !WRITE(*,*) "WARNING: Used trilateration, failed to trilaterate!"
+            END IF
+         END DO
+      END SUBROUTINE TRILATERATE_ATOMS2
 
       !Intersection of three spheres with centres P1...P3 with radii R1...R3
       SUBROUTINE TRILATERATION(P1,P2,P3,R1,R2,R3,SOL1,SOL2,FTEST)
