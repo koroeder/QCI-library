@@ -59,6 +59,8 @@ MODULE QCIKEYS
    LOGICAL, ALLOCATABLE :: INLINLIST(:)
    !> linear nterpolation for backbone
    LOGICAL :: LINEARBBT = .FALSE.
+   !> use linear groups
+   LOGICAL :: USELINGROUPS = .FALSE.
 
    !> Atom to residue mapping
    INTEGER, ALLOCATABLE :: ATOMS2RES(:)

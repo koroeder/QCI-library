@@ -211,6 +211,10 @@ MODULE QCIINTERPOLATION
                END IF
                
                CALL ADDATOM()
+
+               !Moved this congrad call from ADDATOM 
+                ! call congrad routine
+               CALL CONGRAD(ETOTAL, XYZ, GGG, EEE, RMS)
                !scale gradient if necessary
                IF (MAXGRADCOMP.GT.0.0D0) CALL SCALEGRAD(DIMS,G,RMS,MAXGRADCOMP)
                NLASTGOODE=NITERDONE

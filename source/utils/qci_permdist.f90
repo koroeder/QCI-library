@@ -1183,7 +1183,7 @@ MODULE QCIPERMDIST
       END SUBROUTINE ROTXZ
 
       !> Moves centre of coords XA & XB to the origin, finds min distance rotational aligment
-      !> Returns the rotation matrix, does not modift the coordinates
+      !> Returns the rotation matrix, does not modify the coordinates
       SUBROUTINE NEWMINDIST2(RA,RB,NATOMS,DIST,DEBUG,RMAT,CMXA,CMYA,CMZA,CMXB,CMYB,CMZB,DWORST)
          IMPLICIT NONE
          INTEGER, INTENT(IN) :: NATOMS

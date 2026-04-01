@@ -31,7 +31,41 @@ MODULE ADDINGATOM
          WRITE(*,*) " COMPARING FINISH COORDS: ", SUM(DIFF)
       END SUBROUTINE CHECK_DIFF_FINAL
 
+     !> Check wherer we are adding a single atom or a linear group and call approprite routine
       SUBROUTINE ADDATOM()
+         
+         USE QCI_LINEAR, ONLY:ATOM2LINGROUP
+         USE QCIKEYS, ONLY: NATOMS, USELINGROUPS
+         IMPLICIT NONE
+         
+         INTEGER :: NEXTATOM, NCONTOACT
+         REAL(KIND=REAL64) :: SHORTESTCON
+         INTEGER :: GROUP_ID
+         REAL(KIND = REAL64) :: INVDTOACTIVE(1:NATOMS)      !< inverse distances of constraints to active atoms
+         INTEGER :: NMAXCON                                 !< current largest number of constraints to active set from any inactive atom
+         LOGICAL :: ISLINGROUP
+         
+         ISLINGROUP = .FALSE.
+         CALL CREATE_NCONTOACTIVE_LIST(INVDTOACTIVE,NMAXCON)
+         !the priorities are: 1. QCILINEAR, 2. CHOOSEACID, 3. QCIDOBACK, and then the highest number of constraints to the active set
+         WRITE(*,*) "Call find next atom .... "
+         CALL FIND_NEXT_ATOM(.FALSE., 0 ,NEXTATOM,NCONTOACT,SHORTESTCON)
+         WRITE(*,*) "Found atom ", NEXTATOM
+         IF(USELINGROUPS) THEN
+            GROUP_ID = ATOM2LINGROUP(NEXTATOM)
+            IF(GROUP_ID.NE.-1) ISLINGROUP = .TRUE.
+         ENDIF
+         
+         IF(ISLINGROUP) THEN
+            CALL ADD_LINEAR_GROUP(GROUP_ID)
+         ELSE
+            CALL ADDATOM1()
+         END IF
+         
+
+      END SUBROUTINE
+    
+      SUBROUTINE ADDATOM1()
          USE MOD_INTCOORDS, ONLY: XYZ, EEE, GGG, RMS
          USE QCIKEYS, ONLY: QCIDOBACK, QCIADDACIDT, NATOMS, NIMAGES, DEBUG, QCILINEART, INLINLIST, &
                             QCITRILATERATION, QCIDOBACKALL, ATOMS2RES, ISBBATOM, CHECKCHIRAL, QCIUSEGROUPS, &
@@ -97,7 +131,7 @@ MODULE ADDINGATOM
          ! call check on number of chiral centres
          IF (CHECKCHIRAL) CALL GET_ACTIVE_CHIRAL_CENTRES(INIT_NCHIRACTIVE,INIT_ACTIVE_CHIR_CENTRES)
          
-         ! DEBUG 
+         !!!!!!!!!!!!!!! DEBUG !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
          !check chirality accross the band before we start adding atoms
          WRITE(*,*) "addatom> DEBUG - Check chirality before we start adding atoms. "
          CALL CHIRALITY_CHECK_ONLY(XYZ, SWAPPED)
@@ -107,6 +141,7 @@ MODULE ADDINGATOM
          ELSE 
             WRITE(*,*) "addatom> DEBUG - chirality ok"
          END IF 
+         !!!!!!!!!!!!!!!!!END DEBUG!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
          !Set variable for tracking whether we completed adding atoms
          MORETOADD = .TRUE.
@@ -120,12 +155,12 @@ MODULE ADDINGATOM
             WRITE(*,'(A,I6,A,I4,A,I4)') "  addatom> Adding atom ", NEXTATOM, ", which has ", NCONTOACT, " constraints to active set out of maximum ", NMAXCON
             WRITE(*,'(A,F8.4)') "           Shortest distance constraint to active set is: ", SHORTESTCON
 
-            ! We get a list of constraint and closest atoms to construct local 
+          
+            ! We get a list of constraint and closest atoms to construct local axis
             ! We update constraint later
             ! if we have four atoms, we use all four to build the local axis system, if we have three, we use three, otherwise we go linear
             CALL GET_ATOMS_FOR_LOCAL_AXIS(NEXTATOM,NLOCAL,LOCALIDX,LOCALDIST)
-            
-          
+                      
             !now we need to actually add the atom
             ADDEDTHISCYCLE = .FALSE.
             ELIN = 1.0D100
@@ -348,11 +383,106 @@ MODULE ADDINGATOM
          
 
          CALL CHECKREP(XYZ,NNREPSAVE,NREPSAVE+1)
-         ! call congrad routine
-         CALL CONGRAD(ETOTAL, XYZ, GGG, EEE, RMS)
+        
+         !Moved congrad call from here to interpolation
          !we are done with QCIlinear, so set it to false
          QCILINEART = .FALSE.
-      END SUBROUTINE ADDATOM
+      END SUBROUTINE ADDATOM1
+
+      SUBROUTINE ADD_LINEAR_GROUP(GROUP_ID)
+         USE QCI_LINEAR, ONLY: GET_LIN_ROT_TRANSLATION, LINEAR_GROUPS, NINGROUP
+         USE QCIKEYS, ONLY: NATOMS, DEBUG, NIMAGES
+         USE MOD_INTCOORDS, ONLY: XSTART, XFINAL, XYZ
+         USE QUATERNIONS
+         USE HELPER_FNCTS, ONLY: APPLY_ROTATION_MATRIX
+         USE INTERPOLATION_KEYS, ONLY: CONACTIVE, NACTIVE, TURNONORDER, ATOMACTIVE
+         USE REPULSION, ONLY: NNREPULSIVE, NREPULSIVE, CHECKREP
+         INTEGER, INTENT(IN) :: GROUP_ID
+
+         !Vars needed for linear groups
+          INTEGER :: NNREPSAVE, NREPSAVE                     !< variables for saving repulsion list
+         LOGICAL :: ISINLINGROUP !<is the atom in a linear group
+         INTEGER :: NHERE, ATOM_ID
+         INTEGER :: IMAGE_OFFSET
+         REAL(KIND=REAL64) :: X(3)
+         INTEGER :: NADDED
+         REAL(KIND=REAL64) :: W 
+         REAL(KIND=REAL64) :: CXS(3), CXF(3), QSTART(4), QFINAL(4), QINTERP(4)
+         REAL(KIND=REAL64) :: TRANSLATION_VEC(3)
+         REAL(KIND=REAL64) :: ROT_INTERP(3,3)
+         INTEGER :: J1,J2
+
+         !Initiate book keeping
+         NADDED = 0
+         
+         !Save current repulsion to speed up checks later
+         NNREPSAVE=NNREPULSIVE
+         NREPSAVE=NREPULSIVE
+
+         NHERE = NINGROUP(GROUP_ID)
+         CALL GET_LIN_ROT_TRANSLATION(GROUP_ID, NHERE, CXS, CXF, QSTART, QFINAL)
+
+         WRITE(*,*) "Add_linear_group> Adding linear group ", GROUP_ID
+         DO J1 = 2, NIMAGES+1
+
+            W = 1.0D0*(J1-1)/(1.0D0*(NIMAGES+1)) !Keep 1.0D0 for correct type conversion
+
+            CALL SLERP_INTERPOLATION(QSTART,QFINAL, W, QINTERP)
+            CALL QUATERNION_TO_MATRIX(QINTERP, ROT_INTERP)
+            
+            !Get linear interpolation for centre of geometry
+            TRANSLATION_VEC(:) = CXS(:) + W*(CXF(:)-CXS(:))
+            
+            IMAGE_OFFSET = 3*NATOMS*(J1-1)
+            DO J2 = 1, NHERE
+               
+               ATOM_ID = LINEAR_GROUPS(GROUP_ID, J2)
+               !Need to make sure we haven't already added this atom
+               !IF(ATOMACTIVE(ATOM_ID)) CYCLE
+               
+               X(1) = XYZ(IMAGE_OFFSET+3*(ATOM_ID-1)+1)
+               X(2) = XYZ(IMAGE_OFFSET+3*(ATOM_ID-1)+2)
+               X(3) = XYZ(IMAGE_OFFSET+3*(ATOM_ID-1)+3)
+
+               !Center to the start image
+               X(:) = X(:) - CXS(:)
+
+               !Now apply rotational matrix
+               CALL APPLY_ROTATION_MATRIX(X,ROT_INTERP)
+
+               !Final position = rotated + translated
+               X(:) = X(:) + TRANSLATION_VEC(:)
+                
+               XYZ(IMAGE_OFFSET+3*(ATOM_ID-1)+1) = X(2)
+               XYZ(IMAGE_OFFSET+3*(ATOM_ID-1)+2) = X(2)
+               XYZ(IMAGE_OFFSET+3*(ATOM_ID-1)+2) = X(2)
+
+            END DO
+         END DO
+
+         !Now we need to do bookkeeping for all the atoms we added 
+         DO J2 = 1, NHERE
+            ATOM_ID = LINEAR_GROUPS(GROUP_ID, J2)
+            !Need to make sure we haven't already added this atom
+            IF(ATOMACTIVE(ATOM_ID)) CYCLE
+            NADDED = NADDED + 1
+            
+            !update the repulsions
+            CALL UPDATE_REPULSIONS(ATOM_ID)
+
+            !activate new atom
+            ATOMACTIVE(ATOM_ID)=.TRUE.
+            NACTIVE=NACTIVE+1 
+            TURNONORDER(NACTIVE)=ATOM_ID
+           
+            CALL UPDATE_CONSTRAINTS(ATOM_ID)
+            WRITE(*,*) "Add_linear_group> Adding atom ", ATOM_ID
+         END DO
+         ! before we continue check repulsion neighbour list
+         CALL CHECKREP(XYZ,NNREPSAVE,NREPSAVE+1)
+         !check consistency
+         CALL CHECK_NACTIVE()
+      END SUBROUTINE ADD_LINEAR_GROUP
 
       !> This routine needs tidying up/ potentially rewriting!
       SUBROUTINE GET_ATOMS_FOR_LOCAL_AXIS(NEWATOM,NLOCAL,LOCALIDX,LOCALDIST)
@@ -1461,7 +1591,9 @@ MODULE ADDINGATOM
             END IF 
             ! Now test for various options to get the next atom
             ! 1. Are we using QCIlinear, and is the inactive atom in the list?
-            IF (QCILINEART.AND.(.NOT.INLINLIST(IDXINACTIVE))) CYCLE
+            IF (QCILINEART) THEN 
+               IF(.NOT.INLINLIST(IDXINACTIVE)) CYCLE
+            END IF
             ! 2. Is CHOSENACID set, and is the inactive atom in the residue to be added?
             IF (CHOSENACID.AND.(.NOT.(ATOMS2RES(IDXINACTIVE).EQ.ACID))) CYCLE
             ! 3. Are we adding backbone atoms, and is the inactive atom a backbone atom?
@@ -1605,7 +1737,9 @@ MODULE ADDINGATOM
             END IF 
             ! Now test for various options to get the next atom
             ! 1. Are we using QCIlinear, and is the inactive atom in the list?
-            IF (QCILINEART.AND.(.NOT.INLINLIST(IDXINACTIVE))) CYCLE
+            IF (QCILINEART) THEN
+               IF(.NOT.INLINLIST(IDXINACTIVE)) CYCLE
+            END IF
             ! 2. Is CHOSENACID set, and is the inactive atom in the residue to be added?
             IF (CHOSENACID.AND.(.NOT.(ATOMS2RES(IDXINACTIVE).EQ.ACID))) CYCLE
             ! 3. Are we adding backbone atoms, and is the inactive atom a backbone atom?

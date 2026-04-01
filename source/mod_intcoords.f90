@@ -73,7 +73,7 @@ MODULE MOD_INTCOORDS
          !adjust inlinlist to account for frozen atoms, 
          !these are active by default, so we don't need them in the linear interpolation
          DO J1=1,NATOMS
-            IF (QCIFROZEN(J1)) INLINLIST(J1) = .FALSE.
+            IF (QCIFROZEN(J1).AND.QCILINEART) INLINLIST(J1) = .FALSE.
          END DO
          WRITE(*,*) "DEBUGGING: NCONSTRAINT: " , NCONSTRAINT
          DO J1=1,NCONSTRAINT
@@ -81,8 +81,11 @@ MODULE MOD_INTCOORDS
             !WRITE(*,*) "INLINLIST(CONI(J1))" , INLINLIST(CONI(J1))
             !WRITE(*,*) "INLINLIST(CONJ(J1))" , INLINLIST(CONJ(J1))
 
-            IF (QCILINEART.AND. (.NOT.(INLINLIST(CONI(J1))).OR.(.NOT.INLINLIST(CONJ(J1)))) ) CYCLE            
-            !WRITE(*,*) "HELLO"
+            !Double check this condition
+            IF (QCILINEART) THEN 
+               IF( (.NOT.(INLINLIST(CONI(J1)))) .OR. (.NOT.INLINLIST(CONJ(J1))) )  CYCLE            
+            END IF
+
             ! we want to collect the change in atom positions between the endpoints
             CALL DISTANCE_ATOM_DIFF_IMAGES(NATOMS, XSTART, XFINAL, CONI(J1), D1)
             CALL DISTANCE_ATOM_DIFF_IMAGES(NATOMS, XSTART, XFINAL, CONJ(J1), D2)
