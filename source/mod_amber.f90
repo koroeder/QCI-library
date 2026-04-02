@@ -36,6 +36,9 @@ MODULE AMBER_CONSTRAINTS
          USE MOD_INTCOORDS, ONLY: XSTART, XFINAL
          USE QCIFILEHANDLER, ONLY: GETUNIT, FILE_LENGTH
          USE HELPER_FNCTS, ONLY: DISTANCE_TWOATOMS
+         USE QCI_LINEAR, ONLY: SAVE_BONDS
+         USE QCIKEYS, ONLY: USELINGROUPS
+
          IMPLICIT NONE
          INTEGER, INTENT(IN) :: NATOMS
          INTEGER :: NDUMMY ! counter for constraints
@@ -65,6 +68,10 @@ MODULE AMBER_CONSTRAINTS
          ! allocate the required arrays
          CALL ALLOC_AMBER_CONSTR()
          NDUMMY = 0
+         
+         !Save bonds to later use for linear groups detection
+         IF(USELINGROUPS) CALL SAVE_BONDS(BONDS,NBOND)
+         
          ! add bond constraints
          DO J1=1,NBOND
             NDUMMY = NDUMMY + 1

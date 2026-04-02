@@ -46,7 +46,8 @@ MODULE QCISETUP
          ! get atoms for linear interpolation
          IF(QCILINEART) CALL GET_LINEAR_ATOMS()
          
-         !IN DEVELOPMENT!
+         !IN DEVELOPMENT! 
+         !ATM LINEAR GROUPS DON'T WORK WITH FROZEN ATOMS
          IF(USELINGROUPS) CALL DETECT_LINEAR()
 
          ! setting up repulsions

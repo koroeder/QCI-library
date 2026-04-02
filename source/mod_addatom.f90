@@ -63,7 +63,7 @@ MODULE ADDINGATOM
          END IF
          
 
-      END SUBROUTINE
+      END SUBROUTINE ADDATOM
     
       SUBROUTINE ADDATOM1()
          USE MOD_INTCOORDS, ONLY: XYZ, EEE, GGG, RMS
@@ -437,14 +437,11 @@ MODULE ADDINGATOM
             DO J2 = 1, NHERE
                
                ATOM_ID = LINEAR_GROUPS(GROUP_ID, J2)
-               !Need to make sure we haven't already added this atom
-               !IF(ATOMACTIVE(ATOM_ID)) CYCLE
-               
-               X(1) = XYZ(IMAGE_OFFSET+3*(ATOM_ID-1)+1)
-               X(2) = XYZ(IMAGE_OFFSET+3*(ATOM_ID-1)+2)
-               X(3) = XYZ(IMAGE_OFFSET+3*(ATOM_ID-1)+3)
+               X(1) = XSTART(3*(ATOM_ID-1)+1)
+               X(2) = XSTART(3*(ATOM_ID-1)+2)
+               X(3) = XSTART(3*(ATOM_ID-1)+3)
 
-               !Center to the start image
+              !Center to the start image
                X(:) = X(:) - CXS(:)
 
                !Now apply rotational matrix
@@ -453,9 +450,9 @@ MODULE ADDINGATOM
                !Final position = rotated + translated
                X(:) = X(:) + TRANSLATION_VEC(:)
                 
-               XYZ(IMAGE_OFFSET+3*(ATOM_ID-1)+1) = X(2)
+               XYZ(IMAGE_OFFSET+3*(ATOM_ID-1)+1) = X(1)
                XYZ(IMAGE_OFFSET+3*(ATOM_ID-1)+2) = X(2)
-               XYZ(IMAGE_OFFSET+3*(ATOM_ID-1)+2) = X(2)
+               XYZ(IMAGE_OFFSET+3*(ATOM_ID-1)+3) = X(3)
 
             END DO
          END DO
@@ -1556,7 +1553,7 @@ MODULE ADDINGATOM
       END SUBROUTINE GET_ATOMS_BY_DISTANCE
 
       SUBROUTINE FIND_NEXT_ATOM(CHOSENACID,ACID,NEWATOM,NCONTOACT,SHORTESTCON)
-         USE QCIKEYS, ONLY: QCILINEART, INLINLIST, ATOMS2RES, QCIDOBACK, ISBBATOM, QCIUSEGROUPS, QCIFROZEN
+         USE QCIKEYS, ONLY: QCILINEART, USELINGROUPS, INLINLIST, ATOMS2RES, QCIDOBACK, ISBBATOM, QCIUSEGROUPS, QCIFROZEN
          USE INTERPOLATION_KEYS, ONLY: ATOMACTIVE, CONACTIVE, NACTIVE
          USE QCI_CONSTRAINT_KEYS, ONLY: NCONSTRAINT, CONDISTREF, CONI, CONJ
          USE AMBER_CONSTRAINTS, ONLY: CURRENTLY_ADDING_GROUP, CHECK_IN_GROUP

@@ -12,20 +12,20 @@ MODULE QUATERNIONS
    SUBROUTINE SLERP_INTERPOLATION(Q0, Q1, ALPHA, Q_INTERP)
     IMPLICIT NONE
     
-    REAL(KIND=8), INTENT(IN) :: Q0(4), Q1(4)      ! Quaternions (w, x, y, z)
-    REAL(KIND=8), INTENT(IN) :: ALPHA             ! Interpolation parameter [0,1]
-    REAL(KIND=8), INTENT(OUT) :: Q_INTERP(4)      ! Interpolated quaternion
+    REAL(KIND=REAL64), INTENT(IN) :: Q0(4), Q1(4)      ! Quaternions (w, x, y, z)
+    REAL(KIND=REAL64), INTENT(IN) :: ALPHA             ! Interpolation parameter [0,1]
+    REAL(KIND=REAL64), INTENT(OUT) :: Q_INTERP(4)      ! Interpolated quaternion
     
-    REAL(KIND=8) :: DOT_PRODUCT, THETA, SIN_THETA
-    REAL(KIND=8) :: Q1_ADJUSTED(4)
-    REAL(KIND=8) :: WEIGHT0, WEIGHT1
+    REAL(KIND=REAL64) :: DOT_PRODUCT, THETA, SIN_THETA
+    REAL(KIND=REAL64) :: Q1_ADJUSTED(4)
+    REAL(KIND=REAL64) :: WEIGHT0, WEIGHT1
     
     ! Compute dot product
     DOT_PRODUCT = Q0(1)*Q1(1) + Q0(2)*Q1(2) + Q0(3)*Q1(3) + Q0(4)*Q1(4)
     
     ! Adjust Q1 if dot product is negative (take shorter path)
     Q1_ADJUSTED = Q1
-    IF(DOT_PRODUCT < 0.0D0) THEN
+    IF(DOT_PRODUCT.LT.0.0D0) THEN
         Q1_ADJUSTED = -Q1_ADJUSTED
         DOT_PRODUCT = -DOT_PRODUCT
     END IF
@@ -34,17 +34,17 @@ MODULE QUATERNIONS
     DOT_PRODUCT = MAX(-1.0D0, MIN(1.0D0, DOT_PRODUCT))
     
     ! Calculate angle between quaternions
-    THETA = ACOS(DOT_PRODUCT)
-    SIN_THETA = SIN(THETA)
+    THETA = DACOS(DOT_PRODUCT)
+    SIN_THETA = DSIN(THETA)
     
     ! Avoid division by zero
-    IF(ABS(SIN_THETA) < 1.0D-6) THEN
+    IF(DABS(SIN_THETA).LT.1.0D-6) THEN
         ! Quaternions are very close, use linear interpolation
         Q_INTERP = (1.0D0 - ALPHA) * Q0 + ALPHA * Q1_ADJUSTED
     ELSE
         ! Standard SLERP formula
-        WEIGHT0 = SIN((1.0D0 - ALPHA) * THETA) / SIN_THETA
-        WEIGHT1 = SIN(ALPHA * THETA) / SIN_THETA
+        WEIGHT0 = DSIN((1.0D0 - ALPHA) * THETA) / SIN_THETA
+        WEIGHT1 = DSIN(ALPHA * THETA) / SIN_THETA
         Q_INTERP = WEIGHT0 * Q0 + WEIGHT1 * Q1_ADJUSTED
     END IF
     

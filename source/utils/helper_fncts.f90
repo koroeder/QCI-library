@@ -56,6 +56,7 @@ MODULE HELPER_FNCTS
          U(1:3) = DOTP(3,V1,V2)/DOTP(3,V2,V2)*V2(1:3)
       END FUNCTION GS_PROJECTION
 
+      !Returns angle between 3 atoms in radians
       REAL(KIND = REAL64) FUNCTION ANGLE(COORDS) RESULT(ANG)
          REAL(KIND = REAL64) :: COORDS(9)
          REAL(KIND = REAL64) :: VEC1(3), VEC2(3)
@@ -71,6 +72,9 @@ MODULE HELPER_FNCTS
          ANG = ATAN2(CPMAG,DP)
       END FUNCTION ANGLE
 
+      !> calculate angle according to formula (Blondel and Karplus, 1996):
+      !! phi = atan2( ([b1 x b2] x [b2 x b3]) . (b2/|b2|), [b1 x b2] . [b2 x b3] )
+      !! Result in radians
       REAL(KIND = REAL64) FUNCTION DIHEDRAL(COORDS) RESULT(DIH)
          REAL(KIND = REAL64) :: COORDS(12)
          REAL(KIND = REAL64) :: VECS(9)
@@ -87,10 +91,20 @@ MODULE HELPER_FNCTS
          X = CROSS_PROD(B1xB2, B2xB3)
          B2NORM = VECS(4:6)/EUC_NORM(VECS(4:6))
 
-         ! calculate angle according to formula (Blondel and Karplus, 1996):
-         ! phi = atan2( ([b1 x b2] x [b2 x b3]) . (b2/|b2|), [b1 x b2] . [b2 x b3] )
+         
          DIH = ATAN2(DOTP(3,X,B2NORM), DOTP(3,B1xB2,B2xB3))
       END FUNCTION DIHEDRAL
+
+
+      REAL(KIND=REAL64) FUNCTION DIHEDRAL_DIFF(A, B) RESULT(DIH_DIFF)
+         REAL(KIND = REAL64), PARAMETER :: PI = 3.141592653589793D0
+         REAL(KIND=REAL64) :: A, B
+         !DIH_DIFF = ABS(MOD(A - B + PI, 2.0D0*PI) - PI)
+         DIH_DIFF = DABS(ATAN2(DSIN(A-B), DCOS(A-B)))
+      END FUNCTION
+
+
+
     
       SUBROUTINE DISTANCE_SIMPLE(X1, X2, DIST)
          IMPLICIT NONE

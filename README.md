@@ -1,5 +1,11 @@
 # Standalone Quasi-Continious Interpolation (QCI) code
 
+### Note on linear groups - in development
+ - Linear groups only work with AMBER atm!
+ - Cannot be used together with frozen atoms or QCILINEAR
+ - Add parameter option USELINGROUPS to enable
+
+
 ### New paramter options
 - K_REP - strength of repulsion potenital (energy units)
 - K_CONST - strength of constraint potential (energy units)
