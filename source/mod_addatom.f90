@@ -391,16 +391,17 @@ MODULE ADDINGATOM
 
       SUBROUTINE ADD_LINEAR_GROUP(GROUP_ID)
          USE QCI_LINEAR, ONLY: GET_LIN_ROT_TRANSLATION, LINEAR_GROUPS, NINGROUP
-         USE QCIKEYS, ONLY: NATOMS, DEBUG, NIMAGES
+         USE QCIKEYS, ONLY: NATOMS, DEBUG, NIMAGES, QCIUSEGROUPS
          USE MOD_INTCOORDS, ONLY: XSTART, XFINAL, XYZ
          USE QUATERNIONS
          USE HELPER_FNCTS, ONLY: APPLY_ROTATION_MATRIX
          USE INTERPOLATION_KEYS, ONLY: CONACTIVE, NACTIVE, TURNONORDER, ATOMACTIVE
          USE REPULSION, ONLY: NNREPULSIVE, NREPULSIVE, CHECKREP
+         USE AMBER_CONSTRAINTS, ONLY: GROUPLOOKUP, CURRENT_GROUP, CURRENTLY_ADDING_GROUP, INGROUP, PLACINGGROUPS, SIZEPLACINGGROUPS
          INTEGER, INTENT(IN) :: GROUP_ID
 
          !Vars needed for linear groups
-          INTEGER :: NNREPSAVE, NREPSAVE                     !< variables for saving repulsion list
+         INTEGER :: NNREPSAVE, NREPSAVE                     !< variables for saving repulsion list
          LOGICAL :: ISINLINGROUP !<is the atom in a linear group
          INTEGER :: NHERE, ATOM_ID
          INTEGER :: IMAGE_OFFSET
@@ -411,10 +412,11 @@ MODULE ADDINGATOM
          REAL(KIND=REAL64) :: TRANSLATION_VEC(3)
          REAL(KIND=REAL64) :: ROT_INTERP(3,3)
          INTEGER :: J1,J2
+         LOGICAL :: ALLADDED
 
          !Initiate book keeping
          NADDED = 0
-         
+         ALLADDED = .TRUE.
          !Save current repulsion to speed up checks later
          NNREPSAVE=NNREPULSIVE
          NREPSAVE=NREPULSIVE
@@ -474,6 +476,34 @@ MODULE ADDINGATOM
            
             CALL UPDATE_CONSTRAINTS(ATOM_ID)
             WRITE(*,*) "Add_linear_group> Adding atom ", ATOM_ID
+
+
+            !check whether we have a new group or completed the old one
+             IF (QCIUSEGROUPS) THEN
+             !if we have an active group, check whether we added all atoms
+               IF (CURRENTLY_ADDING_GROUP) THEN
+                  ALLADDED = .TRUE.
+                  DO J1=1,SIZEPLACINGGROUPS(CURRENT_GROUP)
+                     IF (.NOT.ATOMACTIVE(PLACINGGROUPS(CURRENT_GROUP,J1))) THEN
+                        ALLADDED = .FALSE.
+                        EXIT
+                     END IF
+                  END DO
+                  !if so, we are done with the group and turn the group addition option opff for now
+                  IF (ALLADDED) THEN
+                     CURRENT_GROUP = 0
+                     CURRENTLY_ADDING_GROUP = .FALSE.
+                  END IF
+               ! if we are not actively adding a group, we have to check whether we started a new group
+               ELSE
+                  IF (INGROUP(ATOM_ID)) THEN
+                     CURRENTLY_ADDING_GROUP = .TRUE.
+                     CURRENT_GROUP = GROUPLOOKUP(ATOM_ID)
+                  END IF
+               END IF
+            END IF
+
+
          END DO
          ! before we continue check repulsion neighbour list
          CALL CHECKREP(XYZ,NNREPSAVE,NREPSAVE+1)
@@ -1553,7 +1583,8 @@ MODULE ADDINGATOM
       END SUBROUTINE GET_ATOMS_BY_DISTANCE
 
       SUBROUTINE FIND_NEXT_ATOM(CHOSENACID,ACID,NEWATOM,NCONTOACT,SHORTESTCON)
-         USE QCIKEYS, ONLY: QCILINEART, USELINGROUPS, INLINLIST, ATOMS2RES, QCIDOBACK, ISBBATOM, QCIUSEGROUPS, QCIFROZEN
+         USE QCIKEYS, ONLY: QCILINEART, USELINGROUPS, INLINLIST, ATOMS2RES, QCIDOBACK, ISBBATOM, QCIUSEGROUPS, QCIFROZEN, USELINGROUPS
+         USE QCI_LINEAR, ONLY: ATOM2LINGROUP
          USE INTERPOLATION_KEYS, ONLY: ATOMACTIVE, CONACTIVE, NACTIVE
          USE QCI_CONSTRAINT_KEYS, ONLY: NCONSTRAINT, CONDISTREF, CONI, CONJ
          USE AMBER_CONSTRAINTS, ONLY: CURRENTLY_ADDING_GROUP, CHECK_IN_GROUP
