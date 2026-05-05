@@ -707,40 +707,7 @@ MODULE QCI_LINEAR
    END SUBROUTINE COMPARE_AMBER_LINEAR_GROUPS
 
 
-   !> Allocate and save bonds
-   SUBROUTINE SAVE_BONDS(BONDS_IN, NBOND_IN)
-      
-      USE QCI_CONSTRAINT_KEYS, ONLY: NBONDS, BOND_LIST
-      IMPLICIT NONE
 
-      ! === Inputs ===
-      INTEGER, INTENT(IN) :: NBOND_IN
-      INTEGER, INTENT(IN) :: BONDS_IN(NBOND_IN,2)
-
-      ! === Local ===
-      INTEGER :: I
-
-      ! === Sanity checks ===
-      IF (NBOND_IN <= 0) THEN
-         PRINT *, "SAVE_BONDS: nbonds <= 0, nothing to store"
-         RETURN
-      END IF
-
-      ! === Deallocate old storage if present ===
-      IF (ALLOCATED(BOND_LIST)) THEN
-         DEALLOCATE(BOND_LIST)
-      END IF
-
-      ! === Allocate new storage ===
-      ALLOCATE(BOND_LIST(2, NBOND_IN))
-      NBONDS = NBOND_IN
-
-      DO I=1, NBONDS
-         BOND_LIST( 1, I) = BONDS_IN(I,1)
-         BOND_LIST( 2, I) = BONDS_IN(I,2)
-      END DO
-
-   END SUBROUTINE SAVE_BONDS
   
 
    !> Currently deallocation done in DEALLOC_LINEAR_GROUP, so this doesn't need to be called
