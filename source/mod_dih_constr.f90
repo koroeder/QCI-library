@@ -329,15 +329,6 @@ MODULE DIHEDRAL_CONSTRAINTS
             END DO
          END IF
 
-         !DO J=1,NCONS
-         !   DIHEDRALS(J,1) = REFATOMS(J,1)
-         !   DIHEDRALS(J,2) = REFATOMS(J,2)
-         !   DIHEDRALS(J,3) = REFATOMS(J,3)
-         !   DIHEDRALS(J,4) = REFATOMS(J,4) 
-         !   DIHMUL(J) = 2           
-         !WRITE(*,*) "DIHEDRALS-:  J=", J, "atoms: ",  DIHEDRALS(J,1:4)
-         !END DO
-
          ! get reference angles
          DO J=1,NDIH
             AT1 = DIHEDRALS(J,1); AT2 = DIHEDRALS(J,2); AT3 = DIHEDRALS(J,3); AT4 = DIHEDRALS(J,4)
@@ -353,10 +344,7 @@ MODULE DIHEDRAL_CONSTRAINTS
             REFDIH(J) = THISDIH 
             
             ! now compute and store the regularised versions
-            IF (DABS(THISDIH-PI).LE.EPS3) THISDIH = SIGN(PI,THISDIH)
-            
-            !IF (DIHMUL(J).EQ.2) THISDIH = THISDIH + PI
-            
+            IF (DABS(THISDIH-PI).LE.EPS3) THISDIH = SIGN(PI,THISDIH)        
 
             THISC0 = DCOS(THISDIH)
             THISS0 = DSIN(THISDIH)

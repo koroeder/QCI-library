@@ -176,6 +176,9 @@ MODULE ADDINGATOM
                 ELSE IF (QCITRILATERATION) THEN
                   !trilaterate atoms, if this fails use fall back option. 
                   CALL TRILATERATE_ATOMS(NEXTATOM,LOCALIDX,LOCALDIST, FAILED)
+                  IF (FAILED) THEN
+                     CALL PLACE_LINEAR_ATOM(NEXTATOM,NLOCAL,LOCALIDX)
+                  END IF
                ELSE IF (QCITRILATERATION2) THEN
                   !trilaterate atoms, if this fails use fall back option. 
                   
@@ -192,48 +195,47 @@ MODULE ADDINGATOM
                   WRITE(*,*) " addatom> Call chirality check after adding the atom.... "
                   CALL CHIRALITY_CHECK_ONLY(XYZ,SWAPPED,NEXTATOM)
       
-                  IF (SWAPPED) THEN
-                     
-                     !Save next atom and new coordinates and also revert to old coordinates, so we can try again
-                     SAVENEXTATOM = NEXTATOM
-                     TRYXYZ = XYZ
-
-                     XYZ = SAVEXYZ
-                     NEXTATOM = 0
-                     FAILED = .FALSE.
-                     !Try adding alternative atom
-                     WRITE(*,*) "addatom> Changed chirality while adding atom"
-                     WRITE(*,*) "addatom> Attempting to find alternative atom to add to preserve chirality"
-                     CALL FIND_NEXT_ATOM_FALLBACK(CHOSENACID,ACID,SAVENEXTATOM, NEXTATOM,NCONTOACT,SHORTESTCON)
-                     IF( NEXTATOM.EQ.0 ) THEN
-                        WRITE(*,*) "addatom> FAILED to find a better atom to add. ... go back to original choice. "
-                        XYZ = TRYXYZ
-                        NEXTATOM = SAVENEXTATOM
-                     ELSE
-                        WRITE(*,*) "addatom> Found alternative atom ", NEXTATOM, " to add. Attempting to add this atom instead."
-                        CALL GET_ATOMS_FOR_LOCAL_AXIS(NEXTATOM,NLOCAL,LOCALIDX,LOCALDIST)    
-                        CALL PLACE_LINEAR_ATOM(NEXTATOM,NLOCAL,LOCALIDX)
-                        CALL TRILATERATE_ATOMS2(NEXTATOM,LOCALIDX,LOCALDIST, FAILED)
-                     ENDIF   
-                     
-                      !check have we changed chirality by adding the atom
-                      WRITE(*,*) " addatom> Call chirality check after adding the atom.... "
-                      CALL CHIRALITY_CHECK_ONLY(XYZ,FAILED,NEXTATOM)
-
-                     !If we failed again revert to previous coordinates and continue.
-                     IF (FAILED) THEN 
-                        XYZ = TRYXYZ
-                        NEXTATOM = SAVENEXTATOM
-                        WRITE(*,*) "addatom> Failed to add fallback atom, going back to original choice."
-                     ELSE 
-                        WRITE(*,*) "addatom> added atom: ", NEXTATOM, " after adding atom ", SAVENEXTATOM, " failed."
-                     END IF
-
-                  ELSE 
-                     WRITE(*,*) " addatom> Chirality check ok"
-                  END IF
-                  !XYZ = TRYXYZ
-                  !NEXTATOM = SAVENEXTATOM
+                  !IF (SWAPPED) THEN
+                  !   
+                  !   !Save next atom and new coordinates and also revert to old coordinates, so we can try again
+                  !   SAVENEXTATOM = NEXTATOM
+                  !   TRYXYZ = XYZ
+                  !
+                  !   XYZ = SAVEXYZ
+                  !   NEXTATOM = 0
+                  !   FAILED = .FALSE.
+                  !   !Try adding alternative atom
+                  !   WRITE(*,*) "addatom> Changed chirality while adding atom"
+                  !   WRITE(*,*) "addatom> Attempting to find alternative atom to add to preserve chirality"
+                  !   CALL FIND_NEXT_ATOM_FALLBACK(CHOSENACID,ACID,SAVENEXTATOM, NEXTATOM,NCONTOACT,SHORTESTCON)
+                  !   IF( NEXTATOM.EQ.0 ) THEN
+                  !      WRITE(*,*) "addatom> FAILED to find a better atom to add. ... go back to original choice. "
+                  !      XYZ = TRYXYZ
+                  !      NEXTATOM = SAVENEXTATOM
+                  !   ELSE
+                  !      WRITE(*,*) "addatom> Found alternative atom ", NEXTATOM, " to add. Attempting to add this atom instead."
+                  !      CALL GET_ATOMS_FOR_LOCAL_AXIS(NEXTATOM,NLOCAL,LOCALIDX,LOCALDIST)    
+                  !      CALL PLACE_LINEAR_ATOM(NEXTATOM,NLOCAL,LOCALIDX)
+                  !      CALL TRILATERATE_ATOMS2(NEXTATOM,LOCALIDX,LOCALDIST, FAILED)
+                  !   ENDIF   
+                  !   
+                  !    !check have we changed chirality by adding the atom
+                  !    WRITE(*,*) " addatom> Call chirality check after adding the atom.... "
+                  !    CALL CHIRALITY_CHECK_ONLY(XYZ,FAILED,NEXTATOM)
+                  !
+                  !   !If we failed again revert to previous coordinates and continue.
+                  !   IF (FAILED) THEN 
+                  !      XYZ = TRYXYZ
+                  !      NEXTATOM = SAVENEXTATOM
+                  !      WRITE(*,*) "addatom> Failed to add fallback atom, going back to original choice."
+                  !   ELSE 
+                  !      WRITE(*,*) "addatom> added atom: ", NEXTATOM, " after adding atom ", SAVENEXTATOM, " failed."
+                  !   END IF
+                  !
+                  !ELSE 
+                  !   WRITE(*,*) " addatom> Chirality check ok"
+                  !END IF
+                  
                ELSE
                   CALL PLACE_ATOM(NEXTATOM,NLOCAL,LOCALIDX)
                END IF
