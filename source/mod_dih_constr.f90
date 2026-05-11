@@ -20,7 +20,7 @@ MODULE DIHEDRAL_CONSTRAINTS
    !> spring restraint constant
    REAL(KIND = REAL64) :: KDIH !QUESTION should this be in qci keys?
    !> Dihtype is used to set do we apply chirality to chiral centres only (default) or to full dihedrals
-   !! 1=chiral only 2=all dihedrals
+   !! 1=chiral only, 2=all dihedrals
    INTEGER :: DIHTYPE = 1
 
    CONTAINS

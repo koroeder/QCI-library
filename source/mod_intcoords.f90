@@ -54,6 +54,8 @@ MODULE MOD_INTCOORDS
 
       END SUBROUTINE INITIATE_INTERPOLATION_BAND
 
+      !> Get a constraint with smallest overall motion
+      !! Backbone and linear atoms get priority (if enabled)
       SUBROUTINE GET_DISTANCES_CONSTRAINTS(NBEST)
          USE QCI_CONSTRAINT_KEYS
          USE QCIKEYS, ONLY: QCIDOBACK, ISBBATOM, QCIFROZEN, QCILINEART, INLINLIST

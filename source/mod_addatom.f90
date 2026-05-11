@@ -31,7 +31,7 @@ MODULE ADDINGATOM
          WRITE(*,*) " COMPARING FINISH COORDS: ", SUM(DIFF)
       END SUBROUTINE CHECK_DIFF_FINAL
 
-     !> Check wherer we are adding a single atom or a linear group and call approprite routine
+     !> Check wherer we are adding a single atom or a linear group and call appropriate routine
       SUBROUTINE ADDATOM()
          
          USE QCI_LINEAR, ONLY:ATOM2LINGROUP

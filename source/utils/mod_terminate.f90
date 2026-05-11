@@ -1,4 +1,4 @@
-! Module dealing with the temrination of QCI
+! Module dealing with the termination of QCI
 MODULE MOD_TERMINATE
 
    CONTAINS
@@ -17,6 +17,7 @@ MODULE MOD_TERMINATE
          USE ADDINGATOM, ONLY: DEALLOC_ADDATOM
          USE MOD_INTCOORDS, ONLY: XSTART, XFINAL
          USE QCIKEYS, ONLY: DEALLOC_QCIKEYS
+         USE QCIPERMDIST, ONLY: DEALLOC_QCIPERM
 
          IMPLICIT NONE
          CALL DEALLOC_INTERPOLATION_VARS()
@@ -33,10 +34,11 @@ MODULE MOD_TERMINATE
          CALL DEALLOC_REP_VARS()
          CALL DEALLOC_ADDATOM()
          CALL DEALLOC_QCIKEYS()
+         CALL DEALLOC_QCIPERM()
 
          ! XSTART and XFINAL are special cases, and are allocated outside of a specific ALLOC routine
          ! Hence they need to be deallocated here
-         !IF (ALLOCATED(XSTART)) DEALLOCATE(XSTART)
-         !IF (ALLOCATED(XFINAL)) DEALLOCATE(XFINAL)
+         IF (ALLOCATED(XSTART)) DEALLOCATE(XSTART)
+         IF (ALLOCATED(XFINAL)) DEALLOCATE(XFINAL)
       END SUBROUTINE FINISH_QCI
 END MODULE MOD_TERMINATE

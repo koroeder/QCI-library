@@ -155,7 +155,7 @@ MODULE MOD_FREEZE
             IF (ABS(I-NJ).LE.QCIINTREPMINSEP) CYCLE
             ! ignore pairs of frozen atoms
             IF (QCIFROZEN(I).AND.QCIFROZEN(NJ)) CYCLE
-            ! make sure we are not adding a repulsion to an existing cosntraint
+            ! make sure we are not adding a repulsion to an existing constraint
             SKIPREP = .FALSE.
             DO J=1,NCONSTRAINT
                IF (.NOT.CONACTIVE(J)) CYCLE
@@ -171,6 +171,7 @@ MODULE MOD_FREEZE
                CALL DISTANCE_TWOATOMS(NATOMS,XSTART,NJ,I,DSTART)
                CALL DISTANCE_TWOATOMS(NATOMS,XFINAL,NJ,I,DSTART)
                DMIN = MIN(DSTART,DFINAL)
+               !QUESTION should it be MAX below?
                DMIN = MIN(DMIN-1.0D-3,QCIREPCUT)
                NREPULSIVE = NREPULSIVE + 1
                IF (NREPULSIVE.GT.NREPCURR) CALL DOUBLE_ALLOC_REP()
