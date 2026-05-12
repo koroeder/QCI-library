@@ -5,7 +5,7 @@ MODULE HELPER_FNCTS
    CONTAINS
 
       !> Euclidean norm of a vector
-      FUNCTION EUC_NORM(V)
+      PURE FUNCTION EUC_NORM(V)
          REAL(KIND = REAL64) :: EUC_NORM
          REAL(KIND = REAL64), INTENT(IN) :: V(3)
          
@@ -13,7 +13,7 @@ MODULE HELPER_FNCTS
       END FUNCTION EUC_NORM
 
       !> Function to calculate dot product for any dimension of vector
-      FUNCTION DOTP(NSIZE,V1,V2)
+      PURE FUNCTION DOTP(NSIZE,V1,V2)
          REAL(KIND = REAL64) :: DOTP     ! dot product
          INTEGER, INTENT(IN) :: NSIZE    ! input size for vectors
          REAL(KIND = REAL64), INTENT(IN) :: V1(NSIZE), V2(NSIZE) !the vectors to be used
@@ -38,8 +38,8 @@ MODULE HELPER_FNCTS
          VN(1:3) = V(1:3)/NORM
       END SUBROUTINE NORM_VEC
 
-      FUNCTION CROSS_PROD(V1,V2) RESULT(A)
-         REAL(KIND = REAL64) :: V1(3), V2(3)
+      PURE FUNCTION CROSS_PROD(V1,V2) RESULT(A)
+         REAL(KIND = REAL64), INTENT(IN) :: V1(3), V2(3)
          REAL(KIND = REAL64) :: A(3)
 
          A(1) = V1(2) * V2(3) - V1(3) * V2(2)
