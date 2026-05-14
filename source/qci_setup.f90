@@ -297,7 +297,7 @@ MODULE QCISETUP
             QCIFREEZET = .TRUE.
             READ(VAL, *) QCIFREEZETOL
          
-            ! check for internal minima in constraints?
+         ! check for internal minima in constraints?
          ELSE IF (ENTRY.EQ."CHECKINTMINCONSTR") THEN
             CHECKCONINT = .TRUE.
          ! scaling factor for internal minima

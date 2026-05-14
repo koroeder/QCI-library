@@ -68,38 +68,59 @@ MODULE QCIINTERPOLATION
 
          ! are we reading in a guess?
          IF (QCIREADGUESS) THEN
-            CALL READGUESS()
+            !CALL READGUESS()
+            !improved version of readguess 
+            CALL READ_BAND()
+            
+            !Need to activate all constraints and atoms, so we are not adding atoms again
+            NACTIVE=NATOMS
+            NCONSTRAINTON=NCONSTRAINT
+            CONACTIVE(:)=.TRUE.
+            ATOMACTIVE(:)=.TRUE.
+            ATOMACTIVE(:)=.TRUE.
+            
+            !CHECKREP should populate this 
+            NREPULSIVE=0
+            !Probably not important to have this array opulated, but double check
+            TURNONORDER(:) = 0
+
+            
+
+         ELSE
+
+            ! get constraint with smallest distance between endpoints (respecting QCILINEAR and QCIDOBACK)
+            CALL GET_DISTANCES_CONSTRAINTS(NBEST)
+
+            ! get common constraints for atoms in permutational groups
+            IF (QCIPERMT) CALL CHECK_COMMON_CONSTR()
+
+            ! Turning first constraint on and activating atoms
+            CONACTIVE(NBEST)=.TRUE.
+            ATOMACTIVE(CONI(NBEST))=.TRUE.
+            ATOMACTIVE(CONJ(NBEST))=.TRUE.
+            IF (DEBUG) WRITE(*,'(A,I6,A,2I6)') ' QCIinterp> Turning on constraint ',NBEST,' for atoms ',CONI(NBEST),CONJ(NBEST)
+            IF (.NOT.QCIFROZEN(CONI(NBEST))) THEN
+               TURNONORDER(NACTIVE+1)=CONI(NBEST)
+               NACTIVE=NACTIVE+1
+            ENDIF
+            IF (.NOT.QCIFROZEN(CONJ(NBEST))) THEN
+               TURNONORDER(NACTIVE+1)=CONJ(NBEST)
+               NACTIVE=NACTIVE+1
+            ENDIF
+            !Question What is this and do we need it?
+            NTRIES(CONI(NBEST))=1
+            NTRIES(CONJ(NBEST))=1
+            NREPULSIVE=0
+            !We turned on the 1st constraint above 
+            NCONSTRAINTON=1
+
+            ! add constraints and repulsions for all frozen atoms - this doesn not do that
+            !IF (QCIFREEZET) THEN
+            CALL ADD_CONSTR_AND_REP_FROZEN_ATOMS(NBEST)
+            !END IF
          END IF
-
-         ! get constraint with smallest distance between endpoints (respecting QCILINEAR and QCIDOBACK)
-         CALL GET_DISTANCES_CONSTRAINTS(NBEST)
-
-         ! get common constraints for atoms in permutational groups
-         IF (QCIPERMT) CALL CHECK_COMMON_CONSTR()
-
-         ! Turning first constraint on and activating atoms
-         CONACTIVE(NBEST)=.TRUE.
-         ATOMACTIVE(CONI(NBEST))=.TRUE.
-         ATOMACTIVE(CONJ(NBEST))=.TRUE.
-         IF (DEBUG) WRITE(*,'(A,I6,A,2I6)') ' QCIinterp> Turning on constraint ',NBEST,' for atoms ',CONI(NBEST),CONJ(NBEST)
-         IF (.NOT.QCIFROZEN(CONI(NBEST))) THEN
-            TURNONORDER(NACTIVE+1)=CONI(NBEST)
-            NACTIVE=NACTIVE+1
-         ENDIF
-         IF (.NOT.QCIFROZEN(CONJ(NBEST))) THEN
-            TURNONORDER(NACTIVE+1)=CONJ(NBEST)
-            NACTIVE=NACTIVE+1
-         ENDIF
-         NTRIES(CONI(NBEST))=1
-         NTRIES(CONJ(NBEST))=1
-         NREPULSIVE=0
-         !We turned on the 1st constraint above 
-         NCONSTRAINTON=1
-         
-         ! add constraints and repulsions for all frozen atoms
-         !IF (QCIFREEZET) THEN
-         CALL ADD_CONSTR_AND_REP_FROZEN_ATOMS(NBEST)
-         !END IF
+                 
+        
          ! before we continue check repulsion neighbour list
          CALL CHECKREP(XYZ,0,1)
 

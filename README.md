@@ -1,5 +1,9 @@
 # Standalone Quasi-Continious Interpolation (QCI) code
 
+### New option to detect backbone crossings
+ 
+ - DETECTBBCROSSINGS int_check_freq
+
 ### Note on linear groups - in development
  - Linear groups only work with AMBER atm!
  - Cannot be used together with frozen atoms or QCILINEAR

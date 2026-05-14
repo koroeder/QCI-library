@@ -215,4 +215,93 @@ MODULE MOD_INTCOORDS
 
          IF (DEBUG) WRITE(*,*) " write_profile> Interpolation energy profile written to ", FNAME
       END SUBROUTINE WRITE_PROFILE
+
+      SUBROUTINE READ_BAND()
+         USE QCIKEYS, ONLY: NATOMS, NIMAGES, GUESSFILE
+         USE QCIFILEHANDLER, ONLY: GETUNIT
+         IMPLICIT NONE
+         INTEGER :: LUNIT
+         INTEGER :: J1, J2, N, IOSTAT_VAL, NTOTAL
+         REAL(KIND = REAL64) :: X, Y, Z
+         CHARACTER(10) :: ATOMNAME
+         LOGICAL :: LEXIST
+
+      
+         INQUIRE(FILE=TRIM(GUESSFILE), EXIST=LEXIST)
+         IF (.NOT. LEXIST) THEN
+            WRITE(*,'(A,A,A)') 'ERROR: File "', TRIM(GUESSFILE), '" not found. Terminating.'
+            ERROR STOP
+         END IF
+
+         LUNIT = GETUNIT()
+         OPEN(UNIT=LUNIT, FILE=TRIM(GUESSFILE), STATUS='old', ACTION='read')
+
+         
+         ! Part1: scan only: count total images and validate NATOMS
+        
+         NTOTAL = 0
+         DO
+            READ(LUNIT, *, IOSTAT=IOSTAT_VAL) N
+            IF (IOSTAT_VAL /= 0) EXIT
+
+            IF (N.NE.NATOMS) THEN
+               WRITE(*,'(A,I0,A,I0)') 'ERROR: Expected NATOMS=', NATOMS, &
+                  ' but found ', N
+               CLOSE(LUNIT)
+               ERROR STOP
+            END IF
+
+            READ(LUNIT, *, IOSTAT=IOSTAT_VAL)  ! skip comment line
+            IF (IOSTAT_VAL.NE.0) THEN
+               WRITE(*,'(A,I0)') 'ERROR: EOF while skipping comment in frame ', NTOTAL+1
+               CLOSE(LUNIT)
+               ERROR STOP
+            END IF
+
+            DO J2 = 1, NATOMS
+               READ(LUNIT, *, IOSTAT=IOSTAT_VAL) ATOMNAME, X, Y, Z
+               IF (IOSTAT_VAL.NE.0) THEN
+                  WRITE(*,'(A,I0,A,I0)') 'ERROR: EOF at atom ', J2, &
+                     ' in frame ', NTOTAL+1
+                  CLOSE(LUNIT)
+                  ERROR STOP
+               END IF
+            END DO
+
+            NTOTAL = NTOTAL + 1
+         END DO
+
+         IF (NTOTAL.LT.2) THEN
+            WRITE(*,'(A,I0,A)') 'ERROR: Found ', NTOTAL, &
+               ' frame(s). Need at least 2 endpoints.'
+            CLOSE(LUNIT)
+            ERROR STOP
+         END IF
+
+         NIMAGES = NTOTAL - 2
+         WRITE(*,'(A,I0,A,I0,A)') 'Scan complete: ', NTOTAL, &
+            ' frames (', NIMAGES, ' images + 2 endpoints).'
+
+         !Reallocate intcoords in case NIMAGES changes. 
+         CALL ALLOC_INTCOORDS()
+         CALL ALLOC_STEPTAKING()
+
+         REWIND(LUNIT)
+
+         ! Part3: Populate xyz
+         DO J1 = 1, NTOTAL
+            READ(LUNIT, *) N        ! natoms line (already validated)
+            READ(LUNIT, *)          ! skip comment line
+
+            DO J2 = 1, NATOMS
+               READ(LUNIT, *) ATOMNAME, X, Y, Z
+               XYZ((J1-1)*3*NATOMS + 3*(J2-1) + 1) = X
+               XYZ((J1-1)*3*NATOMS + 3*(J2-1) + 2) = Y
+               XYZ((J1-1)*3*NATOMS + 3*(J2-1) + 3) = Z
+            END DO
+         END DO
+
+         CLOSE(LUNIT)
+      END SUBROUTINE READ_BAND
+
 END MODULE MOD_INTCOORDS
