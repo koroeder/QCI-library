@@ -13,7 +13,7 @@ MODULE QCIINTERPOLATION
                             DUMPQCIXYZFRQS, DUMPQCIXYZ, QCIADJUSTKFRQ, QCIADJUSTKT, QCIAVDEV, &
                             QCIKINTMIN, QCIKINTMAX, QCIADJUSTKFRAC, QCIADJUSTKTOL, QCIIMAGECHECK, &
                             QCIPERMCHECKINT, QCIPERMT, QCIRMSTOL, QCIFROZEN, QCIRESET, QCIRESETINT1, &
-                            NMINAFTERADD, OPTIMISEAFTERADDITION
+                            NMINAFTERADD, OPTIMISEAFTERADDITION, DETECTBBCROSSING, CHECKCROSSFREQ
          USE MOD_FREEZE, ONLY: ADD_CONSTR_AND_REP_FROZEN_ATOMS
          USE CONSTR_E_GRAD, ONLY: CONGRAD, CONVERGECONTEST, CONVERGEREPTEST, &
                                   FCONMAX, FREPMAX
@@ -27,6 +27,7 @@ MODULE QCIINTERPOLATION
          USE HELPER_FNCTS, ONLY: DOTP
          USE MOD_CHECK_GRAD, ONLY: CHECK_GRAD
          USE OUT_PRINT, ONLY: WRITE_CONGRADOUT
+         USE BOND_CROSSING_DETECTION, ONLY: DETECT_BOND_CROSSINGS
          IMPLICIT NONE
          INTEGER :: NBEST !< Constraint with smallest DMIN
          INTEGER :: NITERDONE, FIRSTATOM, NCONCUTABSINC, NDECREASE, NFAIL, NLASTGOODE
@@ -202,6 +203,14 @@ MODULE QCIINTERPOLATION
                END IF
             END IF
 
+            !Check for backbone crossings 
+            IF (DETECTBBCROSSING.AND.(MOD(NITERDONE,CHECKCROSSFREQ).EQ.0)) THEN
+               !For now only do a passive check
+               ! TODO: Develop strategy to deal resolve bond crossings 
+               CALL DETECT_BOND_CROSSINGS(XYZ)
+                           
+            END IF
+            
             !if not all atoms are active, we add an atom now to the active set and hence the images
             IF (ADDATOMT.AND.(NACTIVE.LT.NATOMS)) THEN
                WRITE(*,*) " QCIinterp> Adding the next atom to active set" 

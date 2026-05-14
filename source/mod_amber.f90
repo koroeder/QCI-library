@@ -1011,7 +1011,7 @@ MODULE AMBER_CONSTRAINTS
          RETURN
       END SUBROUTINE GET_ATOMID
 
-    !> Allocate and save bonds
+   !> Allocate and save bonds to qci_constraint_keys
    SUBROUTINE SAVE_BONDS(BONDS_IN, NBOND_IN)
       
       USE QCI_CONSTRAINT_KEYS, ONLY: NBONDS, BOND_LIST
@@ -1031,9 +1031,7 @@ MODULE AMBER_CONSTRAINTS
       END IF
 
       ! === Deallocate old storage if present ===
-      IF (ALLOCATED(BOND_LIST)) THEN
-         DEALLOCATE(BOND_LIST)
-      END IF
+      IF (ALLOCATED(BOND_LIST)) DEALLOCATE(BOND_LIST) 
 
       ! === Allocate new storage ===
       ALLOCATE(BOND_LIST(2, NBOND_IN))

@@ -409,7 +409,10 @@ MODULE QCISETUP
          ELSE IF (ENTRY.EQ."DUMPXYZ") THEN
             DUMPQCIXYZ = .TRUE.
             READ(VAL, *) DUMPQCIXYZFRQS
- 
+
+         ELSE IF (ENTRY.EQ."DETECTBBCROSSINGS") THEN
+            DETECTBBCROSSING = .TRUE.
+            READ(VAL, *) CHECKCROSSFREQ 
          ELSE
             WRITE(*,*) " setkeys> Cannot find setting ", ENTRY, " - will skip this entry"
          END IF

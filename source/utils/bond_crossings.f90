@@ -1,27 +1,10 @@
 !> Helper module to detect bond crossings
-MODULE BOND_CROSSING
+MODULE BOND_CROSSING_DETECTION
        
    USE QCIPREC
    IMPLICIT NONE
    REAL(KIND=REAL64), PARAMETER :: EPS = 1.0E-12_REAL64
    CONTAINS
-
-   SUBROUTINE DETECT_BOND_CROSSING(XYZ)
-      USE QCIKEYS, ONLY: NIMAGES, NATOMS
-      USE QCI_CONSTRAINT_KEYS, ONLY: BOND_LIST, NBONDS, MAX_BONDS_PER_ATOM, &
-                                       BONDS_PER_ATOM_LIST, N_BONDS_PER_ATOM
-
-      REAL(KIND = REAL64), INTENT(IN) :: XYZ(3*NATOMS*(NIMAGES+2))   !< input coordinates
-      
-      INTEGER :: J1
-
-
-      DO J1=1, NIMAGES
-
-      
-      END DO 
-    
-   END SUBROUTINE DETECT_BOND_CROSSING
 
    !>  ------------------
    !> CHECK IF A POINT LIES INSIDE A TRIANGLE (3D).
@@ -273,23 +256,32 @@ MODULE BOND_CROSSING
    !>   N_CROSSINGS              : TOTAL NUMBER OF CROSSING PAIRS (OPTIONAL)
    !>   CROSSING_PAIRS(NIMAGES-1): NUMBER OF CROSSING PAIRS PER TRANSITION (OPT)
    !>------------------------------------------------------------------------------
-   SUBROUTINE DETECT_BOND_CROSSINGS(XYZ, NBBONDS, BBOND_LIST, DIST_CUTOFF, &
-                                    IS_CROSSED, N_CROSSINGS, CROSSING_PAIRS)
+   SUBROUTINE DETECT_BOND_CROSSINGS(XYZ) 
+   !SUBROUTINE DETECT_BOND_CROSSINGS(XYZ, DIST_CUTOFF, &
+   !                                   IS_CROSSED, N_CROSSINGS, CROSSING_PAIRS)
       USE HELPER_FNCTS, ONLY: DISTANCE_SIMPLE
-      USE QCIKEYS, ONLY: NIMAGES, NATOMS
-      USE QCI_CONSTRAINT_KEYS, ONLY: BOND_LIST, NBONDS, MAX_BONDS_PER_ATOM, &
-                                          BONDS_PER_ATOM_LIST, N_BONDS_PER_ATOM
+      USE QCIKEYS, ONLY: NIMAGES, NATOMS, ISBBATOM
+      USE QCI_CONSTRAINT_KEYS, ONLY: BOND_LIST, NBONDS
       
-      REAL(KIND = REAL64), INTENT(IN) :: XYZ
-      INTEGER, INTENT(IN) :: NBBONDS
-      INTEGER, INTENT(IN) :: BBOND_LIST(2, NBBONDS)
-      REAL(KIND = REAL64), INTENT(IN), OPTIONAL :: DIST_CUTOFF
-      LOGICAL, INTENT(OUT) :: IS_CROSSED(NIMAGES-1)
-      INTEGER, INTENT(OUT), OPTIONAL :: N_CROSSINGS
-      INTEGER, INTENT(OUT), OPTIONAL :: CROSSING_PAIRS(NIMAGES-1)
+      REAL(KIND = REAL64), INTENT(IN) :: XYZ(3*NATOMS*(NIMAGES+2)) 
+      !REAL(KIND = REAL64), INTENT(IN), OPTIONAL :: DIST_CUTOFF
+      !LOGICAL, INTENT(OUT) :: IS_CROSSED(NIMAGES-1)
+      !INTEGER, INTENT(OUT), OPTIONAL :: N_CROSSINGS
+      !INTEGER, INTENT(OUT), OPTIONAL :: CROSSING_PAIRS(NIMAGES-1)
+      
+      REAL(KIND = REAL64) :: DIST_CUTOFF
+     
+      INTEGER :: N_CROSSINGS
+      INTEGER :: CROSSING_PAIRS(NIMAGES-1)  
+      
+      LOGICAL :: IS_CROSSED(NIMAGES-1)
+      
 
       INTEGER :: IMG, B1, B2, I1, J1, I2, J2, PAIR_COUNT, TOTAL_EVENTS
       INTEGER :: IMOFFSET, IMOFFSET1
+      REAL(KIND = REAL64) :: P1(3), P2(3), P3(3), P4(3) !< points for intersect check
+      REAL(KIND = REAL64) :: Q1(3), Q2(3), Q3(3), Q4(3)
+      
       LOGICAL :: SHARE_ATOM, INTERSECT
       REAL(KIND = REAL64) :: RCUT, D
       REAL(KIND = REAL64) :: C1(3), C2(3)
@@ -298,18 +290,27 @@ MODULE BOND_CROSSING
       DEFAULT_DIST_CUTOFF = 10.0D0
 
       RCUT = DEFAULT_DIST_CUTOFF
-      IF (PRESENT(DIST_CUTOFF)) RCUT = DIST_CUTOFF
+      !IF (PRESENT(DIST_CUTOFF)) RCUT = DIST_CUTOFF
+
 
       IS_CROSSED = .FALSE.
       TOTAL_EVENTS = 0
-      IF (PRESENT(CROSSING_PAIRS)) CROSSING_PAIRS = 0
+      !IF (PRESENT(CROSSING_PAIRS)) CROSSING_PAIRS = 0
+      CROSSING_PAIRS = 0
 
       DO IMG = 1, NIMAGES - 1
          PAIR_COUNT = 0
 
-         DO B1 = 1, NBBONDS - 1
-            I1 = BBOND_LIST(1, B1)
-            J1 = BBOND_LIST(2, B1)
+         DO B1 = 1, NBONDS-1
+            
+            
+            
+            I1 = BOND_LIST(1, B1)
+            J1 = BOND_LIST(2, B1)
+
+            !Loop over backbone bonds only
+            IF (.NOT. (ISBBATOM(I1).AND.ISBBATOM(J1))) CYCLE
+
             IF (I1.LT.1 .OR. I1 .GT. NATOMS .OR. J1 .LT. 1 .OR. J1 .GT. NATOMS) CYCLE
 
             ! PRECOMPUTE CENTROID OF BOND B1 FOR THIS IMAGE PAIR
@@ -323,9 +324,14 @@ MODULE BOND_CROSSING
             
             C1 = C1 * 0.250D0
 
-            DO B2 = B1 + 1, NBBONDS
-               I2 = BBOND_LIST(1, B2)
-               J2 = BBOND_LIST(2, B2)
+            DO B2 = B1 + 1, NBONDS
+                              
+               I2 = BOND_LIST(1, B2)
+               J2 = BOND_LIST(2, B2)
+
+               !Loop over backbone atoms only
+               IF (.NOT. (ISBBATOM(I2).AND.ISBBATOM(J2))) CYCLE
+
                IF (I2.LT.1 .OR. I2 .GT. NATOMS .OR. J2 .LT. 1 .OR. J2 .GT. NATOMS) CYCLE
 
                ! SKIP ADJACENT BACKBONE BONDS (SHARE AN ATOM)
@@ -336,7 +342,7 @@ MODULE BOND_CROSSING
                               
                C2(1) = XYZ(IMOFFSET+3*(I2-1)+1) + XYZ(IMOFFSET+3*(J2-1)+1) + XYZ(IMOFFSET1+3*(I2-1)+1) + XYZ(IMOFFSET1+3*(J2-1)+1)
                C2(2) = XYZ(IMOFFSET+3*(I2-1)+2) + XYZ(IMOFFSET+3*(J2-1)+2) + XYZ(IMOFFSET1+3*(I2-1)+2) + XYZ(IMOFFSET1+3*(J2-1)+2)
-               C2(3) = XYZ(IMOFFSET+3*(I2-1)+3) + XYZ(IMOFFSET+3*(J2-1)+2) + XYZ(IMOFFSET1+3*(I2-1)+3) + XYZ(IMOFFSET1+3*(J2-1)+3)
+               C2(3) = XYZ(IMOFFSET+3*(I2-1)+3) + XYZ(IMOFFSET+3*(J2-1)+3) + XYZ(IMOFFSET1+3*(I2-1)+3) + XYZ(IMOFFSET1+3*(J2-1)+3)
             
                C2 = C2 * 0.25D0
                
@@ -344,11 +350,18 @@ MODULE BOND_CROSSING
                
                IF (D.GT.RCUT) CYCLE
 
+               P1 = XYZ(IMOFFSET+3*(I1-1)+1:IMOFFSET+3*(I1-1)+3)
+               P2 = XYZ(IMOFFSET+3*(J1-1)+1:IMOFFSET+3*(J1-1)+3)
+               P3 = XYZ(IMOFFSET1+3*(I1-1)+1:IMOFFSET1+3*(I1-1)+3)
+               P4 = XYZ(IMOFFSET1+3*(J1-1)+1:IMOFFSET1+3*(J1-1)+3)
+
+               Q1 = XYZ(IMOFFSET1+3*(I2-1)+1:IMOFFSET1+3*(I2-1)+3)
+               Q2 = XYZ(IMOFFSET+3*(J2-1)+1:IMOFFSET+3*(J2-1)+3)
+               Q3 = XYZ(IMOFFSET1+3*(I2-1)+1:IMOFFSET1+3*(I2-1)+3)
+               Q4 = XYZ(IMOFFSET1+3*(J2-1)+1:IMOFFSET1+3*(J2-1)+3)
+
                ! --- EXPENSIVE QUADRILATERAL-QUADRILATERAL INTERSECTION TEST ---
-               INTERSECT = QUADRILATERAL_INTERSECT( XYZ(IMOFFSET+3*(I1-1)+1:IMOFFSET+3*(I1-1)+3), XYZ(IMOFFSET+3*(J1-1)+1:IMOFFSET+3*(J1-1)+3),   &
-                     XYZ(IMOFFSET1+3*(J1-1)+1:IMOFFSET1+3*(J1-1)+3), XYZ(IMOFFSET1+3*(I1-1)+1:IMOFFSET1+3*(I1-1)+3), &
-                     XYZ(IMOFFSET+3*(I2-1)+1:IMOFFSET+3*(I2-1)+3), XYZ(IMOFFSET+3*(J2-1)+1:IMOFFSET+3*(J2-1)+3),    &
-                     XYZ(IMOFFSET1+3*(I2-1)+1:IMOFFSET1+3*(I2-1)+3), XYZ(IMOFFSET1+3*(J2-1)+1:IMOFFSET1+3*(J2-1)+3))
+               INTERSECT = QUADRILATERAL_INTERSECT(P1, P2, P3, P4, Q1, Q2, Q3, Q4)
 
                IF (INTERSECT) THEN
                   IS_CROSSED(IMG) = .TRUE.
@@ -360,13 +373,24 @@ MODULE BOND_CROSSING
             END DO
          END DO
 
-         IF (PRESENT(CROSSING_PAIRS)) CROSSING_PAIRS(IMG) = PAIR_COUNT
+         !IF (PRESENT(CROSSING_PAIRS)) CROSSING_PAIRS(IMG) = PAIR_COUNT
          TOTAL_EVENTS = TOTAL_EVENTS + PAIR_COUNT
+
+         
+
       END DO
 
-      IF (PRESENT(N_CROSSINGS)) N_CROSSINGS = TOTAL_EVENTS
+      !IF (PRESENT(N_CROSSINGS)) N_CROSSINGS = TOTAL_EVENTS
+
+      !Write output
+      WRITE(*,*) "Detect_bond_crossing> Check for backbone bond crossings "
+      IF (TOTAL_EVENTS.EQ.0) THEN
+         WRITE(*,*) "Detect_bond_crossing> Bond crossing not detected. "
+      ELSEIF (TOTAL_EVENTS.GT.0) THEN
+         WRITE(*,*) " WARNING! Detected ", TOTAL_EVENTS, " bond crossings. "
+      END IF 
 
    END SUBROUTINE DETECT_BOND_CROSSINGS
 
   
-END MODULE BOND_CROSSING
+END MODULE BOND_CROSSING_DETECTION
