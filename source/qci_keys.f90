@@ -30,7 +30,8 @@ MODULE QCIKEYS
    LOGICAL :: QCIADDACIDT = .FALSE.
    LOGICAL :: QCIDOBACKALL = .FALSE.
 
-   INTEGER :: INTADDATOM = 1
+   !> Potenrially doing nothing anymore! 
+   INTEGER :: INTADDATOM = 1 
 
    !> use minimisations directly after adding atoms
    LOGICAL :: OPTIMISEAFTERADDITION = .FALSE.

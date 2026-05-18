@@ -1,9 +1,10 @@
 MODULE ADDINGATOM
    USE QCIPREC
    IMPLICIT NONE
+   !> Have we activated all the backbone atoms? 
    LOGICAL :: BBDONE = .FALSE.
    INTEGER, ALLOCATABLE :: NCONTOACTIVE(:)
-   !limits on finding atoms for local axis set
+   !> limits on finding atoms for local axis set
    REAL(KIND=REAL64) :: QCIDISTCUT = 10.0D0
    INTEGER :: QCIATOMSEP = 15
 
@@ -35,7 +36,7 @@ MODULE ADDINGATOM
       SUBROUTINE ADDATOM()
          
          USE QCI_LINEAR, ONLY:ATOM2LINGROUP
-         USE QCIKEYS, ONLY: NATOMS, USELINGROUPS
+         USE QCIKEYS, ONLY: NATOMS, USELINGROUPS, QCIDOBACK, QCIDOBACKALL
          IMPLICIT NONE
          
          INTEGER :: NEXTATOM, NCONTOACT
@@ -46,6 +47,7 @@ MODULE ADDINGATOM
          LOGICAL :: ISLINGROUP
          
          ISLINGROUP = .FALSE.
+         IF (QCIDOBACK.OR.QCIDOBACKALL) CALL CHECK_BBLIST()
          CALL CREATE_NCONTOACTIVE_LIST(INVDTOACTIVE,NMAXCON)
          !the priorities are: 1. QCILINEAR, 2. CHOOSEACID, 3. QCIDOBACK, and then the highest number of constraints to the active set
          WRITE(*,*) "Call find next atom .... "
@@ -1658,6 +1660,7 @@ MODULE ADDINGATOM
          !sanity check that we have found an atom to be added - if not we terminate
          IF (NEWATOM*NCONTOACT.EQ.0) THEN
             !WRITE(*,*) NCONTOACTIVE
+            WRITE(*,*) "BBDONE =", BBDONE
             WRITE(*,*) "Nactive: ", NACTIVE
             WRITE(*,*) "QCI linear: ", QCILINEART
             WRITE(*,*) "CHOSENACID: ", CHOSENACID
@@ -1706,6 +1709,8 @@ MODULE ADDINGATOM
          
       END SUBROUTINE CREATE_NCONTOACTIVE_LIST
 
+      !> Go through bacbone atom list, if all the bacbone atoms have been activated
+      !! set BBDONE=T, otherwise return. 
       SUBROUTINE CHECK_BBLIST()
          USE QCIKEYS, ONLY: NATOMS, DEBUG, ISBBATOM
          USE INTERPOLATION_KEYS, ONLY: ATOMACTIVE
