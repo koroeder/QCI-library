@@ -211,11 +211,19 @@ MODULE HELPER_FNCTS
             IF ((START_IND.EQ.0).AND.(LINE(J1:J1).NE.' ')) THEN
                START_IND=J1
             ENDIF
+
             IF (START_IND.GT.0) THEN
                IF (LINE(J1:J1).EQ.' ') END_IND=J1-1
                IF (J1.EQ.LEN(LINE)) END_IND=J1
                IF (END_IND.GT.0) THEN
                   J2=J2+1
+                  
+                  IF (J2 .GT. NWORDS) THEN
+                     WRITE(0, *) 'READ_LINE ERROR: more than NWORDS words found. NWORDS =', NWORDS
+                     WRITE(0, *) 'Offending line: ', TRIM(LINE)
+                     ERROR STOP 1
+                  END IF
+                  
                   WORD=LINE(START_IND:END_IND)
                   WORDSOUT(J2)=TRIM(WORD)
                   START_IND=0

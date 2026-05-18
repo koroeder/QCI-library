@@ -21,7 +21,7 @@ MODULE QCIINTERPOLATION
                                 NPERMSIZE, CHECK_PERM_BAND
          USE QCI_CONSTRAINT_KEYS
          USE CHIRALITY, ONLY: ASSIGNMENT_SR, CHIRALITY_CHECK
-         USE ADDINGATOM, ONLY: ADDATOM
+         USE ADDINGATOM, ONLY: ADDATOM, UPDATE_CONSTRAINTS, UPDATE_REPULSIONS
          USE REPULSION, ONLY: NREPULSIVE, CHECKREP, REPI, REPJ
          USE ADDREMOVE_IMAGES, ONLY: ADD_IMAGE, REMOVE_IMAGE
          USE HELPER_FNCTS, ONLY: DOTP
@@ -31,7 +31,7 @@ MODULE QCIINTERPOLATION
          IMPLICIT NONE
          INTEGER :: NBEST !< Constraint with smallest DMIN
          INTEGER :: NITERDONE, FIRSTATOM, NCONCUTABSINC, NDECREASE, NFAIL, NLASTGOODE
-         INTEGER :: J1, I2
+         INTEGER :: J, J1, I2
          LOGICAL :: QCICONVT 
          LOGICAL :: ADDATOMT
          LOGICAL :: ACCEPTEDSTEP
@@ -73,19 +73,19 @@ MODULE QCIINTERPOLATION
             CALL READ_BAND()
             
             !Need to activate all constraints and atoms, so we are not adding atoms again
-            NACTIVE=NATOMS
-            NCONSTRAINTON=NCONSTRAINT
-            CONACTIVE(:)=.TRUE.
-            ATOMACTIVE(:)=.TRUE.
-            ATOMACTIVE(:)=.TRUE.
-            
-            !CHECKREP should populate this 
+                        
+            ! get common constraints for atoms in permutational groups
+            IF (QCIPERMT) CALL CHECK_COMMON_CONSTR() 
+
             NREPULSIVE=0
-            !Probably not important to have this array opulated, but double check
-            TURNONORDER(:) = 0
-
+            DO J = 1, NATOMS
+               TURNONORDER(:) = 0
+               ATOMACTIVE(J)=.TRUE.
+               CALL UPDATE_CONSTRAINTS(J)
+               CALL UPDATE_REPULSIONS(J)
+               
+            END DO                    
             
-
          ELSE
 
             ! get constraint with smallest distance between endpoints (respecting QCILINEAR and QCIDOBACK)
@@ -107,7 +107,8 @@ MODULE QCIINTERPOLATION
                TURNONORDER(NACTIVE+1)=CONJ(NBEST)
                NACTIVE=NACTIVE+1
             ENDIF
-            !Question What is this and do we need it?
+            
+            !Question What is this and do we need it? - doesn't seem to be used anywhere! 
             NTRIES(CONI(NBEST))=1
             NTRIES(CONJ(NBEST))=1
             NREPULSIVE=0

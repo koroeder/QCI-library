@@ -271,7 +271,7 @@ MODULE ADDINGATOM
                END IF
             END IF
 
-            !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1
+            !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             !update the repulsions
             CALL UPDATE_REPULSIONS(NEXTATOM)
 
