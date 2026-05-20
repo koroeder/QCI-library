@@ -287,6 +287,8 @@ MODULE AMBER_CONSTRAINTS
          END DO
 
          WRITE(*,*) "Get_backbone> N backbone: ", NBACKBONE 
+         WRITE(*,*) "BBATOMS: ", BACKBONE
+
       END SUBROUTINE GET_BACKBONE
 
       SUBROUTINE GET_BIOCONSTR()
