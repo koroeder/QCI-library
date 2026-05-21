@@ -444,6 +444,8 @@ MODULE QCI_LINEAR
       
    END SUBROUTINE GET_LIN_ROT_TRANSLATION
 
+   !> Linear atoms here are defined as atoms whose bonds, angles and dihedrals change less than 
+   !! the tolarence between start & finish.  
    SUBROUTINE FIND_LINEAR_ATOMS(LINATOM)
        USE QCIKEYS, ONLY: NATOMS, INLINLIST, LINEARBBT, ISBBATOM, QCIAMBERT, QCIHIRET       
          USE MOD_INTCOORDS, ONLY: XSTART, XFINAL
@@ -464,7 +466,6 @@ MODULE QCI_LINEAR
     
           ! Grouping variables
          INTEGER :: CURRENTGROUP(NATOMS)      ! Group ID for each linear atom
-         INTEGER :: GROUPS(NATOMS, NATOMS)    ! List of atoms in each group
          INTEGER :: GROUPID
          INTEGER :: VISITED(NATOMS)           ! For DFS traversal
          INTEGER :: STACK(NATOMS)             ! Stack for DFS
@@ -485,10 +486,7 @@ MODULE QCI_LINEAR
          
          LINATOM(:) = .FALSE.
          IS_RIGID_BODY(:) = .TRUE.
-
-         !Get bonds arrays we need
-         !CALL GET_NBONDS_PER_ATOM()
-        
+      
           ! ========== PART 1: Detect linear atoms ==========
          DO J1 = 1, NATOMS
             NLINHERE = 0
@@ -500,7 +498,7 @@ MODULE QCI_LINEAR
                CALL DISTANCE_TWOATOMS(NATOMS, XSTART, A, B, DS)
                CALL DISTANCE_TWOATOMS(NATOMS, XFINAL, A, B, DF)
 
-               IF(DABS(DS - DF) < TOLERANCE) NLINHERE = NLINHERE + 1
+               IF(DABS(DS - DF).LT.TOLERANCE) NLINHERE = NLINHERE + 1
             END DO
 
             ! Mark atom as linear if all constraints have unchanged distances
@@ -538,7 +536,7 @@ MODULE QCI_LINEAR
                      
                      ANGLE_DEVIATION = DABS(ANGLE_START - ANGLE_FINAL)
                      
-                     IF (ANGLE_DEVIATION > ANGLE_TOLERANCE) THEN
+                     IF (ANGLE_DEVIATION.GT.ANGLE_TOLERANCE) THEN
                         IS_RIGID_BODY(J1) = .FALSE.
                         EXIT
                      END IF
@@ -607,13 +605,13 @@ MODULE QCI_LINEAR
    
    SUBROUTINE COMPARE_AMBER_LINEAR_GROUPS()
       USE QCIKEYS, ONLY: NATOMS, INLINLIST, LINEARBBT, ISBBATOM, QCIAMBERT, QCIHIRET       
-            USE MOD_INTCOORDS, ONLY: XSTART, XFINAL
-            USE HELPER_FNCTS, ONLY: DISTANCE_TWOATOMS, ANGLE, DIHEDRAL, DIHEDRAL_DIFF
-            USE QCI_CONSTRAINT_KEYS, ONLY: NCONSTRAINT, CONI, CONJ, CONDISTREFLOCAL, NCONPERATOM, &
-                                          CONLIST, BOND_LIST, NBONDS, MAX_BONDS_PER_ATOM, &
-                                          BONDS_PER_ATOM_LIST, N_BONDS_PER_ATOM
-            USE QCICONSTRAINTS, ONLY: GET_NBONDS_PER_ATOM
-            USE AMBER_CONSTRAINTS, ONLY: INGROUP, GROUPLOOKUP, NPLACINGGROUPS, SIZEPLACINGGROUPS
+      USE MOD_INTCOORDS, ONLY: XSTART, XFINAL
+      USE HELPER_FNCTS, ONLY: DISTANCE_TWOATOMS, ANGLE, DIHEDRAL, DIHEDRAL_DIFF
+      USE QCI_CONSTRAINT_KEYS, ONLY: NCONSTRAINT, CONI, CONJ, CONDISTREFLOCAL, NCONPERATOM, &
+                                    CONLIST, BOND_LIST, NBONDS, MAX_BONDS_PER_ATOM, &
+                                    BONDS_PER_ATOM_LIST, N_BONDS_PER_ATOM
+      USE QCICONSTRAINTS, ONLY: GET_NBONDS_PER_ATOM
+      USE AMBER_CONSTRAINTS, ONLY: INGROUP, GROUPLOOKUP, NPLACINGGROUPS, SIZEPLACINGGROUPS
       IMPLICIT NONE
 
       INTEGER :: AMBER_ATOM, AMBER_GROUP
@@ -627,7 +625,7 @@ MODULE QCI_LINEAR
       PRINT *, "========== AMBER vs LINEAR GROUP COMPARISON =========="
 
       ! Handle case with no linear groups
-      IF (NLINGROUPS == 0) THEN
+      IF (NLINGROUPS.EQ.0) THEN
          PRINT *, "No linear groups detected."
          DO AMBER_GROUP = 1, NPLACINGGROUPS
                NATOMS_THIS_GROUP = SIZEPLACINGGROUPS(AMBER_GROUP)
@@ -642,7 +640,7 @@ MODULE QCI_LINEAR
       END IF
 
       ! Handle case with no Amber groups
-      IF (NPLACINGGROUPS == 0) THEN
+      IF (NPLACINGGROUPS.EQ.0) THEN
          PRINT *, "No Amber placing groups defined."
          PRINT *, "========================================================"
          RETURN
@@ -659,11 +657,10 @@ MODULE QCI_LINEAR
          
          ! Scan all atoms to find those belonging to this Amber group
          DO J1 = 1, NATOMS
-               IF (GROUPLOOKUP(J1) == AMBER_GROUP) THEN
+               IF (GROUPLOOKUP(J1).EQ.AMBER_GROUP) THEN
                   AMBER_ATOM = J1
-                  
                   ! Check if this atom is in a linear group
-                  IF (ATOM2LINGROUP(AMBER_ATOM) > 0) THEN
+                  IF (ATOM2LINGROUP(AMBER_ATOM).GT.0) THEN
                      N_IN_BOTH = N_IN_BOTH + 1
                      ATOMS_IN_BOTH(N_IN_BOTH) = AMBER_ATOM
                   ELSE
@@ -677,14 +674,14 @@ MODULE QCI_LINEAR
          PRINT *, ""
          PRINT *, "Amber Group ", AMBER_GROUP, " (", NATOMS_THIS_GROUP, " atoms)"
          
-         IF (N_IN_BOTH > 0) THEN
+         IF (N_IN_BOTH.GT.0) THEN
                PRINT *, "  Atoms ALSO in linear groups (", N_IN_BOTH, "): ", &
                         (ATOMS_IN_BOTH(K), K=1,N_IN_BOTH)
          ELSE
                PRINT *, "  Atoms ALSO in linear groups: NONE"
          END IF
          
-         IF (N_ONLY_AMBER > 0) THEN
+         IF (N_ONLY_AMBER.GT.0) THEN
                PRINT *, "  Atoms ONLY in Amber (not in linear groups) (", N_ONLY_AMBER, "): ", &
                         (ATOMS_ONLY_IN_AMBER(K), K=1,N_ONLY_AMBER)
          ELSE
@@ -692,9 +689,9 @@ MODULE QCI_LINEAR
          END IF
          
          ! Summary
-         IF (N_ONLY_AMBER > 0 .AND. N_IN_BOTH > 0) THEN
+         IF ( (N_ONLY_AMBER.GT.0) .AND. (N_IN_BOTH.GT.0) ) THEN
                PRINT *, "  -> MIXED: Some atoms in linear groups, some not"
-         ELSE IF (N_ONLY_AMBER == 0 .AND. N_IN_BOTH == NATOMS_THIS_GROUP) THEN
+         ELSE IF ( (N_ONLY_AMBER.EQ.0) .AND. (N_IN_BOTH.EQ.NATOMS_THIS_GROUP)) THEN
                PRINT *, "  -> FULL OVERLAP: All Amber atoms in linear groups"
          ELSE IF (N_ONLY_AMBER == NATOMS_THIS_GROUP) THEN
                PRINT *, "  -> NO OVERLAP: No Amber atoms in linear groups"

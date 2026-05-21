@@ -27,7 +27,7 @@ MODULE QCIINTERPOLATION
          USE HELPER_FNCTS, ONLY: DOTP
          USE MOD_CHECK_GRAD, ONLY: CHECK_GRAD
          USE OUT_PRINT, ONLY: WRITE_CONGRADOUT
-         USE BOND_CROSSING_DETECTION, ONLY: DETECT_BOND_CROSSINGS
+         USE BOND_CROSSING_DETECTION2, ONLY: DETECT_BOND_CROSSINGS
          IMPLICIT NONE
          INTEGER :: NBEST !< Constraint with smallest DMIN
          INTEGER :: NITERDONE, FIRSTATOM, NCONCUTABSINC, NDECREASE, NFAIL, NLASTGOODE
@@ -70,6 +70,7 @@ MODULE QCIINTERPOLATION
          IF (QCIREADGUESS) THEN
             !CALL READGUESS()
             !improved version of readguess 
+            WRITE(*,*) "Initiating interpolation from a guess ..."
             CALL READ_BAND()
             
             !Need to activate all constraints and atoms, so we are not adding atoms again
@@ -83,7 +84,7 @@ MODULE QCIINTERPOLATION
                ATOMACTIVE(J)=.TRUE.
                CALL UPDATE_CONSTRAINTS(J)
                CALL UPDATE_REPULSIONS(J)
-               
+               NACTIVE = NACTIVE + 1
             END DO                    
             
          ELSE
