@@ -46,8 +46,8 @@ MODULE CONSTR_E_GRAD
 
 
       SUBROUTINE CONGRAD1(ETOTAL, XYZ, GGG, EEE, RMS)
-         USE QCIKEYS, ONLY: NIMAGES, NATOMS, QCICONSTRREP, KINT, QCIFREEZET, QCIFROZEN, INTCONSTRAINTDEL, &
-                            USEDIHEDRALCONST
+         USE QCIKEYS, ONLY: NIMAGES, NATOMS, QCICONSTRREP, KINT, QCIFREEZET, INTCONSTRAINTDEL, &
+                            USEDIHEDRALCONST !, QCIFROZEN
          USE OUT_PRINT, ONLY: SAVE_OUT
          IMPLICIT NONE
          REAL(KIND = REAL64), INTENT(IN) :: XYZ(3*NATOMS*(NIMAGES+2))   ! input coordinates
@@ -109,17 +109,17 @@ MODULE CONSTR_E_GRAD
          EEE = EEEC + EEER + EEES + EEED
          GGG = GGGC + GGGR + GGGS + GGGD
          ! freeze atoms that should be frozen
-         IF (QCIFREEZET) THEN
-            DO J1=2,NIMAGES+1
-               DO J2=1,NATOMS
-                  IF (QCIFROZEN(J2)) THEN
-                     GGG((3*NATOMS)*(J1-1)+3*(J2-1)+1)=0.0D0
-                     GGG((3*NATOMS)*(J1-1)+3*(J2-1)+2)=0.0D0
-                     GGG((3*NATOMS)*(J1-1)+3*(J2-1)+3)=0.0D0
-                  END IF
-               END DO
-            END DO
-         END IF
+         !IF (QCIFREEZET) THEN
+         !   DO J1=2,NIMAGES+1
+         !      DO J2=1,NATOMS
+         !         IF (QCIFROZEN(J2)) THEN
+         !            GGG((3*NATOMS)*(J1-1)+3*(J2-1)+1)=0.0D0
+         !            GGG((3*NATOMS)*(J1-1)+3*(J2-1)+2)=0.0D0
+         !            GGG((3*NATOMS)*(J1-1)+3*(J2-1)+3)=0.0D0
+         !         END IF
+         !      END DO
+         !   END DO
+         !END IF
 
          ! Set gradients to zero for start and finish images.
          GGG(1:(3*NATOMS))=0.0D0
@@ -149,8 +149,8 @@ MODULE CONSTR_E_GRAD
 
 
       SUBROUTINE CONGRAD2(ETOTAL, XYZ, GGG, EEE, RMS)
-         USE QCIKEYS, ONLY: NIMAGES, NATOMS, KINT, QCIFREEZET, QCIFROZEN, QCICONSTRREP, INTCONSTRAINTDEL, &
-                            USEDIHEDRALCONST
+         USE QCIKEYS, ONLY: NIMAGES, NATOMS, KINT, QCIFREEZET, QCICONSTRREP, INTCONSTRAINTDEL, &
+                            USEDIHEDRALCONST !, QCIFROZEN
          USE OUT_PRINT, ONLY: SAVE_OUT
          IMPLICIT NONE
          REAL(KIND = REAL64), INTENT(IN) :: XYZ(3*NATOMS*(NIMAGES+2))   ! input coordinates
@@ -212,17 +212,17 @@ MODULE CONSTR_E_GRAD
          GGG = GGGC + GGGR + GGGS + GGGD
 
          ! freeze atoms that should be frozen
-         IF (QCIFREEZET) THEN
-            DO J1=2,NIMAGES+1
-               DO J2=1,NATOMS
-                  IF (QCIFROZEN(J2)) THEN
-                     GGG((3*NATOMS)*(J1-1)+3*(J2-1)+1)=0.0D0
-                     GGG((3*NATOMS)*(J1-1)+3*(J2-1)+2)=0.0D0
-                     GGG((3*NATOMS)*(J1-1)+3*(J2-1)+3)=0.0D0
-                  END IF
-               END DO
-            END DO
-         END IF
+         !IF (QCIFREEZET) THEN
+         !   DO J1=2,NIMAGES+1
+         !      DO J2=1,NATOMS
+         !         IF (QCIFROZEN(J2)) THEN
+         !            GGG((3*NATOMS)*(J1-1)+3*(J2-1)+1)=0.0D0
+         !            GGG((3*NATOMS)*(J1-1)+3*(J2-1)+2)=0.0D0
+         !            GGG((3*NATOMS)*(J1-1)+3*(J2-1)+3)=0.0D0
+         !         END IF
+         !      END DO
+         !   END DO
+         !END IF
 
          ! Set gradients to zero for start and finish images.
          GGG(1:(3*NATOMS))=0.0D0

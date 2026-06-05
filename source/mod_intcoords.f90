@@ -22,7 +22,7 @@ MODULE MOD_INTCOORDS
 
       SUBROUTINE INITIATE_INTERPOLATION_BAND()
          USE QCIFILEHANDLER, ONLY: GETUNIT
-         USE QCIKEYS, ONLY: QCIFROZEN, NQCIFROZEN
+         !USE QCIKEYS, ONLY: QCIFROZEN, NQCIFROZEN
          IMPLICIT NONE
          INTEGER :: J1
          CHARACTER(LEN=25) :: LINFILE = "int_linear.xyz"
@@ -39,16 +39,16 @@ MODULE MOD_INTCOORDS
          XPREV(:)  = XYZ(:)
 
          !Deal with any frozen atoms
-         IF (NQCIFROZEN.GT.0) THEN
-            DO J1=1,NATOMS
-               IF (QCIFROZEN(J1)) THEN
-                  ATOMACTIVE(J1)=.TRUE.
-                  NACTIVE=NACTIVE+1
-                  TURNONORDER(NACTIVE)=J1
-                  NTRIES(J1)=1
-               END IF
-            END DO
-         END IF
+         !IF (NQCIFROZEN.GT.0) THEN
+         !   DO J1=1,NATOMS
+         !      IF (QCIFROZEN(J1)) THEN
+         !         ATOMACTIVE(J1)=.TRUE.
+         !         NACTIVE=NACTIVE+1
+         !         TURNONORDER(NACTIVE)=J1
+         !         NTRIES(J1)=1
+         !      END IF
+         !   END DO
+         !END IF
 
          IF (DEBUG) CALL WRITE_BAND(LINFILE)
 
@@ -58,7 +58,7 @@ MODULE MOD_INTCOORDS
       !! Backbone and linear atoms get priority (if enabled)
       SUBROUTINE GET_DISTANCES_CONSTRAINTS(NBEST)
          USE QCI_CONSTRAINT_KEYS
-         USE QCIKEYS, ONLY: QCIDOBACK, ISBBATOM, QCIFROZEN, QCILINEART, INLINLIST
+         USE QCIKEYS, ONLY: QCIDOBACK, ISBBATOM, QCILINEART, INLINLIST
          USE HELPER_FNCTS, ONLY: DISTANCE_ATOM_DIFF_IMAGES
          IMPLICIT NONE
          INTEGER, INTENT(OUT) :: NBEST
@@ -74,9 +74,10 @@ MODULE MOD_INTCOORDS
 
          !adjust inlinlist to account for frozen atoms, 
          !these are active by default, so we don't need them in the linear interpolation
-         DO J1=1,NATOMS
-            IF (QCIFROZEN(J1).AND.QCILINEART) INLINLIST(J1) = .FALSE.
-         END DO
+         !DO J1=1,NATOMS
+         !   IF (QCIFROZEN(J1).AND.QCILINEART) INLINLIST(J1) = .FALSE.
+         !END DO
+         
          WRITE(*,*) "DEBUGGING: NCONSTRAINT: " , NCONSTRAINT
          DO J1=1,NCONSTRAINT
             !WRITE(*,*) "QCILINEART: ", QCILINEART

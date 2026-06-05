@@ -220,7 +220,7 @@ MODULE QCICONSTRAINTS
       END SUBROUTINE CHECK_DUPLICATES
 
       SUBROUTINE CHECK_PERCOLATION(NATOMS, PERCT)
-         USE QCIKEYS, ONLY: NQCIFROZEN, QCIFROZEN
+         !USE QCIKEYS, ONLY: NQCIFROZEN , QCIFROZEN
          IMPLICIT NONE
          INTEGER, INTENT(IN) :: NATOMS
          LOGICAL, INTENT(OUT) :: PERCT
@@ -234,15 +234,15 @@ MODULE QCICONSTRAINTS
          NINGROUP(1:NATOMS) = 0
          GROUPS(1:NATOMS,1:NATOMS) = -1
 
-         IF (NQCIFROZEN.GT.0) THEN
-            DO J1=1,NATOMS
-               IF (QCIFROZEN(J1)) THEN
-                  CURRENTGROUP(J1) = 1
-                  NINGROUP(1) = NINGROUP(1) + 1
-                  GROUPS(1,NINGROUP(1)) = J1
-               END IF
-            END DO
-         END IF
+         !IF (NQCIFROZEN.GT.0) THEN
+         !   DO J1=1,NATOMS
+         !      IF (QCIFROZEN(J1)) THEN
+         !         CURRENTGROUP(J1) = 1
+         !         NINGROUP(1) = NINGROUP(1) + 1
+         !         GROUPS(1,NINGROUP(1)) = J1
+         !      END IF
+         !   END DO
+         !END IF
 
          DO J1=1,NCONSTRAINT
             ID1 = CONI(J1)

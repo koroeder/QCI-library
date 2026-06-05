@@ -946,14 +946,24 @@ MODULE QCIPERMDIST
          !Copied fix from OPTIM
          
          ! Fix frozen atoms. DJW 17.5.2025
+         !DO J1=1,NATOMS
+         !   IF (LPERMOFF) THEN ! align COORDSB instead
+         !      IF (.NOT.QCIFROZEN(J1)) COORDSB(3*(J1-1)+1:3*(J1-1)+3)=TEMPB(3*(J1-1)+1:3*(J1-1)+3)
+         !   ELSE
+         !   ! finally, best COORDSA should include permutations for DNEB input!
+         !      IF (.NOT.QCIFROZEN(J1)) COORDSA(3*(J1-1)+1:3*(J1-1)+3)=XBEST(3*(J1-1)+1:3*(J1-1)+3) 
+         !   ENDIF
+         !ENDDO
+
          DO J1=1,NATOMS
             IF (LPERMOFF) THEN ! align COORDSB instead
-               IF (.NOT.QCIFROZEN(J1)) COORDSB(3*(J1-1)+1:3*(J1-1)+3)=TEMPB(3*(J1-1)+1:3*(J1-1)+3)
+               COORDSB(3*(J1-1)+1:3*(J1-1)+3)=TEMPB(3*(J1-1)+1:3*(J1-1)+3)
             ELSE
             ! finally, best COORDSA should include permutations for DNEB input!
-               IF (.NOT.QCIFROZEN(J1)) COORDSA(3*(J1-1)+1:3*(J1-1)+3)=XBEST(3*(J1-1)+1:3*(J1-1)+3) 
+               COORDSA(3*(J1-1)+1:3*(J1-1)+3)=XBEST(3*(J1-1)+1:3*(J1-1)+3) 
             ENDIF
          ENDDO
+
 
 
 

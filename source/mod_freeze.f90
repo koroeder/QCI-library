@@ -86,7 +86,7 @@ MODULE MOD_FREEZE
       !>For the two atoms in constraint NBEST, activate every related constraint that connects to an active atom, 
       !!and add pairwise repulsion terms to all other active (non-frozen, non-constrained, sequence-distant) atoms 
       !!using a distance cutoff derived from the start and end structures.
-      SUBROUTINE ADD_CONSTR_AND_REP_FROZEN_ATOMS(NBEST)
+      SUBROUTINE ADD_CONSTR_AND_REP_NBEST(NBEST)
          USE QCIPREC, ONLY: REAL64
          USE QCIKEYS, ONLY: NATOMS, QCIREPCUT, QCIFROZEN, QCIINTREPMINSEP
          USE INTERPOLATION_KEYS, ONLY: CONACTIVE, ATOMACTIVE, NCONSTRAINTON
@@ -184,7 +184,7 @@ MODULE MOD_FREEZE
             END IF
          END DO
          
-      END SUBROUTINE ADD_CONSTR_AND_REP_FROZEN_ATOMS
+      END SUBROUTINE ADD_CONSTR_AND_REP_NBEST
 
       SUBROUTINE ALLOC_FREEZE(NATOMS)
          USE QCIKEYS, ONLY: QCIFROZEN, FREEZE

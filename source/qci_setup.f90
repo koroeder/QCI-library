@@ -10,6 +10,8 @@ MODULE QCISETUP
          USE REPULSION, ONLY: NREPCURR, ALLOC_REP_VARS
          USE QCI_LINEAR, ONLY: GET_LINEAR_ATOMS, GET_LINEAR_GROUPS
          USE DIHEDRAL_CONSTRAINTS, ONLY: SETUP_DIH_CONSTR
+         USE OUT_PRINT, ONLY:  WRITE_QCI_KEYS
+
          IMPLICIT NONE
          CHARACTER(30), INTENT(IN) :: PARAMETERFILE
          LOGICAL, INTENT(IN) :: ALIGNT
@@ -17,6 +19,8 @@ MODULE QCISETUP
          ! parse settings
          WRITE(*,*) "qci_init> Reading parameter file ..."
          CALL PARSE_SETTINGS(PARAMETERFILE)
+         
+
          ! starting permutational setup perm.allow
          IF (QCIPERMT) THEN 
             CALL INIT_PERMALLOW(NATOMS)
@@ -25,8 +29,8 @@ MODULE QCISETUP
          
          !Need to get frozen atoms before aligning the endpoints for loperdist to work atm. 
          !This will not actually assign frozen atoms, only allocates arrays 
-         WRITE(*,*) "qci_init> Calling GET_FROZEN_ATOMS ..."
-         CALL GET_FROZEN_ATOMS()
+         !WRITE(*,*) "qci_init> Calling GET_FROZEN_ATOMS ..."
+         !CALL GET_FROZEN_ATOMS()
         
          
          ! align endpoints
@@ -36,10 +40,10 @@ MODULE QCISETUP
             WRITE(*,*) "qci_init> Aligned endpoints"
          ENDIF
          !Now actually assign frozen atoms 
-         IF (QCIFREEZET) THEN
-            WRITE(*,*) "qci_init> Calling GET_FROZEN_ATOMS ..."
-            CALL GET_FROZEN_ATOMS()
-         ENDIF
+         !IF (QCIFREEZET) THEN
+         !   WRITE(*,*) "qci_init> Calling GET_FROZEN_ATOMS ..."
+         !   CALL GET_FROZEN_ATOMS()
+         !ENDIF
          
          ! get constraints
          CALL CREATE_CONSTRAINTS()
@@ -61,6 +65,8 @@ MODULE QCISETUP
          CALL SET_ELEMENTS()
          ! setup dihedral constraints
          IF (USEDIHEDRALCONST) CALL SETUP_DIH_CONSTR()
+
+         CALL WRITE_QCI_KEYS()
       END SUBROUTINE QCI_INIT
 
       SUBROUTINE SET_ELEMENTS()
@@ -239,9 +245,12 @@ MODULE QCISETUP
             QCIADDACIDT = .TRUE.      
          ELSE IF (ENTRY.EQ."GEOMFILE") THEN
             GEOMFILE = VAL
-         ELSE IF (ENTRY.EQ."ADDATOMINTERVAL") THEN
-            READ(VAL,*) INTADDATOM
-         !limits on finding atoms for local axis set
+         
+         !Remove if no issues !!!!
+            !ELSE IF (ENTRY.EQ."ADDATOMINTERVAL") THEN
+         !   READ(VAL,*) INTADDATOM
+         
+            !limits on finding atoms for local axis set
          ELSE IF (ENTRY.EQ."DISTCUTADDATOM") THEN
             READ(VAL,*) QCIDISTCUT
          ELSE IF (ENTRY.EQ."MAXSEPADDATOM") THEN
@@ -287,16 +296,20 @@ MODULE QCISETUP
          
             ! use of frozen atoms
          ELSE IF (ENTRY.EQ."FREEZEFILE") THEN
-            QCIFREEZET = .TRUE.            
-            FREEZEFILE = VAL
+            WRITE(*,*) "Warning: Frozen atoms option has been removed from QCI!"
+            !QCIFREEZET = .TRUE.            
+            !FREEZEFILE = VAL
          ELSE IF (ENTRY.EQ."NMINUNFROZEN") THEN
-            READ(VAL, *) NMINUNFROZEN
+            !READ(VAL, *) NMINUNFROZEN
+            WRITE(*,*) "Warning: Frozen atoms option has been removed from QCI!"
          ELSE IF (ENTRY.EQ."FREEZEFILE") THEN
-            FREEZEFILE = VAL
+            !FREEZEFILE = VAL
+            WRITE(*,*) "Warning: Frozen atoms option has been removed from QCI!"
          ELSE IF (ENTRY.EQ."QCIFREEZE") THEN
-            QCIFREEZET = .TRUE.
-            READ(VAL, *) QCIFREEZETOL
-         
+            !QCIFREEZET = .TRUE.
+            !READ(VAL, *) QCIFREEZETOL
+            WRITE(*,*) "Warning: Frozen atoms option has been removed from QCI!"
+
          ! check for internal minima in constraints?
          ELSE IF (ENTRY.EQ."CHECKINTMINCONSTR") THEN
             CHECKCONINT = .TRUE.
