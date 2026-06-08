@@ -1623,9 +1623,7 @@ MODULE ADDINGATOM
             END IF 
             ! Now test for various options to get the next atom
             ! 1. Are we using QCIlinear, and is the inactive atom in the list?
-            IF (QCILINEART) THEN 
-               IF(.NOT.INLINLIST(IDXINACTIVE)) CYCLE
-            END IF
+            IF (QCILINEART.AND.(.NOT.INLINLIST(IDXINACTIVE))) CYCLE
             ! 2. Is CHOSENACID set, and is the inactive atom in the residue to be added?
             IF (CHOSENACID.AND.(.NOT.(ATOMS2RES(IDXINACTIVE).EQ.ACID))) CYCLE
             ! 3. Are we adding backbone atoms, and is the inactive atom a backbone atom?

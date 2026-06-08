@@ -57,12 +57,12 @@ MODULE QCI_LINEAR
             END IF
          END IF
 
-         DO J1=1,NATOMS
-            CALL DISTANCE_ATOM_DIFF_IMAGES(NATOMS, XSTART, XFINAL, J1, DIST)
-            IF (DIST.LT.LINEARCUT) THEN
-               LINEART(J1) = 1
-            END IF
-         END DO
+         !DO J1=1,NATOMS
+         !   CALL DISTANCE_ATOM_DIFF_IMAGES(NATOMS, XSTART, XFINAL, J1, DIST)
+         !   IF (DIST.LT.LINEARCUT) THEN
+         !      LINEART(J1) = 1
+         !   END IF
+         !END DO
 
          NQCILINEAR = SUM(LINEART)
          CALL ALLOC_QCI_LINEAR()

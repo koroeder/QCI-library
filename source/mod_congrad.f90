@@ -1132,10 +1132,13 @@ MODULE CONSTR_E_GRAD
 
 
       SUBROUTINE GET_SPRING_E(XYZ, GGG, EEE, ESPR)
+
          USE QCIKEYS, ONLY: NIMAGES, NATOMS, KINT, KINTSCALED, QCIADJUSTKT, QCISPRINGACTIVET
          USE INTERPOLATION_KEYS, ONLY: ATOMACTIVE
+         
          IMPLICIT NONE
-         REAL(KIND = REAL64), INTENT(IN) :: XYZ(3*NATOMS*(NIMAGES+2))   !< input coordinates
+         
+         REAL(KIND = REAL64), INTENT(IN)  :: XYZ(3*NATOMS*(NIMAGES+2))  !< input coordinates
          REAL(KIND = REAL64), INTENT(OUT) :: GGG(3*NATOMS*(NIMAGES+2))  !< gradient for each atom in each image
          REAL(KIND = REAL64), INTENT(OUT) :: EEE(NIMAGES+2)             !< energy for repulsions (spring?)
          REAL(KIND = REAL64), INTENT(OUT) :: ESPR                       !< energy for repulsions  (spring?)
@@ -1159,6 +1162,7 @@ MODULE CONSTR_E_GRAD
             DPLUS = 0.0D0
             ! get energy for springs
             DO J2=1,NATOMS
+
                IF ((.NOT.QCISPRINGACTIVET).OR.ATOMACTIVE(J2)) THEN 
                   DPLUS=DPLUS+(XYZ(NI1+3*(J2-1)+1)-XYZ(NI2+3*(J2-1)+1))**2 &
         &                    +(XYZ(NI1+3*(J2-1)+2)-XYZ(NI2+3*(J2-1)+2))**2 &
