@@ -783,6 +783,7 @@ MODULE CONSTR_E_GRAD
                DCUT = NREPCUT(J2)**2
                ! don't look for an internal minimum if both repulsions outside cutoff
                IF ((DSQ1.GT.DCUT).AND.(DSQ2.GT.DCUT)) CYCLE
+               
                ! don't check for internal minimum in distance - atoms too close for chain crossing.
                IF (ABS(NREPI(J2)-NREPJ(J2)).LT.QCIINTREPMINSEP) THEN
                   DINTMIN = 0.0D0
@@ -846,6 +847,8 @@ MODULE CONSTR_E_GRAD
                   TEMPF=MAXVAL(REPGRAD)
                   IF (TEMPF.GT.FMAX) FMAX=TEMPF
                END IF  
+               
+               
                ! For internal minima we are counting edges. 
                ! Edge J1 is between images J1-1 and J1, starting from J1=2.
                ! Energy contributions are shared evenly, except for
@@ -1134,7 +1137,7 @@ MODULE CONSTR_E_GRAD
       SUBROUTINE GET_SPRING_E(XYZ, GGG, EEE, ESPR)
 
          USE QCIKEYS, ONLY: NIMAGES, NATOMS, KINT, KINTSCALED, QCIADJUSTKT, QCISPRINGACTIVET
-         USE INTERPOLATION_KEYS, ONLY: ATOMACTIVE
+         USE INTERPOLATION_KEYS, ONLY: ATOMACTIVE, K_SPRING
          
          IMPLICIT NONE
          
@@ -1142,7 +1145,8 @@ MODULE CONSTR_E_GRAD
          REAL(KIND = REAL64), INTENT(OUT) :: GGG(3*NATOMS*(NIMAGES+2))  !< gradient for each atom in each image
          REAL(KIND = REAL64), INTENT(OUT) :: EEE(NIMAGES+2)             !< energy for repulsions (spring?)
          REAL(KIND = REAL64), INTENT(OUT) :: ESPR                       !< energy for repulsions  (spring?)
-         
+         REAL(KIND = REAL64 ) :: K_SPRING_PER_IMAGE(NIMAGES+1)  !< set variable spring constant to enforce unifrom image spacing 
+
          REAL(KIND = REAL64) :: EEE2(NIMAGES+2)  
          REAL(KIND = REAL64) :: GGG2(3*NATOMS*(NIMAGES+2))
          INTEGER :: J1, J2, NI1, NI2
@@ -1155,6 +1159,9 @@ MODULE CONSTR_E_GRAD
          ESPR = 0.0D0
          EMAX = -(HUGE(1.0D0))
          IMAX = -1
+
+         !initiate uniform spring constants 
+         K_SPRING_PER_IMAGE = KINT
 
          DO J1=1,NIMAGES+1
             NI1 = (3*NATOMS)*(J1-1) !Image J-1
@@ -1172,8 +1179,9 @@ MODULE CONSTR_E_GRAD
             DVEC(J1) = SQRT(DPLUS)
             
             ! V_QCI = 1/2 * K_SPR * |X_i - X_{i-1}|^2
-            DUMMY = KINT*0.5D0*DPLUS/KINTSCALED
-            
+            !DUMMY = KINT*0.5D0*DPLUS/KINTSCALED
+            DUMMY = K_SPRING(J1)*0.5D0*DPLUS/KINTSCALED
+
             !QUESTION this adds energy to X_0 and X_n+1? How should the energy be divided? 
             !WARNING adding if statement to make sure E(1) & E(NIMAGES+2) = 0 ... not sure this is right
             IF (J1.EQ.1) THEN
@@ -1194,6 +1202,7 @@ MODULE CONSTR_E_GRAD
             ESPR = ESPR + DUMMY
             ! get gradient
             DUMMY=KINT/KINTSCALED
+            DUMMY = K_SPRING(J1)/KINTSCALED
            
             DO J2=1,NATOMS
                SPGRAD = 0.0D0
@@ -1357,4 +1366,64 @@ MODULE CONSTR_E_GRAD
          END IF
       END SUBROUTINE INTMIN_CONSTRAINT
 
+      !> Adjust K_SPRING by image distances 
+      SUBROUTINE GET_SPRING_CONSTANTS(XYZ)
+         
+         USE QCIKEYS, ONLY: NATOMS, NIMAGES, KINT
+         USE HELPER_FNCTS, ONLY: DISTANCE_ATOM_DIFF_IMAGES
+         USE INTERPOLATION_KEYS, ONLY: ATOMACTIVE, K_SPRING
+
+         IMPLICIT NONE
+
+         REAL(KIND = REAL64), INTENT(IN)  :: XYZ(3*NATOMS*(NIMAGES+2))  !< input coordinates
+                  
+         REAL(KIND=REAL64) :: IMAGE_DIST(NIMAGES+1)
+
+         REAL(KIND = REAL64) :: DISTATOM, DISTTOTAL, X1(3*NATOMS), X2(3*NATOMS)
+         REAL(KIND=REAL64) ::  DMAX, DMIN
+         INTEGER :: J1, J2, JMIN, JMAX
+
+         K_SPRING = KINT
+         
+         DMAX = 0.0D0
+         DMIN = 1.0D100
+         JMIN = -1
+         JMAX = -1
+
+         DO J1 =1, NIMAGES+1
+            DISTTOTAL = 0.0D0
+            X1(1:3*NATOMS) = XYZ((J1-1)*3*NATOMS+1:J1*3*NATOMS) !Image J
+            X2(1:3*NATOMS) = XYZ(J1*3*NATOMS+1:(J1+1)*3*NATOMS) !Image J+1
+            
+            DO J2=1,NATOMS
+               IF (ATOMACTIVE(J2)) THEN
+                  CALL DISTANCE_ATOM_DIFF_IMAGES(NATOMS, X1, X2, J2, DISTATOM)
+                  DISTTOTAL = DISTTOTAL + DISTATOM
+               END IF
+               
+            END DO 
+            IMAGE_DIST(J1) = DISTTOTAL
+            IF (DISTTOTAL.GT.DMAX) THEN
+               DMAX = DISTTOTAL
+               JMAX = J1
+            END IF
+            IF (DISTTOTAL.LT.DMIN) THEN
+               DMIN = DISTTOTAL
+               JMIN = J1
+            END IF
+
+         END DO
+
+         IMAGE_DIST = IMAGE_DIST / NATOMS
+         DMAX = DMAX / NATOMS
+         DMIN = DMIN / NATOMS
+
+         IMAGE_DIST = IMAGE_DIST / DMAX
+
+         K_SPRING = IMAGE_DIST * KINT         
+
+      
+      END SUBROUTINE GET_SPRING_CONSTANTS
+
+     
 END MODULE CONSTR_E_GRAD

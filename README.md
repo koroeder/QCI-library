@@ -1,5 +1,11 @@
 # Standalone Quasi-Continious Interpolation (QCI) code
 
+### 18.06.2026
+- Initial setup for variable k_spring
+- Improved output
+- read from guess now works 
+
+
 ### New option to detect backbone crossings
  
  - DETECTBBCROSSINGS int_check_freq

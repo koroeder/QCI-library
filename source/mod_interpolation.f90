@@ -16,7 +16,7 @@ MODULE QCIINTERPOLATION
                             NMINAFTERADD, OPTIMISEAFTERADDITION, DETECTBBCROSSING, CHECKCROSSFREQ
          USE MOD_FREEZE, ONLY: ADD_CONSTR_AND_REP_NBEST
          USE CONSTR_E_GRAD, ONLY: CONGRAD, CONVERGECONTEST, CONVERGEREPTEST, &
-                                  FCONMAX, FREPMAX
+                                  FCONMAX, FREPMAX, GET_SPRING_CONSTANTS
          USE QCIPERMDIST, ONLY: NPERMGROUP, CHECK_COMMON_CONSTR, UPDATE_ACTIVE_PERMGROUPS, GROUPACTIVE, &
                                 NPERMSIZE, CHECK_PERM_BAND
          USE QCI_CONSTRAINT_KEYS
@@ -224,6 +224,9 @@ MODULE QCIINTERPOLATION
                   KINT=MIN(KINT*QCIADJUSTKFRAC,QCIKINTMAX)
                   WRITE(*,*) " QCIinterp> Increasing spring constant from ", KINT, " to ", MIN(KINT*QCIADJUSTKFRAC,QCIKINTMAX)
                END IF
+
+               CALL GET_SPRING_CONSTANTS(XYZ) 
+
             END IF
 
             !Check for backbone crossings 
@@ -668,7 +671,7 @@ MODULE QCIINTERPOLATION
          CALL ALLOC_ADDATOM()
       END SUBROUTINE INITIALISE_INTERPOLATION_VARS
 
-      ! Subroutine to sclae excessive gradient components
+      ! Subroutine to scale excessive gradient components
       SUBROUTINE SCALEGRAD(DIMS,G,RMS,MAXGRADCOMP)
          !QUESTION not used atm - when do we want to use this?
          IMPLICIT NONE
