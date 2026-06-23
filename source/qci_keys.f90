@@ -104,6 +104,7 @@ MODULE QCIKEYS
 
    !spring constants and adjustment
    !TODO: add initialisation and setting in qci setup
+   REAL(KIND=REAL64) :: SPRING_GRAD_CONV = 2.5D0
    LOGICAL :: QCISPRINGACTIVET = .TRUE. !< QUERY: what is this?
    LOGICAL :: QCIADJUSTKT = .FALSE. !< adjust spring constant
    INTEGER :: QCIADJUSTKFRQ = 0

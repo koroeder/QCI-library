@@ -1,5 +1,10 @@
 # Standalone Quasi-Continious Interpolation (QCI) code
 
+### 23.06.2026
+- New key word: SPRING_GRAD_CONV Spring force convergence criterion (per atom)
+- Spring force is now applied per image basis 
+
+
 ### 18.06.2026
 - Initial setup for variable k_spring
 - Improved output

@@ -20,7 +20,7 @@ MODULE CONSTR_E_GRAD
    REAL(KIND=REAL64) :: CONVERGECONTEST, CONVERGEREPTEST, CONVERGENCEDIHTEST !< energy of that term
    !REAL(KIND=REAL64) :: FCONTEST, FREPTEST, FDIHTEST
    REAL(KIND=REAL64) :: EMAXSPR
-   REAL(KIND=REAL64) :: FCONMAX, FREPMAX, FDIHMAX                 !< maximum gradient 
+   REAL(KIND=REAL64) :: FCONMAX, FREPMAX, FDIHMAX, FSPRINGMAX                !< maximum gradient 
    REAL(KIND=REAL64) :: FMAX  !< Maximum force on an atom
    INTEGER :: CALLN = 0
    
@@ -138,7 +138,7 @@ MODULE CONSTR_E_GRAD
          ETOTAL = SUM(EEE(2:NIMAGES+1))
          
          !Save outputs, so we can choose when to print
-         CALL SAVE_OUT(ETOTAL, RMS, EREP, ECON, ESPR, EDIH, FCONMAX, FREPMAX, FDIHMAX, CONVERGECONTEST, CONVERGEREPTEST, CONVERGENCEDIHTEST)
+         CALL SAVE_OUT(ETOTAL, RMS, EREP, ECON, ESPR, EDIH, FCONMAX, FREPMAX, FDIHMAX, CONVERGECONTEST, CONVERGEREPTEST, CONVERGENCEDIHTEST, FSPRINGMAX)
 
          !   WRITE(*,*) " congrad1> E total: ", ETOTAL, "RMS: ", RMS, " E rep: ", SUM(EEER), " E constr: ", SUM(EEEC)
          !   WRITE(*,*) "                                              E spring: ", SUM(EEES), " E dih: ", SUM(EEED)
@@ -239,7 +239,7 @@ MODULE CONSTR_E_GRAD
          FMAX = MAX( MAXVAL(GGG), DABS(MINVAL(GGG)))
          ETOTAL = SUM(EEE(2:NIMAGES+1))
          
-         CALL SAVE_OUT(ETOTAL, RMS, EREP, ECON, ESPR, EDIH, FCONMAX, FREPMAX, FDIHMAX, CONVERGECONTEST, CONVERGEREPTEST, CONVERGENCEDIHTEST)
+         CALL SAVE_OUT(ETOTAL, RMS, EREP, ECON, ESPR, EDIH, FCONMAX, FREPMAX, FDIHMAX, CONVERGECONTEST, CONVERGEREPTEST, CONVERGENCEDIHTEST,FSPRINGMAX)
          
          !   WRITE(*,*) " congrad2> E total: ", ETOTAL, "RMS: ", RMS, " E rep: ", SUM(EEER), " E constr: ", SUM(EEEC)
          !   WRITE(*,*) "                                              E spring: ", SUM(EEES), " E dih: ", SUM(EEED)
@@ -1146,6 +1146,7 @@ MODULE CONSTR_E_GRAD
          REAL(KIND = REAL64), INTENT(OUT) :: EEE(NIMAGES+2)             !< energy for repulsions (spring?)
          REAL(KIND = REAL64), INTENT(OUT) :: ESPR                       !< energy for repulsions  (spring?)
          REAL(KIND = REAL64 ) :: K_SPRING_PER_IMAGE(NIMAGES+1)  !< set variable spring constant to enforce unifrom image spacing 
+         REAL(KIND = REAL64 ) :: GRAD(3)
 
          REAL(KIND = REAL64) :: EEE2(NIMAGES+2)  
          REAL(KIND = REAL64) :: GGG2(3*NATOMS*(NIMAGES+2))
@@ -1159,6 +1160,7 @@ MODULE CONSTR_E_GRAD
          ESPR = 0.0D0
          EMAX = -(HUGE(1.0D0))
          IMAX = -1
+         FSPRINGMAX = 0.0D0
 
          !initiate uniform spring constants 
          K_SPRING_PER_IMAGE = KINT
@@ -1203,13 +1205,31 @@ MODULE CONSTR_E_GRAD
             ! get gradient
             DUMMY=KINT/KINTSCALED
             DUMMY = K_SPRING(J1)/KINTSCALED
-           
+            
+            !original spring force
+            !DO J2=1,NATOMS
+            !   SPGRAD = 0.0D0
+            !   IF ((.NOT.QCISPRINGACTIVET).OR.ATOMACTIVE(J2)) THEN 
+            !      
+            !      SPGRAD(1:3)=DUMMY*(XYZ(NI1+3*(J2-1)+1:NI1+3*(J2-1)+3)-XYZ(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3))
+            !      
+            !     !Image J-1
+            !      !GGG(NI1+3*(J2-1)+1:NI1+3*(J2-1)+3)=GGG(NI1+3*(J2-1)+1:NI1+3*(J2-1)+3)+SPGRAD(1:3)
+            !     GGG2(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)=GGG2(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)+SPGRAD(1:3)
+            !      !Image J
+            !      GGG(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)=GGG(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)-SPGRAD(1:3)
+            !
+            !   ENDIF
+            !ENDDO
+
+            !per image spring force 
+            GRAD = 0.0D0
             DO J2=1,NATOMS
                SPGRAD = 0.0D0
                IF ((.NOT.QCISPRINGACTIVET).OR.ATOMACTIVE(J2)) THEN 
                   
                   SPGRAD(1:3)=DUMMY*(XYZ(NI1+3*(J2-1)+1:NI1+3*(J2-1)+3)-XYZ(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3))
-                  
+                  GRAD = GRAD + SPGRAD
                   !Image J-1
                   !GGG(NI1+3*(J2-1)+1:NI1+3*(J2-1)+3)=GGG(NI1+3*(J2-1)+1:NI1+3*(J2-1)+3)+SPGRAD(1:3)
                   GGG2(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)=GGG2(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)+SPGRAD(1:3)
@@ -1218,6 +1238,25 @@ MODULE CONSTR_E_GRAD
 
                ENDIF
             ENDDO
+
+            !TODO FIX this into sensible way to add grad to entire image
+            DO J2=1,NATOMS
+              
+               GRAD = GRAD / NATOMS
+
+               !Image J-1
+               !GGG(NI1+3*(J2-1)+1:NI1+3*(J2-1)+3)=GGG(NI1+3*(J2-1)+1:NI1+3*(J2-1)+3)+SPGRAD(1:3)
+               GGG2(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)=GGG2(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)+GRAD(1:3)
+               !Image J
+               GGG(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)=GGG(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)-GRAD(1:3)
+               
+               IF (MAXVAL(DABS(GRAD)).GT.FSPRINGMAX) THEN
+                  FSPRINGMAX = MAXVAL(DABS(GRAD)) 
+               ENDIF
+               
+            ENDDO
+
+
          END DO
 
          ! Changed the way summation is done

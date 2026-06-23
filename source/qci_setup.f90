@@ -410,6 +410,8 @@ MODULE QCISETUP
             READ(VAL, *) QCIRMSTOL
          ELSE IF (ENTRY.EQ."MAXERISE") THEN
             READ(VAL, *) MAXERISE
+         ELSE IF (ENTRY.EQ."") THEN
+            READ(VAL, *) SPRING_GRAD_CONV
          
          !QCI resetting
          ELSE IF (ENTRY.EQ."QCIRESET") THEN
