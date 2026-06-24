@@ -246,10 +246,7 @@ MODULE QCISETUP
          ELSE IF (ENTRY.EQ."GEOMFILE") THEN
             GEOMFILE = VAL
          
-         !Remove if no issues !!!!
-            !ELSE IF (ENTRY.EQ."ADDATOMINTERVAL") THEN
-         !   READ(VAL,*) INTADDATOM
-         
+                
             !limits on finding atoms for local axis set
          ELSE IF (ENTRY.EQ."DISTCUTADDATOM") THEN
             READ(VAL,*) QCIDISTCUT

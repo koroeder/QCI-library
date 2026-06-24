@@ -1,5 +1,9 @@
 # Standalone Quasi-Continious Interpolation (QCI) code
 
+### 24.06.2026
+- Image distance is not defined per (active) atom
+- sensible valules seem to be: MIN image separation - 0.1, MAX image separation - 0.3
+
 ### 23.06.2026
 - New key word: SPRING_GRAD_CONV Spring force convergence criterion (per atom)
 - Spring force is now applied per image basis 

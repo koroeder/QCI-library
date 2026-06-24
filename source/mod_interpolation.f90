@@ -400,6 +400,7 @@ MODULE QCIINTERPOLATION
                   DO WHILE(MOREIMAGES)
                      MOREIMAGES = .FALSE.
                      CALL GET_IMAGE_SEPARATION(CURRMINSEP,CURRMAXSEP,IDXMIN,IDXMAX)
+                  
                      IF ((CURRMAXSEP.GT.IMSEPMAX).AND.(NIMAGES.LT.MAXINTIMAGE)) THEN
                         WRITE(*,*) " QCIinterp> Adding image between images ", IDXMAX, " and ", IDXMAX+1
                         CALL ADD_IMAGE(IDXMAX,ETOTAL,RMS)
@@ -604,7 +605,8 @@ MODULE QCIINTERPOLATION
       END SUBROUTINE GET_STATISTIC_INTERP
 
       !> Calculate min and max image separations.    
-      !! The separation is defined as sum of all the distances 
+      !! The separation is defined as sum of all the distances per atom!
+      !! betweem atom in different images - only active atoms
       SUBROUTINE GET_IMAGE_SEPARATION(DMIN,DMAX,JMIN,JMAX)
          USE QCIKEYS, ONLY: NATOMS, NIMAGES
          USE HELPER_FNCTS, ONLY: DISTANCE_ATOM_DIFF_IMAGES
@@ -646,6 +648,10 @@ MODULE QCIINTERPOLATION
                JMIN = J1
             END IF
          END DO
+
+         DMAX = DMAX / NACTIVE
+         DMIN = DMIN / NACTIVE
+
          !WRITE(*,'(A,F15.5)') " get_image_separation> The largest distance between images is ", DMAX
          !WRITE(*,'(A,F15.5)') "                       The smallest distance between images is ", DMIN
          !WRITE(*,'(A,I6,A,I4,A,I4)') "                       The largest distance by atom is for atom ",JAMAX_ATOM," between images", JAMAX_IMG," and ", JAMAX_IMG+1
