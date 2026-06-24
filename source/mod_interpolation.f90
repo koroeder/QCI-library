@@ -532,6 +532,9 @@ MODULE QCIINTERPOLATION
          CALL WRITE_BAND(XYZFILE)
          CALL WRITE_ACTIVE_BAND(ADJUSTL(TRIM(XYZFILE))//".active")
          CALL WRITE_PROFILE(EEEFILE,EEE)
+         !DEBUG write distance between imahes as a profile
+         CALL WRITE_PROFILE('image_dist.txt' , IMAGE_DIST)
+
          !WRITE(*,*) "GRADIENT CHECK"
          !CALL CHECK_GRAD(XYZ)
          WRITE(*,*) " QCIinterp> Leaving interpolation"

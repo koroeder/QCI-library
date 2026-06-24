@@ -1213,13 +1213,18 @@ MODULE CONSTR_E_GRAD
             !      
             !      SPGRAD(1:3)=DUMMY*(XYZ(NI1+3*(J2-1)+1:NI1+3*(J2-1)+3)-XYZ(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3))
             !      
+            !      IF (MAXVAL(DABS(GRAD)).GT.FSPRINGMAX) THEN
+            !         FSPRINGMAX = MAXVAL(DABS(GRAD)) 
+            !      ENDIF
+            !   
             !     !Image J-1
             !      !GGG(NI1+3*(J2-1)+1:NI1+3*(J2-1)+3)=GGG(NI1+3*(J2-1)+1:NI1+3*(J2-1)+3)+SPGRAD(1:3)
             !     GGG2(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)=GGG2(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)+SPGRAD(1:3)
             !      !Image J
             !      GGG(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)=GGG(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)-SPGRAD(1:3)
-            !
+            !      
             !   ENDIF
+            !
             !ENDDO
 
             !per image spring force 
@@ -1235,7 +1240,7 @@ MODULE CONSTR_E_GRAD
                   GGG2(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)=GGG2(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)+SPGRAD(1:3)
                   !Image J
                   GGG(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)=GGG(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)-SPGRAD(1:3)
-
+            
                ENDIF
             ENDDO
 
@@ -1410,13 +1415,13 @@ MODULE CONSTR_E_GRAD
          
          USE QCIKEYS, ONLY: NATOMS, NIMAGES, KINT
          USE HELPER_FNCTS, ONLY: DISTANCE_ATOM_DIFF_IMAGES
-         USE INTERPOLATION_KEYS, ONLY: ATOMACTIVE, K_SPRING
+         USE INTERPOLATION_KEYS, ONLY: ATOMACTIVE, K_SPRING, IMAGE_DIST
 
          IMPLICIT NONE
 
          REAL(KIND = REAL64), INTENT(IN)  :: XYZ(3*NATOMS*(NIMAGES+2))  !< input coordinates
                   
-         REAL(KIND=REAL64) :: IMAGE_DIST(NIMAGES+1)
+         REAL(KIND=REAL64) :: IMAGE_DISTANCE(NIMAGES+1)
 
          REAL(KIND = REAL64) :: DISTATOM, DISTTOTAL, X1(3*NATOMS), X2(3*NATOMS)
          REAL(KIND=REAL64) ::  DMAX, DMIN
@@ -1441,7 +1446,7 @@ MODULE CONSTR_E_GRAD
                END IF
                
             END DO 
-            IMAGE_DIST(J1) = DISTTOTAL
+            IMAGE_DISTANCE(J1) = DISTTOTAL
             IF (DISTTOTAL.GT.DMAX) THEN
                DMAX = DISTTOTAL
                JMAX = J1
@@ -1452,12 +1457,13 @@ MODULE CONSTR_E_GRAD
             END IF
 
          END DO
-
-         IMAGE_DIST = IMAGE_DIST / NATOMS
+         
+         IMAGE_DISTANCE = IMAGE_DISTANCE / NATOMS
+         IMAGE_DIST = IMAGE_DISTANCE
          DMAX = DMAX / NATOMS
          DMIN = DMIN / NATOMS
 
-         IMAGE_DIST = IMAGE_DIST / DMAX
+         IMAGE_DISTANCE = IMAGE_DISTANCE / DMAX
 
          K_SPRING = IMAGE_DIST * KINT         
 

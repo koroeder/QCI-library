@@ -103,8 +103,7 @@ MODULE QCIKEYS
    REAL(KIND=REAL64) :: DIHDIFTOL = 0.17453292519943295
 
    !spring constants and adjustment
-   !TODO: add initialisation and setting in qci setup
-   REAL(KIND=REAL64) :: SPRING_GRAD_CONV = 2.5D0
+   REAL(KIND=REAL64) :: SPRING_GRAD_CONV = 1.5D0
    LOGICAL :: QCISPRINGACTIVET = .TRUE. !< QUERY: what is this?
    LOGICAL :: QCIADJUSTKT = .FALSE. !< adjust spring constant
    INTEGER :: QCIADJUSTKFRQ = 0
