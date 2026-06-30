@@ -1145,7 +1145,6 @@ MODULE CONSTR_E_GRAD
          REAL(KIND = REAL64), INTENT(OUT) :: GGG(3*NATOMS*(NIMAGES+2))  !< gradient for each atom in each image
          REAL(KIND = REAL64), INTENT(OUT) :: EEE(NIMAGES+2)             !< energy for repulsions (spring?)
          REAL(KIND = REAL64), INTENT(OUT) :: ESPR                       !< energy for repulsions  (spring?)
-         REAL(KIND = REAL64 ) :: K_SPRING_PER_IMAGE(NIMAGES+1)  !< set variable spring constant to enforce unifrom image spacing 
          REAL(KIND = REAL64 ) :: GRAD(3)
 
          REAL(KIND = REAL64) :: EEE2(NIMAGES+2)  
@@ -1162,9 +1161,7 @@ MODULE CONSTR_E_GRAD
          IMAX = -1
          FSPRINGMAX = 0.0D0
 
-         !initiate uniform spring constants 
-         K_SPRING_PER_IMAGE = KINT
-
+         
          DO J1=1,NIMAGES+1
             NI1 = (3*NATOMS)*(J1-1) !Image J-1
             NI2 = (3*NATOMS)*J1     !Image J
@@ -1203,7 +1200,7 @@ MODULE CONSTR_E_GRAD
             ENDIF
             ESPR = ESPR + DUMMY
             ! get gradient
-            DUMMY=KINT/KINTSCALED
+            !DUMMY=KINT/KINTSCALED
             DUMMY = K_SPRING(J1)/KINTSCALED
             
             !original spring force
@@ -1224,7 +1221,7 @@ MODULE CONSTR_E_GRAD
             !      GGG(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)=GGG(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)-SPGRAD(1:3)
             !      
             !   ENDIF
-            !
+            
             !ENDDO
 
             !per image spring force 
@@ -1237,24 +1234,24 @@ MODULE CONSTR_E_GRAD
                   GRAD = GRAD + SPGRAD
                   !Image J-1
                   !GGG(NI1+3*(J2-1)+1:NI1+3*(J2-1)+3)=GGG(NI1+3*(J2-1)+1:NI1+3*(J2-1)+3)+SPGRAD(1:3)
-                  GGG2(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)=GGG2(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)+SPGRAD(1:3)
+                  !GGG2(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)=GGG2(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)+SPGRAD(1:3)
                   !Image J
-                  GGG(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)=GGG(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)-SPGRAD(1:3)
+                  !GGG(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)=GGG(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)-SPGRAD(1:3)
             
                ENDIF
             ENDDO
 
             !TODO FIX this into sensible way to add grad to entire image
             DO J2=1,NATOMS
-              
+            !  
                GRAD = GRAD / NATOMS
-
-               !Image J-1
-               !GGG(NI1+3*(J2-1)+1:NI1+3*(J2-1)+3)=GGG(NI1+3*(J2-1)+1:NI1+3*(J2-1)+3)+SPGRAD(1:3)
+            !
+            !   !Image J-1
+            !   !GGG(NI1+3*(J2-1)+1:NI1+3*(J2-1)+3)=GGG(NI1+3*(J2-1)+1:NI1+3*(J2-1)+3)+SPGRAD(1:3)
                GGG2(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)=GGG2(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)+GRAD(1:3)
-               !Image J
+            !   !Image J
                GGG(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)=GGG(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)-GRAD(1:3)
-               
+            !   
                IF (MAXVAL(DABS(GRAD)).GT.FSPRINGMAX) THEN
                   FSPRINGMAX = MAXVAL(DABS(GRAD)) 
                ENDIF
@@ -1444,8 +1441,8 @@ MODULE CONSTR_E_GRAD
                   CALL DISTANCE_ATOM_DIFF_IMAGES(NATOMS, X1, X2, J2, DISTATOM)
                   DISTTOTAL = DISTTOTAL + DISTATOM
                END IF
-               
             END DO 
+
             IMAGE_DISTANCE(J1) = DISTTOTAL
             IF (DISTTOTAL.GT.DMAX) THEN
                DMAX = DISTTOTAL
@@ -1458,12 +1455,12 @@ MODULE CONSTR_E_GRAD
 
          END DO
          
-         IMAGE_DISTANCE = IMAGE_DISTANCE / NACTIVE
-         IMAGE_DIST = IMAGE_DISTANCE
+         IMAGE_DIST = IMAGE_DISTANCE / NACTIVE
+         
          DMAX = DMAX / NACTIVE
          DMIN = DMIN / NACTIVE
 
-         IMAGE_DISTANCE = IMAGE_DISTANCE / DMAX
+         IMAGE_DIST = IMAGE_DIST / DMAX
 
          K_SPRING = IMAGE_DIST * KINT         
 

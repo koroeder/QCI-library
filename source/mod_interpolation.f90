@@ -86,7 +86,7 @@ MODULE QCIINTERPOLATION
                CALL UPDATE_REPULSIONS(J)
                NACTIVE = NACTIVE + 1
             END DO                    
-            
+            CALL GET_SPRING_CONSTANTS(XYZ) 
          ELSE
 
             ! get constraint with smallest distance between endpoints (respecting QCILINEAR and QCIDOBACK)
