@@ -1201,63 +1201,28 @@ MODULE CONSTR_E_GRAD
             ESPR = ESPR + DUMMY
             ! get gradient
             !DUMMY=KINT/KINTSCALED
-            DUMMY = K_SPRING(J1)/KINTSCALED
+            DUMMY = K_SPRING(J1) / KINTSCALED
             
             !original spring force
-            !DO J2=1,NATOMS
-            !   SPGRAD = 0.0D0
-            !   IF ((.NOT.QCISPRINGACTIVET).OR.ATOMACTIVE(J2)) THEN 
-            !      
-            !      SPGRAD(1:3)=DUMMY*(XYZ(NI1+3*(J2-1)+1:NI1+3*(J2-1)+3)-XYZ(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3))
-            !      
-            !      IF (MAXVAL(DABS(GRAD)).GT.FSPRINGMAX) THEN
-            !         FSPRINGMAX = MAXVAL(DABS(GRAD)) 
-            !      ENDIF
-            !   
-            !     !Image J-1
-            !      !GGG(NI1+3*(J2-1)+1:NI1+3*(J2-1)+3)=GGG(NI1+3*(J2-1)+1:NI1+3*(J2-1)+3)+SPGRAD(1:3)
-            !     GGG2(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)=GGG2(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)+SPGRAD(1:3)
-            !      !Image J
-            !      GGG(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)=GGG(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)-SPGRAD(1:3)
-            !      
-            !   ENDIF
-            
-            !ENDDO
-
-            !per image spring force 
-            GRAD = 0.0D0
             DO J2=1,NATOMS
                SPGRAD = 0.0D0
                IF ((.NOT.QCISPRINGACTIVET).OR.ATOMACTIVE(J2)) THEN 
                   
                   SPGRAD(1:3)=DUMMY*(XYZ(NI1+3*(J2-1)+1:NI1+3*(J2-1)+3)-XYZ(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3))
-                  GRAD = GRAD + SPGRAD
-                  !Image J-1
-                  !GGG(NI1+3*(J2-1)+1:NI1+3*(J2-1)+3)=GGG(NI1+3*(J2-1)+1:NI1+3*(J2-1)+3)+SPGRAD(1:3)
-                  !GGG2(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)=GGG2(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)+SPGRAD(1:3)
-                  !Image J
-                  !GGG(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)=GGG(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)-SPGRAD(1:3)
-            
-               ENDIF
-            ENDDO
-
-            !TODO FIX this into sensible way to add grad to entire image
-            DO J2=1,NATOMS
-            !  
-               GRAD = GRAD / NATOMS
-            !
-            !   !Image J-1
-            !   !GGG(NI1+3*(J2-1)+1:NI1+3*(J2-1)+3)=GGG(NI1+3*(J2-1)+1:NI1+3*(J2-1)+3)+SPGRAD(1:3)
-               GGG2(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)=GGG2(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)+GRAD(1:3)
-            !   !Image J
-               GGG(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)=GGG(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)-GRAD(1:3)
-            !   
-               IF (MAXVAL(DABS(GRAD)).GT.FSPRINGMAX) THEN
-                  FSPRINGMAX = MAXVAL(DABS(GRAD)) 
-               ENDIF
+                  
+                  IF (MAXVAL(DABS(SPGRAD)).GT.FSPRINGMAX) THEN
+                     FSPRINGMAX = MAXVAL(DABS(SPGRAD)) 
+                  ENDIF
                
-            ENDDO
-
+            !     !Image J-1
+                  !GGG(NI1+3*(J2-1)+1:NI1+3*(J2-1)+3)=GGG(NI1+3*(J2-1)+1:NI1+3*(J2-1)+3)+SPGRAD(1:3)
+                  GGG2(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)=GGG2(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)+SPGRAD(1:3)
+            !     !Image J
+                  GGG(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)=GGG(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)-SPGRAD(1:3)
+                  
+               ENDIF
+            
+            ENDDO        
 
          END DO
 
@@ -1275,6 +1240,94 @@ MODULE CONSTR_E_GRAD
          IF (QCIADJUSTKT) CALL GET_AV_DEV(DVEC)
       END SUBROUTINE GET_SPRING_E
 
+      SUBROUTINE GET_SPRING_E2(XYZ, GGG, EEE, ESPR)
+         
+         USE QCIKEYS, ONLY: NIMAGES, NATOMS, KINT, KINTSCALED, QCIADJUSTKT, QCISPRINGACTIVET
+         USE INTERPOLATION_KEYS, ONLY: ATOMACTIVE, K_SPRING, IMAGE_DIST, NACTIVE
+         USE HELPER_FNCTS, ONLY: DISTANCE_ATOM_DIFF_IMAGES
+         
+         IMPLICIT NONE
+         
+         REAL(KIND = REAL64), INTENT(IN)  :: XYZ(3*NATOMS*(NIMAGES+2))  !< input coordinates
+         REAL(KIND = REAL64), INTENT(OUT) :: GGG(3*NATOMS*(NIMAGES+2))  !< gradient for each atom in each image
+         REAL(KIND = REAL64), INTENT(OUT) :: EEE(NIMAGES+2)             !< energy for repulsions (spring?)
+         REAL(KIND = REAL64), INTENT(OUT) :: ESPR                       !< energy for repulsions  (spring?)
+         REAL(KIND = REAL64 ) :: GRAD(3)
+
+         REAL(KIND = REAL64) :: EEE2(NIMAGES+2)  
+         REAL(KIND = REAL64) :: GGG2(3*NATOMS*(NIMAGES+2))
+         INTEGER :: J1, J2, NI1, NI2
+         REAL(KIND = REAL64) :: DPLUS, DUMMY, EMAX, SPGRAD(3)
+         REAL(KIND = REAL64) :: DVEC(NIMAGES+1)                          !< QUESTION: what is this?  
+         INTEGER :: IMAX
+               
+         REAL(KIND=REAL64) :: IMAGE_DISTANCE(NIMAGES+1)
+
+         REAL(KIND = REAL64) :: DISTATOM, DISTTOTAL, AVE_DIST, K_FORCE
+         REAL(KIND = REAL64) :: X1(3*NATOMS), X2(3*NATOMS), TANGENT(3*NATOMS), TANGENT_NORM
+         REAL(KIND=REAL64) ::  DMAX, DMIN
+         
+         EEE = 0.0D0; EEE2 = 0.0D0
+         GGG=0.0D0; GGG2 = 0.0D0
+         ESPR = 0.0D0
+         EMAX = -(HUGE(1.0D0))
+         IMAX = -1
+         FSPRINGMAX = 0.0D0
+       
+         DMAX = 0.0D0
+         DMIN = 1.0D100
+         AVE_DIST = 0.0D0
+         K_FORCE = 1.0D0
+         
+         
+         DO J1 =1, NIMAGES+1
+            DISTTOTAL = 0.0D0
+            X1(1:3*NATOMS) = XYZ((J1-1)*3*NATOMS+1:J1*3*NATOMS) !Image J
+            X2(1:3*NATOMS) = XYZ(J1*3*NATOMS+1:(J1+1)*3*NATOMS) !Image J+1
+            
+            DO J2=1,NATOMS
+               IF (ATOMACTIVE(J2)) THEN
+                  CALL DISTANCE_ATOM_DIFF_IMAGES(NATOMS, X1, X2, J2, DISTATOM)
+                  DISTTOTAL = DISTTOTAL + DISTATOM
+               END IF
+            END DO 
+
+            IMAGE_DISTANCE(J1) = DISTTOTAL
+            IF (DISTTOTAL.GT.DMAX) THEN
+               DMAX = DISTTOTAL
+            END IF
+            IF (DISTTOTAL.LT.DMIN) THEN
+               DMIN = DISTTOTAL
+            END IF
+
+         END DO
+
+         AVE_DIST = SUM(IMAGE_DISTANCE) / (NIMAGES-1)
+
+         DO J1=2, NIMAGES+1
+            
+            K_FORCE = -2.0D0 * KINT * (IMAGE_DISTANCE(J1) - AVE_DIST) 
+            
+            X1(1:3*NATOMS) = XYZ((J1-2)*3*NATOMS+1:(J1-1)*3*NATOMS) !Image J-1
+            X2(1:3*NATOMS) = XYZ(J1*3*NATOMS+1:(J1+1)*3*NATOMS) !Image J+1
+            TANGENT = X2 - X1
+
+            TANGENT_NORM = SQRT(SUM(TANGENT**2))
+            IF (TANGENT_NORM > 1.0D-10) THEN
+               TANGENT = TANGENT / TANGENT_NORM
+            ELSE
+               TANGENT = 0.0D0  ! Degenerate case (should rarely happen)
+            END IF
+
+
+
+         
+
+         END DO
+
+
+      END SUBROUTINE GET_SPRING_E2
+      
       SUBROUTINE GET_AV_DEV(DVEC)
          USE QCIKEYS, ONLY: NIMAGES, QCIAVDEV
          IMPLICIT NONE
@@ -1422,15 +1475,13 @@ MODULE CONSTR_E_GRAD
 
          REAL(KIND = REAL64) :: DISTATOM, DISTTOTAL, X1(3*NATOMS), X2(3*NATOMS)
          REAL(KIND=REAL64) ::  DMAX, DMIN
-         INTEGER :: J1, J2, JMIN, JMAX
+         INTEGER :: J1, J2
 
          K_SPRING = KINT
          
          DMAX = 0.0D0
          DMIN = 1.0D100
-         JMIN = -1
-         JMAX = -1
-
+         
          DO J1 =1, NIMAGES+1
             DISTTOTAL = 0.0D0
             X1(1:3*NATOMS) = XYZ((J1-1)*3*NATOMS+1:J1*3*NATOMS) !Image J
@@ -1446,23 +1497,22 @@ MODULE CONSTR_E_GRAD
             IMAGE_DISTANCE(J1) = DISTTOTAL
             IF (DISTTOTAL.GT.DMAX) THEN
                DMAX = DISTTOTAL
-               JMAX = J1
             END IF
             IF (DISTTOTAL.LT.DMIN) THEN
                DMIN = DISTTOTAL
-               JMIN = J1
             END IF
 
          END DO
          
-         IMAGE_DIST = IMAGE_DISTANCE / NACTIVE
          
-         DMAX = DMAX / NACTIVE
-         DMIN = DMIN / NACTIVE
+         
+         !IMAGE_DIST is later used for statistics!
+         IMAGE_DIST = IMAGE_DISTANCE / NACTIVE
 
-         IMAGE_DIST = IMAGE_DIST / DMAX
+         !Normalise 
+         IMAGE_DISTANCE = IMAGE_DISTANCE / DMAX
 
-         K_SPRING = IMAGE_DIST * KINT         
+         K_SPRING =  IMAGE_DISTANCE * KINT          
 
       
       END SUBROUTINE GET_SPRING_CONSTANTS
