@@ -1172,8 +1172,8 @@ MODULE CONSTR_E_GRAD
             ENDIF
             ESPR = ESPR + DUMMY
             ! get gradient
-            !DUMMY=KINT/KINTSCALED
-            DUMMY = K_SPRING(J1) / KINTSCALED
+            DUMMY=KINT/KINTSCALED
+            !DUMMY = K_SPRING(J1) / KINTSCALED
             
             !original spring force
             DO J2=1,NATOMS
