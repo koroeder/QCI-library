@@ -1150,8 +1150,8 @@ MODULE CONSTR_E_GRAD
             DVEC(J1) = SQRT(DPLUS)
             
             ! V_QCI = 1/2 * K_SPR * |X_i - X_{i-1}|^2
-            !DUMMY = KINT*0.5D0*DPLUS/KINTSCALED
-            DUMMY = K_SPRING(J1)*0.5D0*DPLUS/KINTSCALED
+            DUMMY = KINT*0.5D0*DPLUS/KINTSCALED
+            !DUMMY = K_SPRING(J1)*0.5D0*DPLUS/KINTSCALED
 
             !QUESTION this adds energy to X_0 and X_n+1? How should the energy be divided? 
             !WARNING adding if statement to make sure E(1) & E(NIMAGES+2) = 0 ... not sure this is right
