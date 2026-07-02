@@ -1,5 +1,9 @@
 # Standalone Quasi-Continious Interpolation (QCI) code
 
+### 02.07.2026
+- INTCONSTRAINTDEL & QCICONSTRREP keywords now obsolete and replaced with K_CONST and K_REP
+- Spring aplied per atoms again
+
 ### 24.06.2026
 - Image distance is not defined per (active) atom
 - sensible valules seem to be: MIN image separation - 0.1, MAX image separation - 0.3

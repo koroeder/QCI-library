@@ -47,7 +47,7 @@ MODULE CONSTR_E_GRAD
 
       SUBROUTINE CONGRAD1(ETOTAL, XYZ, GGG, EEE, RMS)
          USE QCIKEYS, ONLY: NIMAGES, NATOMS, QCICONSTRREP, KINT, QCIFREEZET, INTCONSTRAINTDEL, &
-                            USEDIHEDRALCONST !, QCIFROZEN
+                            USEDIHEDRALCONST, K_CONST, K_REP
          USE OUT_PRINT, ONLY: SAVE_OUT
          IMPLICIT NONE
          REAL(KIND = REAL64), INTENT(IN) :: XYZ(3*NATOMS*(NIMAGES+2))   ! input coordinates
@@ -79,7 +79,7 @@ MODULE CONSTR_E_GRAD
          ECON = 0.0D0; EREP = 0.0D0; ESPR = 0.0D0; EDIH = 0.0D0
 
          ! QUERY: what is INTCONSTRAINTDEL? seems like a scaling for the potential
-         IF (.NOT.(INTCONSTRAINTDEL.EQ.0.0D0)) THEN
+         IF (.NOT.(K_CONST.EQ.0.0D0)) THEN
             CALL GET_CONSTRAINT_E_NOINTERNAL(XYZ,GGGC,EEEC,ECON)
          ELSE
              !Set convergence criteria to 0 if we don't use constraints. 
@@ -87,7 +87,7 @@ MODULE CONSTR_E_GRAD
              FCONMAX = 0.0D0
          END IF
          
-         IF (.NOT.(QCICONSTRREP.EQ.0.0D0)) THEN
+         IF (.NOT.(K_REP.EQ.0.0D0)) THEN
             CALL GET_REPULSION_E(XYZ,GGGR,EEER,EREP)
          ELSE
             CONVERGEREPTEST = 0.0D0
@@ -108,19 +108,8 @@ MODULE CONSTR_E_GRAD
          ! add all contributions
          EEE = EEEC + EEER + EEES + EEED
          GGG = GGGC + GGGR + GGGS + GGGD
-         ! freeze atoms that should be frozen
-         !IF (QCIFREEZET) THEN
-         !   DO J1=2,NIMAGES+1
-         !      DO J2=1,NATOMS
-         !         IF (QCIFROZEN(J2)) THEN
-         !            GGG((3*NATOMS)*(J1-1)+3*(J2-1)+1)=0.0D0
-         !            GGG((3*NATOMS)*(J1-1)+3*(J2-1)+2)=0.0D0
-         !            GGG((3*NATOMS)*(J1-1)+3*(J2-1)+3)=0.0D0
-         !         END IF
-         !      END DO
-         !   END DO
-         !END IF
-
+      
+         
          ! Set gradients to zero for start and finish images.
          GGG(1:(3*NATOMS))=0.0D0
          GGG((NIMAGES+1)*(3*NATOMS)+1:(NIMAGES+2)*(3*NATOMS))=0.0D0
@@ -150,7 +139,7 @@ MODULE CONSTR_E_GRAD
 
       SUBROUTINE CONGRAD2(ETOTAL, XYZ, GGG, EEE, RMS)
          USE QCIKEYS, ONLY: NIMAGES, NATOMS, KINT, QCIFREEZET, QCICONSTRREP, INTCONSTRAINTDEL, &
-                            USEDIHEDRALCONST !, QCIFROZEN
+                            USEDIHEDRALCONST, K_CONST, K_REP
          USE OUT_PRINT, ONLY: SAVE_OUT
          IMPLICIT NONE
          REAL(KIND = REAL64), INTENT(IN) :: XYZ(3*NATOMS*(NIMAGES+2))   ! input coordinates
@@ -180,7 +169,7 @@ MODULE CONSTR_E_GRAD
          ECON = 0.0D0; EREP = 0.0D0; ESPR = 0.0D0; EDIH = 0.0D0
 
          ! QUERY: what is INTCONSTRAINTDEL? seems like a scaling for the potential
-         IF (.NOT.(INTCONSTRAINTDEL.EQ.0.0D0)) THEN
+         IF (.NOT.(K_CONST.EQ.0.0D0)) THEN
             !use the constraint energy including the internal extrema
             CALL GET_CONSTRAINT_E(XYZ,GGGC,EEEC,ECON)
          ELSE
@@ -189,7 +178,7 @@ MODULE CONSTR_E_GRAD
              FCONMAX = 0.0D0
          END IF
    
-         IF (.NOT.(QCICONSTRREP.EQ.0.0D0)) THEN
+         IF (.NOT.(K_REP.EQ.0.0D0)) THEN
             CALL GET_REPULSION_E(XYZ,GGGR,EEER,EREP)
          ELSE
             CONVERGEREPTEST = 0.0D0
@@ -210,19 +199,6 @@ MODULE CONSTR_E_GRAD
          ! add all contributions
          EEE = EEEC + EEER + EEES + EEED
          GGG = GGGC + GGGR + GGGS + GGGD
-
-         ! freeze atoms that should be frozen
-         !IF (QCIFREEZET) THEN
-         !   DO J1=2,NIMAGES+1
-         !      DO J2=1,NATOMS
-         !         IF (QCIFROZEN(J2)) THEN
-         !            GGG((3*NATOMS)*(J1-1)+3*(J2-1)+1)=0.0D0
-         !            GGG((3*NATOMS)*(J1-1)+3*(J2-1)+2)=0.0D0
-         !            GGG((3*NATOMS)*(J1-1)+3*(J2-1)+3)=0.0D0
-         !         END IF
-         !      END DO
-         !   END DO
-         !END IF
 
          ! Set gradients to zero for start and finish images.
          GGG(1:(3*NATOMS))=0.0D0
@@ -285,7 +261,7 @@ MODULE CONSTR_E_GRAD
             !IF (.NOT.CONACTIVE(J2)) CYCLE
             ! get constraint cut off for this contraint
             
-            !WARNING added extra conditions for active-inactive           
+            !added extra conditions for active-inactive           
             IF (.NOT.USECONACTINACT) THEN
                ! only active constraints contribute
                IF (.NOT.CONACTIVE(J2)) CYCLE
@@ -556,12 +532,8 @@ MODULE CONSTR_E_GRAD
                DUMMY = D2-CONDISTREFLOCAL(J2)
                IF ((DUMMY.GT.CCLOCAL).AND.(J1.LT.NIMAGES+2)) THEN  
                   
-                  !CONSTGRAD(1:3)=2.0D0*K_CONST*INTCONSTRAINTDEL*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G2(1:3)
-                  !DUMMY=INTCONSTRAINTDEL*(DUMMY**2-CCLOCAL**2)**2/(2.0D0*CCLOCAL**2)
                  
-                 
-                  !CONSTGRAD(1:3)=2.0D0*K_CONST*LOCALCONFACTOR*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G2(1:3)
-                   CONSTGRAD(1:3)=2.0D0*K_CONST*LOCALCONFACTOR*((DUMMY**2-CCLOCAL**2)/CCLOCAL**4)*DUMMY*G2(1:3)      
+                  CONSTGRAD(1:3)=2.0D0*K_CONST*LOCALCONFACTOR*((DUMMY**2-CCLOCAL**2)/CCLOCAL**4)*DUMMY*G2(1:3)      
                   ! V_con(d^i_AB) = eps_con ((d^i_AB-ave*(d^i_AB))^2 - C_con_AB^2 )^2 / 2(C_con_AB)^2
                   !Changed eqution from the published one by factor (1/CCLOCAL**2)
                   DUMMY=K_CONST*LOCALCONFACTOR*((DUMMY**2-CCLOCAL**2)**2)/(2.0D0*CCLOCAL**4)                  
@@ -1208,7 +1180,7 @@ MODULE CONSTR_E_GRAD
                SPGRAD = 0.0D0
                IF ((.NOT.QCISPRINGACTIVET).OR.ATOMACTIVE(J2)) THEN 
                   
-                  SPGRAD(1:3)=DUMMY*(XYZ(NI1+3*(J2-1)+1:NI1+3*(J2-1)+3)-XYZ(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3))
+                  SPGRAD(1:3)=DUMMY*(XYZ(NI1+3*(J2-1)+1:NI1+3*(J2-1)+3) - XYZ(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3))
                   
                   IF (MAXVAL(DABS(SPGRAD)).GT.FSPRINGMAX) THEN
                      FSPRINGMAX = MAXVAL(DABS(SPGRAD)) 

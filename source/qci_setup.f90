@@ -318,7 +318,10 @@ MODULE QCISETUP
             READ(VAL,*) QCIINTREPMINSEP      
          ! constraint constant?
          ELSE IF (ENTRY.EQ."INTCONSTRAINTDEL") THEN 
-            READ(VAL,*) INTCONSTRAINTDEL   
+            WRITE(*,*) "WARNING: INTCONSTRAINTDEL keyword has been replaced by K_CONST!"
+            WRITE(*,*) "Replace  INTCONSTRAINTDEL in the config file and try again."
+            WRITE(*,*) "Terminating ... "
+            CALL INT_ERR_TERMINATE()
          ! image control
          ELSE IF (ENTRY.EQ."USEIMAGEDENSITY") THEN  
             USEIMAGEDENSITY = .TRUE.
@@ -374,7 +377,10 @@ MODULE QCISETUP
          ELSE IF (ENTRY.EQ."REPULSIONCUTOFF") THEN
             READ(VAL, *) QCIREPCUT
          ELSE IF (ENTRY.EQ."QCICONSTRREP") THEN
-            READ(VAL, *) QCICONSTRREP
+            WRITE(*,*) "WARNING: QCICONSTRREP keyword has been replaced by K_REP"
+            WRITE(*,*) "Replace  QCICONSTRREP in the config file and try again."
+            WRITE(*,*) "Terminating ... "
+            CALL INT_ERR_TERMINATE()
          !
          ELSE IF (ENTRY.EQ."CHECKREPCUTOFF") THEN
             READ(VAL,*) CHECKREPCUTOFF
