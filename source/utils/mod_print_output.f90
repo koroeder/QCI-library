@@ -213,39 +213,6 @@ MODULE OUT_PRINT
         END IF
 
         !============================================================================
-        ! Frozen atoms
-        !============================================================================
-        !WRITE(IU,FMT_SEC) ''
-        !WRITE(IU,FMT_SEC) '--- Frozen atoms ---'
-        !WRITE(IU,FMT_BOOL) 'QCIFREEZET', QCIFREEZET
-        !WRITE(IU,FMT_INT)  'NQCIFROZEN', NQCIFROZEN
-        !WRITE(IU,FMT_INT)  'NMINUNFROZEN', NMINUNFROZEN
-        !WRITE(IU,FMT_CHAR) 'FREEZEFILE', TRIM(FREEZEFILE)
-        !WRITE(IU,FMT_REAL) 'QCIFREEZETOL', QCIFREEZETOL
-        !IF (ALLOCATED(QCIFROZEN)) THEN
-        !    N = SIZE(QCIFROZEN)
-        !    NTRUE = COUNT(QCIFROZEN)
-        !    WRITE(IU,FMT_INT) 'QCIFROZEN (size)', N
-        !    WRITE(IU,FMT_INT) 'QCIFROZEN (.TRUE. count)', NTRUE
-        !    IF (N <= MAX_PRINT_ARRAY) THEN
-        !        WRITE(IU,'(3X,A45,1X,"=",1X,*(L1,1X))') 'QCIFROZEN', (QCIFROZEN(I), I=1,N)
-        !    END IF
-        !ELSE
-        !    WRITE(IU,FMT_CHAR) 'QCIFROZEN', 'not allocated'
-        !END IF
-        !IF (ALLOCATED(FREEZE)) THEN
-        !    N = SIZE(FREEZE)
-        !    NTRUE = COUNT(FREEZE)
-        !    WRITE(IU,FMT_INT) 'FREEZE (size)', N
-        !    WRITE(IU,FMT_INT) 'FREEZE (.TRUE. count)', NTRUE
-        !    IF (N <= MAX_PRINT_ARRAY) THEN
-        !        WRITE(IU,'(3X,A45,1X,"=",1X,*(L1,1X))') 'FREEZE', (FREEZE(I), I=1,N)
-        !    END IF
-        !ELSE
-        !    WRITE(IU,FMT_CHAR) 'FREEZE', 'not allocated'
-        !END IF
-
-        !============================================================================
         ! Image checking / internal minima
         !============================================================================
         WRITE(IU,FMT_SEC) ''
@@ -353,5 +320,91 @@ MODULE OUT_PRINT
 
 
     END SUBROUTINE WRITE_QCI_KEYS
+
+    SUBROUTINE WRITE_IMAGE_DIST(FILENAME)
+        
+        
+        USE QCIKEYS, ONLY: NIMAGES
+        USE INTERPOLATION_KEYS, ONLY: IMAGE_DIST
+
+        IMPLICIT NONE
+
+        CHARACTER(LEN=*), INTENT(IN) :: FILENAME
+        
+        INTEGER :: I, UNIT_OUT
+
+        ! OPEN FILE FOR WRITING
+        OPEN(NEWUNIT=UNIT_OUT, FILE=FILENAME, STATUS='REPLACE', ACTION='WRITE')
+
+        ! WRITE GNUPLOT SCRIPT HEADER
+        WRITE(UNIT_OUT, '(A)') '#!/usr/bin/gnuplot'
+        WRITE(UNIT_OUT, '(A)') 'set encoding iso_8859_1'
+        WRITE(UNIT_OUT, '(A)') 'set xlabel "Image" font "Halvetica ,12" '
+        WRITE(UNIT_OUT, '(A)') 'set ylabel "Distance-per-atom ({/Helverica=12 \305} )" font "Halvetica ,12"'
+        WRITE(UNIT_OUT, '(A)') 'set grid'
+        WRITE(UNIT_OUT, '(A)') 'set nokey'
+        WRITE(UNIT_OUT, '(A)') ''
+        WRITE(UNIT_OUT, '(A)') 'plot "-"  u 1:2 w p pt 6 '
+        WRITE(UNIT_OUT, '(A)') '$DATA'
+
+        ! WRITE DATA SECTION
+        DO I = 1, NIMAGES+1
+            WRITE(UNIT_OUT, '(I0, A, F10.4)') I, ' ', IMAGE_DIST(I)
+        END DO
+
+        ! WRITE GNUPLOT END MARKER
+        WRITE(UNIT_OUT, '(A)') '$DATA'
+        WRITE(UNIT_OUT, '(A)') ''
+
+        ! CLOSE FILE
+        CLOSE(UNIT_OUT)
+
+        PRINT *, 'GNUPLOT SCRIPT GENERATED: ', TRIM(FILENAME)
+  
+    END SUBROUTINE WRITE_IMAGE_DIST
+
+     SUBROUTINE WRITE_IMAGE_E(FILENAME, EEE)
+        
+        
+        USE QCIKEYS, ONLY: NIMAGES
+        
+        IMPLICIT NONE
+
+        CHARACTER(LEN=*), INTENT(IN) :: FILENAME
+        REAL(KIND = REAL64) :: EEE(NIMAGES+2)
+
+        INTEGER :: I, UNIT_OUT
+
+        ! OPEN FILE FOR WRITING
+        OPEN(NEWUNIT=UNIT_OUT, FILE=FILENAME, STATUS='REPLACE', ACTION='WRITE')
+
+        ! WRITE GNUPLOT SCRIPT HEADER
+        WRITE(UNIT_OUT, '(A)') '#!/usr/bin/gnuplot'
+        WRITE(UNIT_OUT, '(A)') 'set encoding iso_8859_1'
+        WRITE(UNIT_OUT, '(A)') 'set xlabel "Image" font "Halvetica ,12" '
+        WRITE(UNIT_OUT, '(A)') 'set ylabel "Energy"  font "Halvetica ,12"'
+        WRITE(UNIT_OUT, '(A)') 'set grid'
+        WRITE(UNIT_OUT, '(A)') 'set nokey'
+        WRITE(UNIT_OUT, '(A)') ''
+        WRITE(UNIT_OUT, '(A)') 'plot "-"  u 1:2 w p pt 6 '
+        WRITE(UNIT_OUT, '(A)') '$DATA'
+
+        ! WRITE DATA SECTION
+        DO I = 1, NIMAGES+2
+            WRITE(UNIT_OUT, '(I0, A, F10.4)') I, ' ', EEE(I)
+        END DO
+
+        ! WRITE GNUPLOT END MARKER
+        WRITE(UNIT_OUT, '(A)') '$DATA'
+        WRITE(UNIT_OUT, '(A)') ''
+
+        ! CLOSE FILE
+        CLOSE(UNIT_OUT)
+
+        PRINT *, 'GNUPLOT SCRIPT GENERATED: ', TRIM(FILENAME)
+  
+    END SUBROUTINE WRITE_IMAGE_E
+
+
 
 END MODULE OUT_PRINT
