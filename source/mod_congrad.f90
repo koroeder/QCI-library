@@ -21,7 +21,9 @@ MODULE CONSTR_E_GRAD
    !REAL(KIND=REAL64) :: FCONTEST, FREPTEST, FDIHTEST
    REAL(KIND=REAL64) :: EMAXSPR
    REAL(KIND=REAL64) :: FCONMAX, FREPMAX, FDIHMAX, FSPRINGMAX                !< maximum gradient 
-   REAL(KIND=REAL64) :: FMAX  !< Maximum force on an atom
+   REAL(KIND=REAL64) :: FMAX_GLOBAL                                          !< Maximum force on an atom
+   REAL(KIND=REAL64) :: MAX_E_PER_IMAGE
+
    INTEGER :: CALLN = 0
    
      
@@ -62,6 +64,8 @@ MODULE CONSTR_E_GRAD
          REAL(KIND = REAL64) :: EEES(NIMAGES+2), GGGS(3*NATOMS*(NIMAGES+2))
          REAL(KIND = REAL64) :: EEED(NIMAGES+2), GGGD(3*NATOMS*(NIMAGES+2))
          INTEGER :: J1, J2
+
+         REAL(KIND = REAL64) :: GGG_SUM(NATOMS*(NIMAGES+2))
 
          CALLN = CALLN + 1
 
@@ -118,13 +122,22 @@ MODULE CONSTR_E_GRAD
          RMS=0.0D0
          DO J1=2,NIMAGES+1
             DO J2=1,3*NATOMS
-               RMS = RMS + GGG((3*NATOMS)*(J1-1)+J2)**2
+               RMS = RMS + GGG((3*NATOMS)*(J1-1)+J2)**2            
             END DO
          END DO
 
-         FMAX = MAX( MAXVAL(GGG), DABS(MINVAL(GGG)))
+          DO J1=2,NIMAGES+1
+            DO J2=1,NATOMS
+               GGG_SUM(J1*J2) = SQRT (GGG(3*NATOMS*(J1-1)+ 3*(J2-1)+1)**2 + GGG(3*NATOMS*(J1-1)+ 3*(J2-1)+2)**2 + GGG(3*NATOMS*(J1-1)+ 3*(J2-1)+3)**2 )
+            END DO
+         END DO
+
+         !FMAX_GLOBAL = MAX( MAXVAL(GGG), DABS(MINVAL(GGG)))
+         FMAX_GLOBAL = MAX( MAXVAL(GGG_SUM), DABS(MINVAL(GGG_SUM)))
          RMS = SQRT(RMS/(3*NATOMS*NIMAGES))
          ETOTAL = SUM(EEE(2:NIMAGES+1))
+
+         MAX_E_PER_IMAGE = MAXVAL(EEE)
          
          !Save outputs, so we can choose when to print
          CALL SAVE_OUT(ETOTAL, RMS, EREP, ECON, ESPR, EDIH, FCONMAX, FREPMAX, FDIHMAX, CONVERGECONTEST, CONVERGEREPTEST, CONVERGENCEDIHTEST, FSPRINGMAX)
@@ -212,7 +225,7 @@ MODULE CONSTR_E_GRAD
             END DO
          END DO
          RMS = SQRT(RMS/(3*NATOMS*NIMAGES))
-         FMAX = MAX( MAXVAL(GGG), DABS(MINVAL(GGG)))
+         FMAX_GLOBAL = MAX( MAXVAL(GGG), DABS(MINVAL(GGG)))
          ETOTAL = SUM(EEE(2:NIMAGES+1))
          
          CALL SAVE_OUT(ETOTAL, RMS, EREP, ECON, ESPR, EDIH, FCONMAX, FREPMAX, FDIHMAX, CONVERGECONTEST, CONVERGEREPTEST, CONVERGENCEDIHTEST,FSPRINGMAX)
@@ -1172,8 +1185,8 @@ MODULE CONSTR_E_GRAD
             ENDIF
             ESPR = ESPR + DUMMY
             ! get gradient
-            !DUMMY=KINT/KINTSCALED
-            DUMMY = K_SPRING(J1) / KINTSCALED
+            DUMMY=KINT/KINTSCALED
+            !DUMMY = K_SPRING(J1) / KINTSCALED
             
             !original spring force
             DO J2=1,NATOMS
