@@ -285,6 +285,7 @@ MODULE MOD_INTCOORDS
 
          !Reallocate intcoords in case NIMAGES changes. 
          CALL ALLOC_INTCOORDS()
+         CALL ALLOC_PREVCOORDS()
          CALL ALLOC_STEPTAKING()
 
          REWIND(LUNIT)
