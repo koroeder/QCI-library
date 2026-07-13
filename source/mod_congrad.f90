@@ -1185,8 +1185,8 @@ MODULE CONSTR_E_GRAD
             ENDIF
             ESPR = ESPR + DUMMY
             ! get gradient
-            DUMMY=KINT/KINTSCALED
-            !DUMMY = K_SPRING(J1) / KINTSCALED
+            !DUMMY=KINT/KINTSCALED
+            DUMMY = K_SPRING(J1) / KINTSCALED
             
             !original spring force
             DO J2=1,NATOMS
@@ -1199,10 +1199,10 @@ MODULE CONSTR_E_GRAD
                      FSPRINGMAX = MAXVAL(DABS(SPGRAD)) 
                   ENDIF
                
-            !     !Image J-1
+                  !Image J-1
                   !GGG(NI1+3*(J2-1)+1:NI1+3*(J2-1)+3)=GGG(NI1+3*(J2-1)+1:NI1+3*(J2-1)+3)+SPGRAD(1:3)
                   GGG2(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)=GGG2(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)+SPGRAD(1:3)
-            !     !Image J
+                  !Image J
                   GGG(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)=GGG(NI2+3*(J2-1)+1:NI2+3*(J2-1)+3)-SPGRAD(1:3)
                   
                ENDIF

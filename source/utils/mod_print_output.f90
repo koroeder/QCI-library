@@ -95,11 +95,11 @@ MODULE OUT_PRINT
         WRITE(IU,FMT_SEC) ''
         WRITE(IU,FMT_SEC) '--- Backbone settings ---'
         WRITE(IU,FMT_BOOL) 'QCIDOBACK', QCIDOBACK
-        IF (ALLOCATED(ISBBATOM)) THEN
+        IF (ALLOCATED(ISBBATOM).AND.DEBUG) THEN
             N = SIZE(ISBBATOM)
             NTRUE = COUNT(ISBBATOM)
             WRITE(IU,FMT_INT) 'ISBBATOM (size)', N
-            WRITE(IU,FMT_INT) 'ISBBATOM (.TRUE. count)', NTRUE
+           WRITE(IU,FMT_INT) 'ISBBATOM (.TRUE. count)', NTRUE
             IF (N <= MAX_PRINT_ARRAY) THEN
                 WRITE(IU,'(3X,A45,1X,"=",1X,*(L1,1X))') 'ISBBATOM', (ISBBATOM(I), I=1,N)
             ELSE
@@ -112,23 +112,7 @@ MODULE OUT_PRINT
         WRITE(IU,FMT_BOOL) 'DETECTBBCROSSING', DETECTBBCROSSING
         WRITE(IU,FMT_INT)  'CHECKCROSSFREQ', CHECKCROSSFREQ
 
-        !============================================================================
-        ! Atom names
-        !============================================================================
-        WRITE(IU,FMT_SEC) ''
-        WRITE(IU,FMT_SEC) '--- Atom names ---'
-        IF (ALLOCATED(NAMES)) THEN
-            N = SIZE(NAMES)
-            WRITE(IU,FMT_INT) 'NAMES (size)', N
-            IF (N <= MAX_PRINT_ARRAY) THEN
-                WRITE(IU,'(3X,A45,1X,"=",1X,*(A5,1X))') 'NAMES', (NAMES(I), I=1,N)
-            ELSE
-                WRITE(IU,'(3X,A45,1X,"=",1X,5(A5,1X),"...")') 'NAMES(1:5)', (NAMES(I), I=1,5)
-            END IF
-        ELSE
-            WRITE(IU,FMT_CHAR) 'NAMES', 'not allocated'
-        END IF
-
+       
         !============================================================================
         ! Addition / optimisation logic
         !============================================================================
@@ -150,12 +134,12 @@ MODULE OUT_PRINT
         WRITE(IU,FMT_BOOL) 'QCITRILATERATION2', QCITRILATERATION2
 
         !============================================================================
-        ! Constraint / gradient settings
+        ! Constraint settings
         !============================================================================
         WRITE(IU,FMT_SEC) ''
         WRITE(IU,FMT_SEC) '--- Constraint / gradient settings ---'
         WRITE(IU,FMT_BOOL) 'CHECKCONINT', CHECKCONINT
-        WRITE(IU,FMT_REAL) 'INTCONSTRAINTDEL', INTCONSTRAINTDEL
+        WRITE(IU,FMT_REAL) 'K_CONT', K_CONST
         WRITE(IU,FMT_REAL) 'MAXGRADCOMP', MAXGRADCOMP
 
         !============================================================================
@@ -188,30 +172,16 @@ MODULE OUT_PRINT
             NTRUE = COUNT(INLINLIST)
             WRITE(IU,FMT_INT) 'INLINLIST (size)', N
             WRITE(IU,FMT_INT) 'INLINLIST (.TRUE. count)', NTRUE
-            IF (N <= MAX_PRINT_ARRAY) THEN
-                WRITE(IU,'(3X,A45,1X,"=",1X,*(L1,1X))') 'INLINLIST', (INLINLIST(I), I=1,N)
-            END IF
+            !IF (N <= MAX_PRINT_ARRAY) THEN
+            !    WRITE(IU,'(3X,A45,1X,"=",1X,*(L1,1X))') 'INLINLIST', (INLINLIST(I), I=1,N)
+            !END IF
         ELSE
             WRITE(IU,FMT_CHAR) 'INLINLIST', 'not allocated'
         END IF
         WRITE(IU,FMT_BOOL) 'LINEARBBT', LINEARBBT
         WRITE(IU,FMT_BOOL) 'USELINGROUPS', USELINGROUPS
 
-        !============================================================================
-        ! Residue mapping
-        !============================================================================
-        WRITE(IU,FMT_SEC) ''
-        WRITE(IU,FMT_SEC) '--- Residue mapping ---'
-        IF (ALLOCATED(ATOMS2RES)) THEN
-            N = SIZE(ATOMS2RES)
-            WRITE(IU,FMT_INT) 'ATOMS2RES (size)', N
-            IF (N <= MAX_PRINT_ARRAY) THEN
-                WRITE(IU,'(3X,A45,1X,"=",1X,*(I0,1X))') 'ATOMS2RES', (ATOMS2RES(I), I=1,N)
-            END IF
-        ELSE
-            WRITE(IU,FMT_CHAR) 'ATOMS2RES', 'not allocated'
-        END IF
-
+        
         !============================================================================
         ! Image checking / internal minima
         !============================================================================
@@ -226,10 +196,8 @@ MODULE OUT_PRINT
         WRITE(IU,FMT_SEC) ''
         WRITE(IU,FMT_SEC) '--- Repulsion settings ---'
         WRITE(IU,FMT_REAL) 'QCIREPCUT', QCIREPCUT
-        WRITE(IU,FMT_REAL) 'QCICONSTRREP', QCICONSTRREP
         WRITE(IU,FMT_INT)  'QCIINTREPMINSEP', QCIINTREPMINSEP
         WRITE(IU,FMT_REAL) 'K_REP', K_REP
-        WRITE(IU,FMT_REAL) 'K_CONST', K_CONST
 
         !============================================================================
         ! Conactinact

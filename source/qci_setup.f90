@@ -27,6 +27,7 @@ MODULE QCISETUP
             WRITE(*,*) "qci_init> Reading perm.allow file ..."
          ENDIF
          
+         CALL WRITE_QCI_KEYS()
          !Need to get frozen atoms before aligning the endpoints for loperdist to work atm. 
          !This will not actually assign frozen atoms, only allocates arrays 
          !WRITE(*,*) "qci_init> Calling GET_FROZEN_ATOMS ..."
@@ -66,7 +67,7 @@ MODULE QCISETUP
          ! setup dihedral constraints
          IF (USEDIHEDRALCONST) CALL SETUP_DIH_CONSTR()
 
-         CALL WRITE_QCI_KEYS()
+         
       END SUBROUTINE QCI_INIT
 
       SUBROUTINE SET_ELEMENTS()
