@@ -48,7 +48,7 @@ MODULE CONSTR_E_GRAD
 
 
       SUBROUTINE CONGRAD1(ETOTAL, XYZ, GGG, EEE, RMS)
-         USE QCIKEYS, ONLY: NIMAGES, NATOMS, QCICONSTRREP, KINT, QCIFREEZET, INTCONSTRAINTDEL, &
+         USE QCIKEYS, ONLY: NIMAGES, NATOMS, KINT, QCIFREEZET, INTCONSTRAINTDEL, &
                             USEDIHEDRALCONST, K_CONST, K_REP
          USE OUT_PRINT, ONLY: SAVE_OUT
          IMPLICIT NONE
@@ -151,7 +151,7 @@ MODULE CONSTR_E_GRAD
 
 
       SUBROUTINE CONGRAD2(ETOTAL, XYZ, GGG, EEE, RMS)
-         USE QCIKEYS, ONLY: NIMAGES, NATOMS, KINT, QCIFREEZET, QCICONSTRREP, INTCONSTRAINTDEL, &
+         USE QCIKEYS, ONLY: NIMAGES, NATOMS, KINT, QCIFREEZET, INTCONSTRAINTDEL, &
                             USEDIHEDRALCONST, K_CONST, K_REP
          USE OUT_PRINT, ONLY: SAVE_OUT
          IMPLICIT NONE
@@ -920,7 +920,7 @@ MODULE CONSTR_E_GRAD
       !> should be the same as GET_REPULSION_E, but the iteration inverts the order - outer loops is repulsions
       !! Runs approx. 2x slower than GET_REPULSION_E
       SUBROUTINE GET_REPULSION_E2(XYZ,GGG,EEE,EREP)
-         USE QCIKEYS, ONLY: NIMAGES, NATOMS, INTMINFAC, QCICONSTRREP, QCIINTREPMINSEP, K_REP
+         USE QCIKEYS, ONLY: NIMAGES, NATOMS, INTMINFAC, QCIINTREPMINSEP, K_REP
          USE REPULSION, ONLY: NNREPULSIVE, NREPI, NREPJ, NREPCUT
          USE HELPER_FNCTS, ONLY: DISTANCE_SIMPLE, DOTP
          IMPLICIT NONE
@@ -1025,8 +1025,7 @@ MODULE CONSTR_E_GRAD
                END IF
                ! terms for image J1 - non-zero derivatives only for J1
                IF ((D2.LT.RPLOCAL).AND.(J1.LT.NIMAGES+2)) THEN
-                  !QUESTION what is QCICONSTRREP? 
-                  !DUMMY=QCICONSTRREP*(1.0D0/DSQ2+(2.0D0*D2-3.0D0*RPLOCAL)*INTCONSTINV)
+          
                   !DUMMY=K_REP*(1.0D0/DSQ2+(2.0D0*D2-3.0D0*RPLOCAL)*INTCONSTINV)
                   
                   !DUMMY = K_REP*(1.0D0/DSQ2-3.0D0/RPLOCAL2+(2.0D0*D2)/RPLOCAL3)
@@ -1041,7 +1040,6 @@ MODULE CONSTR_E_GRAD
                      JMAX=J2
                      EMAX=DUMMY
                   ENDIF
-                  !DUMMY=-2.0D0*QCICONSTRREP*(1.0D0/(D2*DSQ2)-INTCONSTINV)
                   !DUMMY=-2.0D0*K_REP*(1.0D0/(D2*DSQ2)-INTCONSTINV)
                   !DUMMY=2.0D0*K_REP*(-1.0D0/(D2*DSQ2)+1.0D0/(RPLOCAL3) )
                   
@@ -1054,7 +1052,7 @@ MODULE CONSTR_E_GRAD
                DUMMY=0.0D0
                !WARNING not calculating internal minima involving end images
                IF ((.NOT.NOINT).AND.(DINT.LT.RPLOCAL).AND.(J1.NE.2).AND.(J1.LT.(NIMAGES+2))) THEN
-                  !DUMMY=INTMINFAC*QCICONSTRREP*(1.0D0/DSQI+(2.0D0*DINT-3.0D0*RPLOCAL)*INTCONSTINV)
+                 
                   !DUMMY=INTMINFAC*K_REP*(1.0D0/DSQI+(2.0D0*DINT-3.0D0*RPLOCAL)*INTCONSTINV)
                   
                   !DUMMY = K_REP*INTMINFAC*(1.0D0/DSQI-3.0D0/RPLOCAL2+(2.0D0*DINT)/(RPLOCAL3) )
@@ -1081,7 +1079,7 @@ MODULE CONSTR_E_GRAD
                      !EEE(J1-1)=EEE(J1-1)+DUMMY
                    !  EEE2(J1)=EEE2(J1)+DUMMY
                   !ENDIF
-                  !DUMMY=-2.0D0*QCICONSTRREP*(1.0D0/(DINT*DSQI)-INTCONSTINV)
+                 
                   !DUMMY=-2.0D0*K_REP*(1.0D0/(DINT*DSQI)-INTCONSTINV)
                  
                   !DUMMY=2.0D0*K_REP*(-1.0D0/(DINT*DSQI)+1.0D0/RPLOCAL3 )
@@ -1110,8 +1108,7 @@ MODULE CONSTR_E_GRAD
          FMAX=MAXVAL(GGG(3*NATOMS+1:3*NATOMS*(NIMAGES+1)))
          IF (-FMIN.GT.FMAX) FMAX=-FMIN
          FREPMAX=FMAX
-         !QUESTION why this convergence test?
-         !CONVERGEREPTEST=EMAX/QCICONSTRREP
+       
          CONVERGEREPTEST=EMAX/K_REP
          MAXCONIMAGE = JMAX
          MAXCONSTR = IMAX
@@ -1163,8 +1160,8 @@ MODULE CONSTR_E_GRAD
             DVEC(J1) = SQRT(DPLUS)
             
             ! V_QCI = 1/2 * K_SPR * |X_i - X_{i-1}|^2
-            !DUMMY = KINT*0.5D0*DPLUS/KINTSCALED
-            DUMMY = K_SPRING(J1)*0.5D0*DPLUS/KINTSCALED
+            DUMMY = KINT*0.5D0*DPLUS/KINTSCALED
+            !DUMMY = K_SPRING(J1)*0.5D0*DPLUS/KINTSCALED
 
             !QUESTION this adds energy to X_0 and X_n+1? How should the energy be divided? 
             !WARNING adding if statement to make sure E(1) & E(NIMAGES+2) = 0 ... not sure this is right
@@ -1185,8 +1182,8 @@ MODULE CONSTR_E_GRAD
             ENDIF
             ESPR = ESPR + DUMMY
             ! get gradient
-            !DUMMY=KINT/KINTSCALED
-            DUMMY = K_SPRING(J1) / KINTSCALED
+            DUMMY=KINT/KINTSCALED
+            !DUMMY = K_SPRING(J1) / KINTSCALED
             
             !original spring force
             DO J2=1,NATOMS

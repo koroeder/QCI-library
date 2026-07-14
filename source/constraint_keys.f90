@@ -2,11 +2,12 @@ MODULE QCI_CONSTRAINT_KEYS
    USE QCIPREC
    IMPLICIT NONE
    !constraint
-   INTEGER :: MAXCONUSE = 100
-   INTEGER :: QCICONSEP = 15
+   INTEGER :: MAXCONUSE = 10 !< Max number of contraints per atom 
+  
    REAL(KIND=REAL64) :: QCICONSTRAINTTOL = 0.1D0
 
    !> only used for congeom
+   INTEGER :: QCICONSEP = 15 
    REAL(KIND=REAL64) :: QCICONCUT = 6.0D0 !< maximum distance between two atoms to create a constraint  
    CHARACTER(LEN=30) :: GEOMFILE = "congeom.dat"
    INTEGER :: NCONGEOM = 0

@@ -82,10 +82,10 @@ MODULE QCIKEYS
 
    !> repulsions
    REAL(KIND=REAL64) :: QCIREPCUT = 1.0D-3   !< Minimum repulsion cutoff
-   REAL(KIND=REAL64) :: QCICONSTRREP=100.0D0 !< QUESTION Is this scaling for rep energy?
-   INTEGER ::  QCIINTREPMINSEP=20 !< Minimum separation in atom index for internal minimum check in repulsion
+   INTEGER ::  QCIINTREPMINSEP=4  !< Minimum separation in atom index for internal minimum check in repulsion. Changed default value from 20 to 4 M.H
+   REAL(KIND = REAL64) :: CHECKREPCUTOFF=1.25D0   !< factor used for checking repulsion neighbourhood 
 
-   REAL(KIND=REAL64) :: K_REP=1.0D0   !<scaling constant for repuslion
+   REAL(KIND=REAL64) :: K_REP=0.2D0   !<scaling constant for repuslion
    REAL(KIND=REAL64) :: K_CONST=1.0D0 !<scaling constant for constraint
 
    !> used as energy scaling in convergence test only + does congrad run constraint

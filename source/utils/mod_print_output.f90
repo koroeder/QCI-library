@@ -50,6 +50,8 @@ MODULE OUT_PRINT
 
     SUBROUTINE WRITE_QCI_KEYS()
         USE QCIKEYS
+        USE INTERPOLATION_KEYS
+        USE QCI_CONSTRAINT_KEYS
         USE, INTRINSIC :: ISO_FORTRAN_ENV, ONLY: OUTPUT_UNIT
         
         INTEGER :: IU, I, N, NTRUE
@@ -80,10 +82,18 @@ MODULE OUT_PRINT
         WRITE(IU,FMT_INT)  'MAXINTIMAGE', MAXINTIMAGE
 
         !============================================================================
+        ! Guess file
+        !============================================================================
+        WRITE(IU,FMT_SEC) ''
+        WRITE(IU,FMT_SEC) '--- Guess file ---'
+        WRITE(IU,FMT_BOOL) 'QCIREADGUESS', QCIREADGUESS
+        WRITE(IU,FMT_CHAR) 'GUESSFILE', TRIM(GUESSFILE)
+        
+        !============================================================================
         ! QCI type flags
         !============================================================================
         WRITE(IU,FMT_SEC) ''
-        WRITE(IU,FMT_SEC) '--- QCI type flags ---'
+        WRITE(IU,FMT_SEC) '--- QCI topology flags ---'
         WRITE(IU,FMT_BOOL) 'QCIAMBERT', QCIAMBERT
         WRITE(IU,FMT_BOOL) 'QCIHIRET', QCIHIRET
         WRITE(IU,FMT_BOOL) 'QCISBMT', QCISBMT
@@ -137,18 +147,32 @@ MODULE OUT_PRINT
         ! Constraint settings
         !============================================================================
         WRITE(IU,FMT_SEC) ''
-        WRITE(IU,FMT_SEC) '--- Constraint / gradient settings ---'
-        WRITE(IU,FMT_BOOL) 'CHECKCONINT', CHECKCONINT
+        WRITE(IU,FMT_SEC) '--- Constraint settings ---'
+        
         WRITE(IU,FMT_REAL) 'K_CONT', K_CONST
+        WRITE(IU,FMT_BOOL) 'CHECKINTMINCONSTR', CHECKCONINT
+        WRITE(IU,FMT_REAL) 'CONCUTABS', CONCUTABS
+        
+        !Congeom only
+        !WRITE(IU,FMT_REAL) 'QCICONSTRAINTTOL', QCICONSTRAINTTOL
+        
+
+
+
+        
         WRITE(IU,FMT_REAL) 'MAXGRADCOMP', MAXGRADCOMP
 
         !============================================================================
-        ! Guess file
+        ! Repulsion settings
         !============================================================================
         WRITE(IU,FMT_SEC) ''
-        WRITE(IU,FMT_SEC) '--- Guess file ---'
-        WRITE(IU,FMT_BOOL) 'QCIREADGUESS', QCIREADGUESS
-        WRITE(IU,FMT_CHAR) 'GUESSFILE', TRIM(GUESSFILE)
+        WRITE(IU,FMT_SEC) '--- Repulsion settings ---'
+        WRITE(IU,FMT_REAL) 'K_REP', K_REP
+        WRITE(IU,FMT_REAL) 'QCIREPCUT', QCIREPCUT
+        WRITE(IU,FMT_REAL) 'CHECKREPCUTOFF', CHECKREPCUTOFF
+        WRITE(IU,FMT_INT)  'CHECKREPINTERVAL', CHECKREPINTERVAL
+        WRITE(IU,FMT_INT)  'QCIINTREPMINSEP', QCIINTREPMINSEP
+
 
         !============================================================================
         ! Image density / separation
@@ -190,15 +214,8 @@ MODULE OUT_PRINT
         WRITE(IU,FMT_INT)  'QCIIMAGECHECK', QCIIMAGECHECK
         WRITE(IU,FMT_REAL) 'INTMINFAC', INTMINFAC
 
-        !============================================================================
-        ! Repulsion settings
-        !============================================================================
-        WRITE(IU,FMT_SEC) ''
-        WRITE(IU,FMT_SEC) '--- Repulsion settings ---'
-        WRITE(IU,FMT_REAL) 'QCIREPCUT', QCIREPCUT
-        WRITE(IU,FMT_INT)  'QCIINTREPMINSEP', QCIINTREPMINSEP
-        WRITE(IU,FMT_REAL) 'K_REP', K_REP
-
+        
+        
         !============================================================================
         ! Conactinact
         !============================================================================
@@ -286,12 +303,10 @@ MODULE OUT_PRINT
         WRITE(IU,FMT_SEC) '============================================================'
 
 
-
     END SUBROUTINE WRITE_QCI_KEYS
 
     SUBROUTINE WRITE_IMAGE_DIST(FILENAME)
-        
-        
+             
         USE QCIKEYS, ONLY: NIMAGES
         USE INTERPOLATION_KEYS, ONLY: IMAGE_DIST
 
@@ -331,8 +346,7 @@ MODULE OUT_PRINT
   
     END SUBROUTINE WRITE_IMAGE_DIST
 
-     SUBROUTINE WRITE_IMAGE_E(FILENAME, EEE)
-        
+    SUBROUTINE WRITE_IMAGE_E(FILENAME, EEE)
         
         USE QCIKEYS, ONLY: NIMAGES
         
@@ -372,7 +386,6 @@ MODULE OUT_PRINT
         PRINT *, 'GNUPLOT SCRIPT GENERATED: ', TRIM(FILENAME)
   
     END SUBROUTINE WRITE_IMAGE_E
-
 
 
 END MODULE OUT_PRINT
