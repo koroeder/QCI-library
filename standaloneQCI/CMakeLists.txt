@@ -128,3 +128,8 @@ set_module_depends(QCI qcilib)
 target_link_libraries(QCI ${lapackblas_libraries})
 target_link_libraries(QCI qcilib)
 
+if(BLAS_FOUND)
+  get_filename_component(QCI_BLAS_LIBDIR "${BLAS_LIBRARIES}" DIRECTORY)
+  set_property(TARGET QCI APPEND PROPERTY BUILD_RPATH   "${QCI_BLAS_LIBDIR}")
+  set_property(TARGET QCI APPEND PROPERTY INSTALL_RPATH "${QCI_BLAS_LIBDIR}")
+endif()
