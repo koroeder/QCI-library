@@ -148,7 +148,7 @@ MODULE QCI_LINEAR
          INTEGER :: HINGE_ATOM                ! unique external anchor (if exists)
 
   
-         LOGICAL :: DEBUG_MODE = .TRUE.       ! Set to .TRUE. for verbose output
+         LOGICAL :: DEBUG_MODE = .FALSE.       ! Set to .TRUE. for verbose output
          
          INTEGER :: EXTERNAL_PER_ATOM(NATOMS)
          INTEGER :: N_BACKBONE_ATOMS
@@ -372,9 +372,9 @@ MODULE QCI_LINEAR
             END DO
             
             !Print group information
-            PRINT *, "Valid Linear Group - mew group id: ", GROUPID, ": ", NINGROUP(GROUPID), " atoms"
-            PRINT *, "  Hinge atom (attachment point): ", HINGE_ATOM
-            PRINT *, "  Group atoms: ", (LINEAR_GROUPS(GROUPID, J2), J2=1, NINGROUP(GROUPID))
+            !PRINT *, "Valid Linear Group - mew group id: ", GROUPID, ": ", NINGROUP(GROUPID), " atoms"
+            !PRINT *, "  Hinge atom (attachment point): ", HINGE_ATOM
+            !PRINT *, "  Group atoms: ", (LINEAR_GROUPS(GROUPID, J2), J2=1, NINGROUP(GROUPID))
             
          ELSE
             ! Unmark atoms in invalid groups
@@ -388,7 +388,7 @@ MODULE QCI_LINEAR
       ! Store final count of valid groups
       NLINGROUPS = GROUPID
 
-      PRINT *, "========================================================"
+      !PRINT *, "========================================================"
       ! ========== Validation ==========
       PRINT *, ""
       PRINT *, "========== LINEAR GROUP DETECTION SUMMARY =========="

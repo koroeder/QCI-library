@@ -183,7 +183,7 @@ MODULE QCISETUP
       SUBROUTINE SETKEYS(ENTRY, VAL)
          USE QCIKEYS
          USE QCI_CONSTRAINT_KEYS, ONLY: MAXCONUSE, QCICONSEP, QCICONSTRAINTTOL, QCICONCUT, GEOMFILE, CONSTRFILE, &
-                                        CONCUTABST, CONCUTFRACT, CONCUTABSINC, CONCUTABS, CONCUTFRAC 
+                                        CONCUTABST, CONCUTFRACT, CONCUTABS, CONCUTFRAC 
          USE AMBER_CONSTRAINTS, ONLY: AMBERCONSTRFILE, TOPFILENAME
          USE HIRE_CONSTRAINTS, ONLY: HIRECONSTRFILE, HIRETOPFILE 
          USE SBM_CONSTRAINTS, ONLY: SBMCONTACTFILE
@@ -227,7 +227,9 @@ MODULE QCISETUP
             ELSE 
                WRITE(*,*) " setkeys> QCI mode ", VAL, " is not a valid function"
             END IF
-         ! options for these potentials
+         
+         !options for these potentials
+         
          !----------------------- Amber ------------------------------!
          ELSE IF (ENTRY.EQ."AMBERCONSTRFILE") THEN
             AMBERCONSTRFILE = VAL
@@ -414,14 +416,13 @@ MODULE QCISETUP
             READ(VAL, *) MAXERISE
          ELSE IF (ENTRY.EQ."SPRING_GRAD_CONV") THEN
             READ(VAL, *) SPRING_GRAD_CONV
-         
-         !------------------Output control-----------------------------!
-
          !QCI resetting
          ELSE IF (ENTRY.EQ."QCIRESET") THEN
             QCIRESET = .TRUE.
             READ(VAL, *) QCIRESETINT1
-         
+
+         !------------------Output control-----------------------------!
+       
          ! options for saving band
          ELSE IF (ENTRY.EQ."DUMPXYZ") THEN
             DUMPQCIXYZ = .TRUE.
@@ -478,8 +479,6 @@ MODULE QCISETUP
             !QCIFREEZET = .TRUE.
             !READ(VAL, *) QCIFREEZETOL
             WRITE(*,*) "Warning: Frozen atoms option has been removed from QCI!"
-         ELSE IF (ENTRY.EQ."CONCUTABSINC") THEN
-            CONCUTABSINC = .TRUE.
 
          !------------------------------------------------------------!
          !-------------------------------END--------------------------!

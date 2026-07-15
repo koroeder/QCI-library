@@ -64,9 +64,9 @@ MODULE INTERPOLATION_KEYS
          USE QCIKEYS, ONLY: NATOMS
          USE QCI_CONSTRAINT_KEYS, ONLY: NCONSTRAINT
          CALL DEALLOC_INTERPOLATION_VARS()
-         !variables for active constraints
+         !>variables for active constraints
          ALLOCATE(CONACTIVE(NCONSTRAINT))
-         !variables for active atoms
+         !>variables for active atoms
          ALLOCATE(ATOMACTIVE(NATOMS))
          ALLOCATE(NTRIES(NATOMS))
          ALLOCATE(TURNONORDER(NATOMS))   

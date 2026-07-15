@@ -322,4 +322,3 @@
 * `QCIFREEZE`
 * `INTCONSTRAINTDEL` - trying to use this keyword terminates QCI
 * `QCICONSTRREP` - trying to use this keyword terminates QCI
-* `CONCUTABSINC` - This seems to be overwritten during the interpolation, so no point in setting it up?
