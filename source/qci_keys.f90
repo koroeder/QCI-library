@@ -83,12 +83,12 @@ MODULE QCIKEYS
    !-------------- Spring constants and adjustment -------------------!
 
    REAL(KIND=REAL64) :: SPRING_GRAD_CONV = 1.5D0
-   LOGICAL :: QCISPRINGACTIVET = .TRUE. !< QUERY: what is this? (This is not set in set_up!)
-   LOGICAL :: QCIADJUSTKT = .FALSE. !< adjust spring constant
+   LOGICAL :: QCISPRINGACTIVET = .TRUE. !< Should we apply spring only to the active atoms? (not in set-up)
+   LOGICAL :: QCIADJUSTKT = .FALSE.     !< adjust spring constant
    INTEGER :: QCIADJUSTKFRQ = 0
    
-   REAL(KIND=REAL64) :: QCIADJUSTKTOL = 10.0D0
-   REAL(KIND=REAL64) :: QCIAVDEV = 0.0D0
+   REAL(KIND=REAL64) :: QCIADJUSTKTOL = 10.0D0 !< tolerance for image spacing deviation (in percent)
+   REAL(KIND=REAL64) :: QCIAVDEV = 0.0D0    !< Calculated deviation
    REAL(KIND=REAL64) :: KINT = 1.0D0        !< spring constant
    REAL(KIND=REAL64) :: KINTSCALED = 1.0D0  !< QUESTION Scaling for when we adjust spring constant?
    REAL(KIND=REAL64) :: QCIKINTMIN = 1.0D-2

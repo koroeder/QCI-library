@@ -443,8 +443,7 @@ MODULE QCIINTERPOLATION
                   GPREV(:) = GGG(:)
                   XPREV(:) = XYZ(:)
                   ACCEPTEDSTEP = .TRUE.
-                  !This call to Congrad prints the congrad output
-                  !CALL CONGRAD(ETOTAL, XYZ, GGG, EEE, RMS, .TRUE.)
+                  
                ELSE
                   NDECREASE = NDECREASE + 1
                   !TODO: add NDECREASE and a parameter variable for its limit 
@@ -454,8 +453,7 @@ MODULE QCIINTERPOLATION
                      GGG(:) = GPREV(:)
                      WRITE(*,*) " QCIinterp> WARNING - LBFGS cannot find a lower energy, NFAIL=",NFAIL
                      ACCEPTEDSTEP = .TRUE. !we failed to many times, so for now we accept failure and leave the loop
-                     !This call to Congrad prints the congrad output - replaced with output writing function
-                     !CALL CONGRAD(ETOTAL, XYZ, GGG, EEE, RMS, .TRUE.)
+                     
                   ELSE
                      XYZ(:) = XPREV(:)
                      GGG(:) = GPREV(:)
@@ -611,7 +609,7 @@ MODULE QCIINTERPOLATION
       END SUBROUTINE GET_STATISTIC_INTERP
 
       !> Calculate min and max image separations.    
-      !! The separation is defined as sum of all the distances per atom!
+      !! The separation is defined as sum of all the distances per atom
       !! between atom in different images - only active atoms
       SUBROUTINE GET_IMAGE_SEPARATION(DMIN,DMAX,JMIN,JMAX)
          USE QCIKEYS, ONLY: NATOMS, NIMAGES
