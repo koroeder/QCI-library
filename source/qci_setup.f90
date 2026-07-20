@@ -420,6 +420,7 @@ MODULE QCISETUP
          ELSE IF (ENTRY.EQ."QCIRESET") THEN
             QCIRESET = .TRUE.
             READ(VAL, *) QCIRESETINT1
+            IF (QCIRESETINT1.LE.0) QCIRESET = .FALSE.
 
          !------------------Output control-----------------------------!
        

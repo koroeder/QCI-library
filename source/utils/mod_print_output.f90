@@ -53,6 +53,8 @@ MODULE OUT_PRINT
         USE INTERPOLATION_KEYS
         USE QCI_CONSTRAINT_KEYS
         USE AMBER_CONSTRAINTS, ONLY: TOPFILENAME, AMBERCONSTRFILE
+        USE DIHEDRAL_CONSTRAINTS, ONLY: KDIH, DIHTYPE
+
         USE, INTRINSIC :: ISO_FORTRAN_ENV, ONLY: OUTPUT_UNIT
         
         INTEGER :: IU, I, N, NTRUE
@@ -194,7 +196,9 @@ MODULE OUT_PRINT
         WRITE(IU,FMT_SEC) ''
         WRITE(IU,FMT_SEC) '--- Dihedral constraints ---'
         WRITE(IU,FMT_BOOL) 'USEDIHEDRALCONST', USEDIHEDRALCONST
-        WRITE(IU,FMT_REAL) 'DIHDIFTOL', DIHDIFTOL
+        WRITE(IU,FMT_REAL) 'K_DIH', KDIH
+        WRITE(IU,FMT_INT)  'DIHTYPE', DIHTYPE
+
         
 
         !============================================================================
@@ -219,6 +223,8 @@ MODULE OUT_PRINT
         WRITE(IU,FMT_SEC) ''
         WRITE(IU,FMT_SEC) '--- Linear groups ---'
         WRITE(IU,FMT_BOOL) 'USELINGROUPS', USELINGROUPS
+        WRITE(IU,FMT_REAL) 'DIHDIFTOL', DIHDIFTOL
+    
         
         !============================================================================
         ! Image control

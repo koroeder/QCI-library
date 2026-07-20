@@ -186,19 +186,19 @@ MODULE DIHEDRAL_CONSTRAINTS
                   REFATOMS(NCONS,1) = AT1; REFATOMS(NCONS,2) = AT2; REFATOMS(NCONS,3) = AT3; REFATOMS(NCONS,4) = AT4
                   !WRITE(*,*) "DIHEDRAL check: C5-N7-C8-N9: ", REFATOMS(NCONS,1:4)
                   !Try fifth dihedral
-                  NCONS = NCONS + 1
-                  CALL GET_ATOMID("C4",I,AT1)
-                  CALL GET_ATOMID("N3",I,AT2)
-                  CALL GET_ATOMID("C2",I,AT3)
-                  CALL GET_ATOMID("N1",I,AT4)
-                  REFATOMS(NCONS,1) = AT1; REFATOMS(NCONS,2) = AT2; REFATOMS(NCONS,3) = AT3; REFATOMS(NCONS,4) = AT4 
+                  !NCONS = NCONS + 1
+                  !CALL GET_ATOMID("C4",I,AT1)
+                  !CALL GET_ATOMID("N3",I,AT2)
+                  !CALL GET_ATOMID("C2",I,AT3)
+                  !CALL GET_ATOMID("N1",I,AT4)
+                  !REFATOMS(NCONS,1) = AT1; REFATOMS(NCONS,2) = AT2; REFATOMS(NCONS,3) = AT3; REFATOMS(NCONS,4) = AT4 
                   !Try sixth dihedral
-                  NCONS = NCONS + 1
-                  CALL GET_ATOMID("N7",I,AT1)
-                  CALL GET_ATOMID("C8",I,AT2)
-                  CALL GET_ATOMID("N9",I,AT3)
-                  CALL GET_ATOMID("C4",I,AT4)
-                  REFATOMS(NCONS,1) = AT1; REFATOMS(NCONS,2) = AT2; REFATOMS(NCONS,3) = AT3; REFATOMS(NCONS,4) = AT4 
+                  !NCONS = NCONS + 1
+                  !CALL GET_ATOMID("N7",I,AT1)
+                  !CALL GET_ATOMID("C8",I,AT2)
+                  !CALL GET_ATOMID("N9",I,AT3)
+                  !CALL GET_ATOMID("C4",I,AT4)
+                  !REFATOMS(NCONS,1) = AT1; REFATOMS(NCONS,2) = AT2; REFATOMS(NCONS,3) = AT3; REFATOMS(NCONS,4) = AT4 
                ELSE IF ((RESNAMES(I).EQ."C").OR.(RESNAMES(I).EQ."C3").OR.(RESNAMES(I).EQ."C5").OR. &
                      (RESNAMES(I).EQ."DC").OR.(RESNAMES(I).EQ."DC3").OR.(RESNAMES(I).EQ."DC5").OR. &
                      (RESNAMES(I).EQ."FC").OR.(RESNAMES(I).EQ."FC3").OR.(RESNAMES(I).EQ."FC5")) THEN
@@ -280,6 +280,7 @@ MODULE DIHEDRAL_CONSTRAINTS
                   CALL GET_ATOMID("N3",I,AT3)
                   CALL GET_ATOMID("C4",I,AT4)
                   REFATOMS(NCONS,1) = AT1; REFATOMS(NCONS,2) = AT2; REFATOMS(NCONS,3) = AT3; REFATOMS(NCONS,4) = AT4
+                  !WRITE(*,*) "DIHEDRAL check: N1-C2-N3-C4: ", REFATOMS(NCONS,1:4)
                   !second dihedral 
                   NCONS = NCONS + 1
                   CALL GET_ATOMID("N3",I,AT1)
@@ -287,6 +288,7 @@ MODULE DIHEDRAL_CONSTRAINTS
                   CALL GET_ATOMID("C5",I,AT3)
                   CALL GET_ATOMID("C6",I,AT4)
                   REFATOMS(NCONS,1) = AT1; REFATOMS(NCONS,2) = AT2; REFATOMS(NCONS,3) = AT3; REFATOMS(NCONS,4) = AT4    
+                  !WRITE(*,*) "DIHEDRAL check: N3-C4-N5-C6: ", REFATOMS(NCONS,1:4)
                   !third dihedral 
                   NCONS = NCONS + 1
                   CALL GET_ATOMID("C5",I,AT1)
@@ -294,6 +296,7 @@ MODULE DIHEDRAL_CONSTRAINTS
                   CALL GET_ATOMID("N1",I,AT3)
                   CALL GET_ATOMID("C2",I,AT4)
                   REFATOMS(NCONS,1) = AT1; REFATOMS(NCONS,2) = AT2; REFATOMS(NCONS,3) = AT3; REFATOMS(NCONS,4) = AT4                
+                  !WRITE(*,*) "DIHEDRAL check: C5-C6-N1-C2: ", REFATOMS(NCONS,1:4)                             
                END IF
             END DO
          END IF
@@ -318,14 +321,14 @@ MODULE DIHEDRAL_CONSTRAINTS
          END DO
 
          IF (NCONS.NE.0) THEN
-            WRITE(*,*) "NCONS should be 0 ...", NCONS
+            !WRITE(*,*) "NCONS should be 0 ...", NCONS
             DO J=1,NCONS
                DIHEDRALS(NCHIRAL+J,1) = REFATOMS(J,1)
                DIHEDRALS(NCHIRAL+J,2) = REFATOMS(J,2)
                DIHEDRALS(NCHIRAL+J,3) = REFATOMS(J,3)
                DIHEDRALS(NCHIRAL+J,4) = REFATOMS(J,4)            
                DIHMUL(NCHIRAL+J) = 2  
-            WRITE(*,*) "DIHEDRALS-:  J=", J, "atoms: ",  DIHEDRALS(NCHIRAL+J,1:4)
+            !WRITE(*,*) "DIHEDRALS-:  J=", J, "atoms: ",  DIHEDRALS(NCHIRAL+J,1:4)
             END DO
          END IF
 
@@ -344,7 +347,7 @@ MODULE DIHEDRAL_CONSTRAINTS
             REFDIH(J) = THISDIH 
             
             ! now compute and store the regularised versions
-            IF (DABS(THISDIH-PI).LE.EPS3) THISDIH = SIGN(PI,THISDIH)        
+            !IF (DABS(THISDIH-PI).LE.EPS3) THISDIH = SIGN(PI,THISDIH)        
 
             THISC0 = DCOS(THISDIH)
             THISS0 = DSIN(THISDIH)
@@ -649,14 +652,13 @@ MODULE DIHEDRAL_CONSTRAINTS
          REAL(KIND = REAL64) :: PHI_REG, SINPHI, COSPHI, DF
          REAL(KIND = REAL64) :: DOT12, L1, L2, Z1, Z2, Z12, REGTERM1, CT0, CT1, SREG
          REAL(KIND = REAL64) :: FAB(3), FBC(3), FCD(3)
-         REAL(KIND = REAL64) :: DIFF, THISREF, SINSUM, COSSUM, W
+         REAL(KIND = REAL64) :: DIFF, THISREF, SINSUM, COSSUM, W, SDIFF
          INTEGER :: M
          !cutoffs used for regularisation
          REAL(KIND = REAL64), PARAMETER :: EPS9 = 1.0D-12
          REAL(KIND = REAL64), PARAMETER :: EPS6 = 1.0D-9
          REAL(KIND = REAL64), PARAMETER :: EPS3 = 1.0D-6
-         REAL(KIND = REAL64), PARAMETER :: P9999 = 0.9999999999999999999
-         
+         REAL(KIND = REAL64), PARAMETER :: P9999 = 0.99999999999
          REAL(KIND = REAL64), PARAMETER :: KDIH2 = 2.5D0 !temp kdih for cos potential 
 
          ! compute the vectors between atoms in order
@@ -675,7 +677,7 @@ MODULE DIHEDRAL_CONSTRAINTS
          ! get norms
          NM1 = NORM2(N1)
          NM2 = NORM2(N2)
-         DOT12 = DOT_PRODUCT(N1,N2) !DOTP(3,N1,N2)
+         DOT12 = DOTP(3,N1,N2)
 
          ! introduce regularisation step 1: step function to cutoff small values
          L1 = NM1 + EPS9
@@ -713,24 +715,28 @@ MODULE DIHEDRAL_CONSTRAINTS
          SINSUM = W*DSIN(REFDIHS(DIHREF)) + (1.0D0-W)*DSIN(REFDIHF(DIHREF))
          COSSUM = W*DCOS(REFDIHS(DIHREF)) + (1.0D0-W)*DCOS(REFDIHF(DIHREF))
          THISREF = ATAN2(SINSUM, COSSUM)
-         
+        
+         IF (DABS(THISREF-PI).LE.EPS3) THISREF = SIGN(PI,THISREF)
+         IF (DABS(THISREF).LE.EPS3) THISREF = 0.0D0
+
+
          !THISREF = REFDIH(DIHREF)
          !DIFF = PHI_REG - REFDIH(DIHREF)
-         !DIFF = ATAN2(DSIN(PHI_REG - THISREF), DCOS(PHI_REG - THISREF))
-         
+         DIFF = ATAN2(DSIN(PHI_REG - THISREF), DCOS(PHI_REG - THISREF))
+        
 
          !define M to choose which form of potential to use
          ! M=1
          IF (M.EQ.1) THEN
             !We have chiral center and use quadratic potential
                     
-            DIFF = ATAN2(DSIN(PHI_REG - THISREF), DCOS(PHI_REG - THISREF))
+            !DIFF = ATAN2(DSIN(PHI_REG - THISREF), DCOS(PHI_REG - THISREF))
                       
             E = KDIH*DIFF**2  * REGTERM1
             
             !First part of gradient calculation
             ! dE/d(cos(phi))          
-            IF(DABS(DIFF).LT.EPS9) THEN
+            IF(DABS(DIFF).LT.EPS3) THEN
                DF = 0.0D0
             ELSE               
                DF = 2.0D0*KDIH*DIFF*REGTERM1
@@ -740,15 +746,38 @@ MODULE DIHEDRAL_CONSTRAINTS
          ELSE IF (M.EQ.2) THEN
             !We have planar dihedral, use cosine with multiplicity 1   
             
-            THISREF = THISREF + PI
-           
+            !THISREF = THISREF + PI
+             
+            !Calculate for debug only
+            !DIFF = ATAN2(DSIN(PHI_REG - THISREF), DCOS(PHI_REG - THISREF))
                             
             !Normal cosine dihedral      
-            E = KDIH2*(1.0D0+COSPHI*DCOS(THISREF)+SINPHI*DSIN(THISREF))*REGTERM1
+            !E = KDIH2*(1.0D0+COSPHI*DCOS(THISREF)+SINPHI*DSIN(THISREF))*REGTERM1
            
             !First part of gradient calculation
             ! dE/d(phi)
-            DF = -KDIH2*(DCOS(THISREF)*SINPHI - DSIN(THISREF)*COSPHI) * REGTERM1
+            !DF = -KDIH2*(DCOS(THISREF)*SINPHI - DSIN(THISREF)*COSPHI) * REGTERM1
+            
+            !A bit diff cosine potential
+            !E = KDIH * (1.0D0 + DCOS(PHI_REG - THISREF + PI))
+            !DF = -KDIH * DSIN(PHI_REG - THISREF + PI )
+
+            !E = KDIH2*(1.0D0-COSPHI*DCOS(THISREF)-SINPHI*DSIN(THISREF))*REGTERM1
+            !DF = KDIH2*(DCOS(THISREF)*SINPHI + DSIN(THISREF)*COSPHI) * REGTERM1
+
+            !Try harmonic cosine potential
+            !E = KDIH*( DCOS(PHI_REG) - DCOS(THISREF) )**2  * REGTERM1
+            !DF = -2.0D0*KDIH*DSIN(PHI_REG)*(DCOS(PHI_REG) - DCOS(THISREF))
+
+
+            SDIFF = ATAN2(DSIN(PHI_REG - THISREF+ PI), DCOS(PHI_REG - THISREF+PI))
+            DIFF = ATAN2(DSIN(PHI_REG - THISREF), DCOS(PHI_REG - THISREF))
+            IF ((DABS(SDIFF).LT.EPS3)) THEN
+               !small angle approx. 
+               DF = - KDIH*DIFF
+            ELSE               
+               DF = -KDIH * DSIN(PHI_REG - THISREF + PI )
+            END IF
                        
          ELSE
             ! We should never be here!
@@ -761,13 +790,21 @@ MODULE DIHEDRAL_CONSTRAINTS
          ! dphi/dr
 
          FAB = -NBC*Z1**2 * N1
-         FBC = (DOT_PRODUCT(RAB,RBC)*Z1**2 / NBC)*N1 - (DOT_PRODUCT(RCD,RBC)*Z2**2 / NBC) * N2
+         !This seems to work better with a + between the terms (...)
+         FBC = ((DOT_PRODUCT(RAB,RBC)*Z1**2) / NBC)*N1 + ((DOT_PRODUCT(RCD,RBC)*Z2**2) / NBC) * N2
          FCD = NBC*Z2**2 * N2
          
-         FA = FAB * DF
-         FB = (-FAB + FBC) * DF
-         FC = (-FBC - FCD) * DF
-         FD = FCD * DF 
+         !gradient
+         FA =  FAB 
+         FB = - FAB + FBC 
+         FC = - FBC - FCD 
+         FD = FCD  
+
+         !force 
+         FA =  FA * DF
+         FB =  FB * DF
+         FC =  FC * DF
+         FD =  FD * DF 
                  
          !WRITE(*,*) "dihedral> DIHREF", DIHREF, " S0", S0(DIHREF), " C0 ", C0(DIHREF), " SINHPHI ", SINPHI, " COSPHI ", COSPHI
          !WRITE(*,*) "dihedral> E ", E, "PHI_0 ", THISREF , "PHI_REG ", PHI_REG, "DIFF= ", DIFF, "DF = ", DF
