@@ -124,7 +124,7 @@ MODULE MOD_FREEZE
             ! we have a minimum separation for atoms in sequence
             IF (ABS(I-NI).LE.QCIINTREPMINSEP) CYCLE
             ! ignore pairs of frozen atoms
-            IF (QCIFROZEN(I).AND.QCIFROZEN(NI)) CYCLE
+            !IF (QCIFROZEN(I).AND.QCIFROZEN(NI)) CYCLE
             ! make sure we are not adding a repulsion to an existing cosntraint
             SKIPREP = .FALSE.
             DO J=1,NCONSTRAINT
@@ -157,7 +157,7 @@ MODULE MOD_FREEZE
             ! we have a minimum separation for atoms in sequence
             IF (ABS(I-NJ).LE.QCIINTREPMINSEP) CYCLE
             ! ignore pairs of frozen atoms
-            IF (QCIFROZEN(I).AND.QCIFROZEN(NJ)) CYCLE
+            !IF (QCIFROZEN(I).AND.QCIFROZEN(NJ)) CYCLE
             ! make sure we are not adding a repulsion to an existing constraint
             SKIPREP = .FALSE.
             DO J=1,NCONSTRAINT
