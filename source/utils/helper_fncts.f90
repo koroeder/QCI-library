@@ -125,13 +125,25 @@ MODULE HELPER_FNCTS
          REAL(KIND = REAL64), INTENT(IN) :: X(3*NATOMS)
          INTEGER, INTENT(IN) :: IDX1, IDX2
          REAL(KIND = REAL64), INTENT(OUT) :: DIST
-         REAL(KIND = REAL64) :: XYZ1(3), XYZ2(3)
-         INTEGER :: J
-         DO J = 1,3
-            XYZ1(J) = X(3*(IDX1-1)+J)
-            XYZ2(J) = X(3*(IDX2-1)+J)
-         END DO
-         DIST = SQRT((XYZ1(1)-XYZ2(1))**2 + (XYZ1(2)-XYZ2(2))**2 + (XYZ1(3)-XYZ2(3))**2)
+         REAL(KIND = REAL64) :: DX, DY, DZ, D(3)
+         INTEGER :: I1, I2
+         
+         !INTEGER :: J
+         !DO J = 1,3
+         !   XYZ1(J) = X(3*(IDX1-1)+J)
+         !   XYZ2(J) = X(3*(IDX2-1)+J)
+         !END DO
+
+         I1 = 3*(IDX1-1)
+         I2 = 3*(IDX2-1)
+   
+         D(1) = X(I1+1) - X(I2+1)
+         D(2) = X(I1+2) - X(I2+2)
+         D(3) = X(I1+3) - X(I2+3)
+
+         !DIST = SQRT((XYZ1(1)-XYZ2(1))**2 + (XYZ1(2)-XYZ2(2))**2 + (XYZ1(3)-XYZ2(3))**2)
+         DIST = SQRT(DOT_PRODUCT(D,D)) 
+      
       END SUBROUTINE DISTANCE_TWOATOMS
 
       !> Calculate |X(IDX,J)-X(IDX,J-11)| IDX=atom id, J - image id

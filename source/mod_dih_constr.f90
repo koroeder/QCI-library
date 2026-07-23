@@ -321,7 +321,7 @@ MODULE DIHEDRAL_CONSTRAINTS
          END DO
 
          IF (NCONS.NE.0) THEN
-            !WRITE(*,*) "NCONS should be 0 ...", NCONS
+
             DO J=1,NCONS
                DIHEDRALS(NCHIRAL+J,1) = REFATOMS(J,1)
                DIHEDRALS(NCHIRAL+J,2) = REFATOMS(J,2)
@@ -659,7 +659,7 @@ MODULE DIHEDRAL_CONSTRAINTS
          REAL(KIND = REAL64), PARAMETER :: EPS6 = 1.0D-9
          REAL(KIND = REAL64), PARAMETER :: EPS3 = 1.0D-6
          REAL(KIND = REAL64), PARAMETER :: P9999 = 0.99999999999
-         REAL(KIND = REAL64), PARAMETER :: KDIH2 = 2.5D0 !temp kdih for cos potential 
+
 
          ! compute the vectors between atoms in order
          RAB(1:3) = B(1:3) - A(1:3)
@@ -721,12 +721,10 @@ MODULE DIHEDRAL_CONSTRAINTS
 
 
          !THISREF = REFDIH(DIHREF)
-         !DIFF = PHI_REG - REFDIH(DIHREF)
          DIFF = ATAN2(DSIN(PHI_REG - THISREF), DCOS(PHI_REG - THISREF))
         
 
-         !define M to choose which form of potential to use
-         ! M=1
+         
          IF (M.EQ.1) THEN
             !We have chiral center and use quadratic potential
                     
@@ -752,23 +750,14 @@ MODULE DIHEDRAL_CONSTRAINTS
             !DIFF = ATAN2(DSIN(PHI_REG - THISREF), DCOS(PHI_REG - THISREF))
                             
             !Normal cosine dihedral      
-            !E = KDIH2*(1.0D0+COSPHI*DCOS(THISREF)+SINPHI*DSIN(THISREF))*REGTERM1
+            !E = KDIH*(1.0D0+COSPHI*DCOS(THISREF)+SINPHI*DSIN(THISREF))*REGTERM1
            
             !First part of gradient calculation
             ! dE/d(phi)
             !DF = -KDIH2*(DCOS(THISREF)*SINPHI - DSIN(THISREF)*COSPHI) * REGTERM1
             
-            !A bit diff cosine potential
-            !E = KDIH * (1.0D0 + DCOS(PHI_REG - THISREF + PI))
-            !DF = -KDIH * DSIN(PHI_REG - THISREF + PI )
-
-            !E = KDIH2*(1.0D0-COSPHI*DCOS(THISREF)-SINPHI*DSIN(THISREF))*REGTERM1
-            !DF = KDIH2*(DCOS(THISREF)*SINPHI + DSIN(THISREF)*COSPHI) * REGTERM1
-
-            !Try harmonic cosine potential
-            !E = KDIH*( DCOS(PHI_REG) - DCOS(THISREF) )**2  * REGTERM1
-            !DF = -2.0D0*KDIH*DSIN(PHI_REG)*(DCOS(PHI_REG) - DCOS(THISREF))
-
+            
+            E = KDIH * (1.0D0 + DCOS(PHI_REG - THISREF + PI))
 
             SDIFF = ATAN2(DSIN(PHI_REG - THISREF+ PI), DCOS(PHI_REG - THISREF+PI))
             DIFF = ATAN2(DSIN(PHI_REG - THISREF), DCOS(PHI_REG - THISREF))

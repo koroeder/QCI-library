@@ -5,6 +5,7 @@ MODULE QCIINTERPOLATION
    IMPLICIT NONE
    LOGICAL :: QCICOMPLETE
 
+   REAL(KIND = REAL64) :: CONCUTABSSAVE, MAXCONE_SAVE, QCIRMSTOL_SAVE
    CONTAINS
       SUBROUTINE RUN_QCI_INTERPOLATION()
          USE QCIKEYS, ONLY: QCIREADGUESS, QCIFREEZET, MAXITER, MAXGRADCOMP, MAXCONE, &
@@ -12,7 +13,7 @@ MODULE QCIINTERPOLATION
                             KINT, MAXERISE, MAXINTIMAGE, MAXQCIBFGS, MUPDATE, DGUESS, &
                             DUMPQCIXYZFRQS, DUMPQCIXYZ, QCIADJUSTKFRQ, QCIADJUSTKT, QCIAVDEV, &
                             QCIKINTMIN, QCIKINTMAX, QCIADJUSTKFRAC, QCIADJUSTKTOL, QCIIMAGECHECK, &
-                            QCIPERMCHECKINT, QCIPERMT, QCIRMSTOL, QCIFROZEN, QCIRESET, QCIRESETINT1, &
+                            QCIPERMCHECKINT, QCIPERMT, QCIRMSTOL, QCIRESET, QCIRESETINT1, &
                             NMINAFTERADD, OPTIMISEAFTERADDITION, DETECTBBCROSSING, CHECKCROSSFREQ
          USE MOD_FREEZE, ONLY: ADD_CONSTR_AND_REP_NBEST
          USE CONSTR_E_GRAD, ONLY: CONGRAD, CONVERGECONTEST, CONVERGEREPTEST, &
@@ -42,7 +43,7 @@ MODULE QCIINTERPOLATION
          CHARACTER(25) :: RESETEEEFILE = "QCIreset.int.EofS"     
          CHARACTER(6) :: ITERSTRING
          REAL(KIND = REAL64) :: ETOTAL, EPREV
-         REAL(KIND = REAL64) :: CONCUTABSSAVE
+         
          INTEGER :: EXITSTATUS
          REAL(KIND = REAL64), PARAMETER :: INCREASETOL = 1.1D0   
          REAL(KIND = REAL64), PARAMETER :: STPREDUCTION = 10.0D0
@@ -139,8 +140,10 @@ MODULE QCIINTERPOLATION
          !call check for cold fusion
          CALL CHECK_FOR_COLDFUSION(ETOTAL)
 
-         !save concut settings
+         !save concut and convergence settings 
          CONCUTABSSAVE = CONCUTABS
+         QCIRMSTOL_SAVE = QCIRMSTOL
+         MAXCONE_SAVE = MAXCONE
 
          NITERDONE = 0
          NITERUSE = 1
@@ -179,7 +182,8 @@ MODULE QCIINTERPOLATION
                   IF (NITERDONE-NCONCUTABSINC.GT.QCIRESETINT1) THEN ! reset CONCUTABS
                      CONCUTABS=CONCUTABSSAVE
                      CONCUTABSINC=.FALSE.
-                     WRITE(*,*) " QCIinterp> Interpolation seems to be stuck. Resetting concutabs"
+                     
+                     WRITE(*,*) " QCIinterp> Interpolation is NOT stuck. Resetting concutabs"
                      WRITE(*,*) "            MAXECON = ",MAXCONE, ", QCIRMSTOL = ", QCIRMSTOL, ", CONCUTABS = ", CONCUTABS
                   ENDIF
                ENDIF
@@ -216,11 +220,13 @@ MODULE QCIINTERPOLATION
             !end of permutational checks of band
 
             ! spring constant dynamic adjustment
+            ! Deviation 0 (QCIAVDEV=0) means we have perfect spacing. When QCIAVDEV is .GT. than deviation tolerance (QCIADJUSTKTOL)
+            ! we increase spring constant.  
             IF (QCIADJUSTKT.AND.MOD(NITERDONE,QCIADJUSTKFRQ).EQ.0) THEN
-               IF (QCIAVDEV.GT.QCIADJUSTKTOL) THEN
+               IF (QCIAVDEV.LT.QCIADJUSTKTOL) THEN
                   WRITE(*,*) " QCIinterp> Lowering spring constant from ", KINT, " to ", MAX(KINT/QCIADJUSTKFRAC,QCIKINTMIN)
                   KINT=MAX(KINT/QCIADJUSTKFRAC,QCIKINTMIN)
-               ELSE IF (QCIAVDEV.LT.QCIADJUSTKTOL) THEN
+               ELSE IF (QCIAVDEV.GT.QCIADJUSTKTOL) THEN
                   KINT=MIN(KINT*QCIADJUSTKFRAC,QCIKINTMAX)
                   WRITE(*,*) " QCIinterp> Increasing spring constant from ", KINT, " to ", MIN(KINT*QCIADJUSTKFRAC,QCIKINTMAX)
                END IF
@@ -229,9 +235,9 @@ MODULE QCIINTERPOLATION
 
             END IF
 
-            !Check for backbone crossings 
+            !Check for backbone crossings - DOES NOT WORK
             IF (DETECTBBCROSSING.AND.(MOD(NITERDONE,CHECKCROSSFREQ).EQ.0)) THEN
-               !For now only do a passive check
+               !For now only do a passive check 
                ! TODO: Develop strategy to deal resolve bond crossings 
                CALL DETECT_BOND_CROSSINGS(XYZ)
                            
@@ -241,10 +247,10 @@ MODULE QCIINTERPOLATION
             IF (ADDATOMT.AND.(NACTIVE.LT.NATOMS)) THEN
                WRITE(*,*) " QCIinterp> Adding the next atom to active set" 
                
-               IF (CHECKCHIRAL) THEN
-                  WRITE(*,*) " QCIinterp> Checking chirality across band"
-                  CALL CHIRALITY_CHECK(XYZ) 
-               END IF
+               !IF (CHECKCHIRAL) THEN
+               !   WRITE(*,*) " QCIinterp> Checking chirality across band"
+               !   CALL CHIRALITY_CHECK(XYZ) 
+               !END IF
                
                CALL ADDATOM()
 
@@ -444,6 +450,9 @@ MODULE QCIINTERPOLATION
                   XPREV(:) = XYZ(:)
                   ACCEPTEDSTEP = .TRUE.
                   
+                  !If we accept step the we consdider it good energy and don't need increse convergence tresholds?!
+                  !NLASTGOODE=NITERDONE
+                  
                ELSE
                   NDECREASE = NDECREASE + 1
                   !TODO: add NDECREASE and a parameter variable for its limit 
@@ -492,6 +501,13 @@ MODULE QCIINTERPOLATION
             IF ((.NOT.(ADDATOMT)).AND.(EXITSTATUS.EQ.1)) THEN
                !we have converged and there is no more atom to add - we can leave the main loop
                EXIT
+            ELSE IF ((.NOT.(ADDATOMT)).AND.(EXITSTATUS.EQ.2)) THEN
+               !We have converged with higher E max and F max tolerance. Lower the tolerance and try for better conv.
+               QCIRMSTOL = QCIRMSTOL_SAVE
+               MAXCONE = MAXCONE_SAVE
+               WRITE(*,*) "QCIInterp> We converged with higher convergence criteria. "
+               WRITE(*,*) "QCIInterp> Resetting convergence crteria and concutabs." 
+               WRITE(*,*) "QCIRMSTOL ", QCIRMSTOL, " MAXCONE ", MAXCONE, " CONCUTABS ", CONCUTABS  
             END IF
 
             ! Compute the new step and gradient change
@@ -546,20 +562,29 @@ MODULE QCIINTERPOLATION
          USE CONSTR_E_GRAD, ONLY: CONVERGECONTEST, CONVERGEREPTEST, CONVERGENCEDIHTEST, FCONMAX, FREPMAX, FDIHMAX, FSPRINGMAX, FMAX_GLOBAL, MAX_E_PER_IMAGE
          USE INTERPOLATION_KEYS, ONLY: RMS 
          USE QCIKEYS, ONLY: MAXCONE, QCIRMSTOL, SPRING_GRAD_CONV
+         USE QCI_CONSTRAINT_KEYS, ONLY: CONCUTABS
          IMPLICIT NONE
          INTEGER, INTENT(IN) :: NITERDONE
          INTEGER, INTENT(OUT) :: EXITSTATUS
+         REAL(KIND = REAL64), PARAMETER :: EPS6 = 1.0D-6
 
          EXITSTATUS = 0
          !is the simulation converged?
-         !IF ((FCONMAX.LT.QCIRMSTOL).AND.(FREPMAX.LT.QCIRMSTOL).AND.(FDIHMAX.LT.QCIRMSTOL).AND.&
-         !   (CONVERGECONTEST.LT.MAXCONE).AND.(CONVERGEREPTEST.LT.MAXCONE).AND.(CONVERGENCEDIHTEST.LT.MAXCONE)&
-         !  .AND.(FSPRINGMAX.LT.SPRING_GRAD_CONV).AND.(NITERDONE.GT.1)) THEN
-         IF ( (RMS.LT.FMAX_GLOBAL).AND.(NITERDONE.GT.1) &
-             .AND.(FCONMAX.LT.QCIRMSTOL).AND.(FREPMAX.LT.QCIRMSTOL).AND.(FDIHMAX.LT.QCIRMSTOL) &
+
+         WRITE(*,*) "set_exit_status> NITERDONE ", NITERDONE 
+         WRITE(*,*) "set_exit_status> FMAX_GLOBAL ", FMAX_GLOBAL, "QCIRMSTOL", QCIRMSTOL
+
+        
+         IF ((NITERDONE.GT.1).AND.(FMAX_GLOBAL.LT.QCIRMSTOL) &
+            .AND.(FCONMAX.LT.QCIRMSTOL).AND.(FREPMAX.LT.QCIRMSTOL).AND.(FDIHMAX.LT.QCIRMSTOL) &
             .AND.(CONVERGECONTEST.LT.MAXCONE).AND.(CONVERGEREPTEST.LT.MAXCONE).AND.(CONVERGENCEDIHTEST.LT.MAXCONE) &
-             .AND.(FSPRINGMAX.LT.SPRING_GRAD_CONV)) THEN
+            .AND.(FSPRINGMAX.LT.SPRING_GRAD_CONV)) THEN
             EXITSTATUS = 1
+               !EXITSTATUS = 2
+            !IF ( (DABS(MAXCONE_SAVE-MAXCONE).LE.EPS6).AND.(DABS(QCIRMSTOL_SAVE-QCIRMSTOL).LE.EPS6) ) THEN
+            !   EXITSTATUS = 1
+            !END IF
+
          END IF
 
       END SUBROUTINE SET_EXIT_STATUS

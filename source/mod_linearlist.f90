@@ -4,21 +4,29 @@
 MODULE QCI_LINEAR
    USE QCIPREC
    IMPLICIT NONE
-   ! number of atoms for QCIlinear
-   INTEGER :: NQCILINEAR = 0
-   ! cutoff for QCIlinear treatment
-   REAL(KIND=REAL64) :: LINEARCUT = 0.05D0
-   ! list of linear atoms
-   INTEGER, ALLOCATABLE :: LINEARATOMS(:)
-   ! file name linear atoms
-   CHARACTER(25) :: LINEARFILE = "QCIlinear"
-   ! list of linear groups
-   INTEGER, ALLOCATABLE :: LINEAR_GROUPS(:,:)
+
+   !------------------old variables-----------------------------------!
+   INTEGER :: NQCILINEAR = 0 !< number of atoms for QCIlinear 
+   INTEGER, ALLOCATABLE :: LINEARATOMS(:) !< list of linear atoms
+   CHARACTER(25) :: LINEARFILE = "QCIlinear" !< file name linear atoms
+    REAL(KIND=REAL64) :: LINEARCUT = 0.05D0 !< user defined value, cutoff for linear atoms 
+   !------------------------------------------------------------------!
+
+
+   INTEGER, ALLOCATABLE :: LINEAR_GROUPS(:,:)  !< list of linear groups
    INTEGER, ALLOCATABLE :: ATOM2LINGROUP(:)
-   INTEGER, ALLOCATABLE :: NINGROUP(:)          ! Number of atoms in each group
-   INTEGER :: NLINGROUPS = 0
+   INTEGER, ALLOCATABLE :: NINGROUP(:)         !< Number of atoms in each group
+   INTEGER :: NLINGROUPS = 0                   !< Number of linear groups
+   
+  
+   REAL(KIND=REAL64), PARAMETER :: TOLERANCE = 0.1D0               !< bond length change tol between start and finish 
+   REAL(KIND=REAL64), PARAMETER :: ANGLE_TOLERANCE = 0.08726646259971647     !< 5.0D0 degrees  
+   REAL(KIND=REAL64), PARAMETER :: DIHEDRAL_TOLERANCE = 0.17453292519943295  !< 10.0D0 degrees
+   
    CONTAINS
 
+      !> Get linear atoms from a file. 
+      !! TO BE REMOVED
       SUBROUTINE GET_LINEAR_ATOMS()
          USE QCIKEYS, ONLY: NATOMS, INLINLIST, LINEARBBT, ISBBATOM, QCIAMBERT, QCIHIRET, QCILINEART
          USE QCIFILEHANDLER, ONLY: FILE_LENGTH, GETUNIT        
@@ -77,7 +85,8 @@ MODULE QCI_LINEAR
          END DO
          WRITE(*,*) " linear list: ", LINEARATOMS(1:DUMMY)
       END SUBROUTINE GET_LINEAR_ATOMS
-   
+      
+      !> Old function. For removal 
       SUBROUTINE ALLOC_QCI_LINEAR()
          USE QCIKEYS, ONLY: NATOMS, INLINLIST
          CALL DEALLOC_QCI_LINEAR
@@ -85,6 +94,7 @@ MODULE QCI_LINEAR
          ALLOCATE(INLINLIST(NATOMS))
       END SUBROUTINE ALLOC_QCI_LINEAR
 
+      !> Old function. For removal 
       SUBROUTINE DEALLOC_QCI_LINEAR()
          USE QCIKEYS, ONLY: INLINLIST
          IF (ALLOCATED(LINEARATOMS)) DEALLOCATE(LINEARATOMS)
@@ -130,25 +140,24 @@ MODULE QCI_LINEAR
          INTEGER :: NLINHERE
          INTEGER :: A, B, C, D, J1, J2, J3, J4, K
 
-         INTEGER :: CURRENTGROUP(NATOMS)      ! Group ID for each linear atom, -1 if not assigned
-         INTEGER :: GROUPS(NATOMS, NATOMS)    ! List of atoms in each group
-         INTEGER :: GROUPID                   ! Total number of groups
-         INTEGER :: VISITED(NATOMS)           ! For DFS traversal
-         INTEGER :: STACK(NATOMS)             ! Stack for DFS
+         INTEGER :: CURRENTGROUP(NATOMS)      !< Group ID for each linear atom, -1 if not assigned
+         INTEGER :: GROUPS(NATOMS, NATOMS)    !< List of atoms in each group
+         INTEGER :: GROUPID                   !< Total number of groups
+         INTEGER :: VISITED(NATOMS)           !< For DFS traversal
+         INTEGER :: STACK(NATOMS)             !< Stack for DFS
          INTEGER :: STACKPTR
          INTEGER :: ATOM, NEIGHBOR
          INTEGER :: NINGROUP_TEMP(3*NATOMS)
          INTEGER :: MAXGROUPSIZE
-         INTEGER :: NGROUPS                     !number of linear groups
+         INTEGER :: NGROUPS                     !< number of linear groups
                 
         
-         ! ========== NEW: Attachment point tracking ==========
-         INTEGER :: EXTERNAL_ANCHORS(NATOMS)  ! distinct external atoms bonded to this group 
-         INTEGER :: N_EXTERNAL_ANCHORS        ! number of distinct external anchor atoms
-         INTEGER :: HINGE_ATOM                ! unique external anchor (if exists)
+         INTEGER :: EXTERNAL_ANCHORS(NATOMS)  !< distinct external atoms bonded to this group 
+         INTEGER :: N_EXTERNAL_ANCHORS        !< number of distinct external anchor atoms
+         INTEGER :: HINGE_ATOM                !< unique external anchor (if exists)
 
   
-         LOGICAL :: DEBUG_MODE = .FALSE.       ! Set to .TRUE. for verbose output
+         LOGICAL :: DEBUG_MODE = .FALSE.       !< Set to .TRUE. for verbose output
          
          INTEGER :: EXTERNAL_PER_ATOM(NATOMS)
          INTEGER :: N_BACKBONE_ATOMS
@@ -274,7 +283,6 @@ MODULE QCI_LINEAR
 
   
       ! ========== PART 3A: Identify distinct external anchor atoms ==========
-      ! ========== PART 3B: Validate group topology =========================
 
       GROUPID = 0
 
@@ -458,7 +466,7 @@ MODULE QCI_LINEAR
 
          LOGICAL, INTENT(OUT) :: LINATOM(NATOMS) 
 
-         REAL(KIND=REAL64), PARAMETER :: TOLERANCE = 0.1D0
+         
          REAL(KIND=REAL64) :: DS, DF
          
          INTEGER :: NLINHERE
@@ -479,8 +487,7 @@ MODULE QCI_LINEAR
          REAL(KIND=REAL64) :: ANGLE_COORDS(9)
          REAL(KIND=REAL64) :: ANGLE_DEVIATION, DIHEDRAL_DEVIATION
          REAL(KIND=REAL64) :: ANGLE_START, ANGLE_FINAL
-         REAL(KIND=REAL64) :: ANGLE_TOLERANCE = 0.08726646259971647 !5.0D0 degrees  !0.1745329251994329 !
-         REAL(KIND=REAL64) :: DIHEDRAL_TOLERANCE = 0.17453292519943295  !10.0D0  ! degrees
+
          REAL(KIND=REAL64) :: DIH_COORDS(12)
          REAL(KIND=REAL64) :: DIH_START, DIH_FINAL
          
@@ -502,7 +509,6 @@ MODULE QCI_LINEAR
             END DO
 
             ! Mark atom as linear if all constraints have unchanged distances
-            !IF(NLINHERE == NCONPERATOM(J1)) LINATOM(J1) = .TRUE.
             IF(NLINHERE == N_BONDS_PER_ATOM(J1)) LINATOM(J1) = .TRUE.
             
           END DO
@@ -513,14 +519,13 @@ MODULE QCI_LINEAR
             IF (.NOT. LINATOM(J1)) CYCLE
             
             ! For each atom, check angles to neighbors
-            DO J2 = 1, N_BONDS_PER_ATOM(J1) !NCONPERATOM(J1)
-               DO J3 = J2+1, N_BONDS_PER_ATOM(J1) !NCONPERATOM(J1)
-                     !A = CONLIST(J1, J2)
+            DO J2 = 1, N_BONDS_PER_ATOM(J1) 
+               DO J3 = J2+1, N_BONDS_PER_ATOM(J1) 
+                    
                      A = BONDS_PER_ATOM_LIST(J1, J2)
                      B = J1
                      C = BONDS_PER_ATOM_LIST(J1, J3)
-                     !C = CONLIST(J1, J3)
-                     
+                                          
                      ANGLE_COORDS(1:3) = XSTART(3*(A-1)+1:3*(A-1)+3)
                      ANGLE_COORDS(4:6) = XSTART(3*(B-1)+1:3*(B-1)+3)
                      ANGLE_COORDS(7:9) = XSTART(3*(C-1)+1:3*(C-1)+3)
@@ -552,17 +557,17 @@ MODULE QCI_LINEAR
             ! B = central atom
             B = J1
 
-            DO J2 = 1, N_BONDS_PER_ATOM(B)  !NCONPERATOM(B)
-               A = BONDS_PER_ATOM_LIST(B,J2) !CONLIST(B, J2)
+            DO J2 = 1, N_BONDS_PER_ATOM(B)  
+               A = BONDS_PER_ATOM_LIST(B,J2) 
                IF (.NOT. LINATOM(A)) CYCLE
 
-               DO J3 = J2+1, N_BONDS_PER_ATOM(B)  !NCONPERATOM(B)
-                  C = BONDS_PER_ATOM_LIST(B,J3) !CONLIST(B, J3)
+               DO J3 = J2+1, N_BONDS_PER_ATOM(B)  
+                  C = BONDS_PER_ATOM_LIST(B,J3) 
                   IF (.NOT. LINATOM(C)) CYCLE
 
                   ! Look for D bonded to C, excluding B
-                  DO J4 = 1,  N_BONDS_PER_ATOM(C) !NCONPERATOM(C)
-                     D = BONDS_PER_ATOM_LIST(C, J4)  !CONLIST(C, J4)
+                  DO J4 = 1,  N_BONDS_PER_ATOM(C) 
+                     D = BONDS_PER_ATOM_LIST(C, J4) 
                      IF (D == B) CYCLE
                      IF (.NOT. LINATOM(D)) CYCLE
 

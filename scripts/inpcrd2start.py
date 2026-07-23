@@ -1,5 +1,5 @@
 '''
-Helper script to convert Abver incprd coordinate format to start/finish format.
+Helper script to convert Amber incprd coordinate format to start/finish format.
 '''
 import sys
 

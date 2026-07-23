@@ -52,11 +52,11 @@ MODULE CONSTR_E_GRAD
                             USEDIHEDRALCONST, K_CONST, K_REP
          USE OUT_PRINT, ONLY: SAVE_OUT
          IMPLICIT NONE
-         REAL(KIND = REAL64), INTENT(IN) :: XYZ(3*NATOMS*(NIMAGES+2))   ! input coordinates
-         REAL(KIND = REAL64), INTENT(OUT) :: GGG(3*NATOMS*(NIMAGES+2))  ! gradient for each atom in each image
-         REAL(KIND = REAL64), INTENT(OUT) :: EEE(NIMAGES+2)             ! energy for each image
-         REAL(KIND = REAL64), INTENT(OUT) :: ETOTAL                    ! overall energy
-         REAL(KIND = REAL64), INTENT(OUT) :: RMS                       ! total force
+         REAL(KIND = REAL64), INTENT(IN) :: XYZ(3*NATOMS*(NIMAGES+2))   !< input coordinates
+         REAL(KIND = REAL64), INTENT(OUT) :: GGG(3*NATOMS*(NIMAGES+2))  !< gradient for each atom in each image
+         REAL(KIND = REAL64), INTENT(OUT) :: EEE(NIMAGES+2)             !< energy for each image
+         REAL(KIND = REAL64), INTENT(OUT) :: ETOTAL                    !< overall energy
+         REAL(KIND = REAL64), INTENT(OUT) :: RMS                       !< total force
         
          REAL(KIND = REAL64) :: ECON, EREP, ESPR, EDIH      ! QUERY: should these be globals in keys?
          REAL(KIND = REAL64) :: EEEC(NIMAGES+2), GGGC(3*NATOMS*(NIMAGES+2))
@@ -126,14 +126,18 @@ MODULE CONSTR_E_GRAD
             END DO
          END DO
 
-          DO J1=2,NIMAGES+1
+         GGG_SUM(:) = 0.0D0
+         DO J1=2,NIMAGES+1
             DO J2=1,NATOMS
-               GGG_SUM(J1*J2) = SQRT (GGG(3*NATOMS*(J1-1)+ 3*(J2-1)+1)**2 + GGG(3*NATOMS*(J1-1)+ 3*(J2-1)+2)**2 + GGG(3*NATOMS*(J1-1)+ 3*(J2-1)+3)**2 )
+               !|F_atom|                  (!image          +   atom)
+               GGG_SUM(NATOMS*(J1-1)+J2) = SQRT (GGG(3*NATOMS*(J1-1) + 3*(J2-1)+1)**2 + &
+                                                 GGG(3*NATOMS*(J1-1) + 3*(J2-1)+2)**2 + &
+                                                 GGG(3*NATOMS*(J1-1) + 3*(J2-1)+3)**2 )
             END DO
          END DO
 
-         !FMAX_GLOBAL = MAX( MAXVAL(GGG), DABS(MINVAL(GGG)))
-         FMAX_GLOBAL = MAX( MAXVAL(GGG_SUM), DABS(MINVAL(GGG_SUM)))
+         FMAX_GLOBAL = MAXVAL(GGG_SUM)
+       
          RMS = SQRT(RMS/(3*NATOMS*NIMAGES))
          ETOTAL = SUM(EEE(2:NIMAGES+1))
 
@@ -392,7 +396,7 @@ MODULE CONSTR_E_GRAD
             C = DIHEDRALS(J,3)
             D = DIHEDRALS(J,4)
             !change back to (2,NIMAGES+1) when dihedrals work
-            DO I=1,NIMAGES+2
+            DO I=2,NIMAGES+1
                !reference for image we are in (The x ccoord of the first atom of the current image is N+1)
                N = 3*NATOMS*(I-1)
                !extract relevant coordinates
@@ -1165,13 +1169,13 @@ MODULE CONSTR_E_GRAD
             !WARNING adding if statement to make sure E(1) & E(NIMAGES+2) = 0 ... not sure this is right
             IF (J1.EQ.1) THEN
                !EEE(J1+1) = EEE(J1+1) + 0.5D0*DUMMY
-               EEE2(J1) = EEE2(J1) + DUMMY
+               EEE2(J1) = EEE2(J1) + 0.5D0 * DUMMY
             ELSE IF (J1.LT.NIMAGES+1) THEN
                EEE(J1) = EEE(J1) + 0.5D0*DUMMY
                !EEE(J1+1) = EEE(J1+1) + 0.5D0*DUMMY
                EEE2(J1) = EEE2(J1) + 0.5D0*DUMMY
             ELSE IF (J1.EQ.(NIMAGES+1)) THEN
-               EEE(J1) = EEE(J1) + DUMMY
+               EEE(J1) = EEE(J1) + 0.5D0*DUMMY
             ENDIF
             
             IF (DUMMY.GT.EMAX) THEN
@@ -1220,93 +1224,6 @@ MODULE CONSTR_E_GRAD
          IF (QCIADJUSTKT) CALL GET_AV_DEV(DVEC)
       END SUBROUTINE GET_SPRING_E
 
-      SUBROUTINE GET_SPRING_E2(XYZ, GGG, EEE, ESPR)
-         
-         USE QCIKEYS, ONLY: NIMAGES, NATOMS, KINT, KINTSCALED, QCIADJUSTKT, QCISPRINGACTIVET
-         USE INTERPOLATION_KEYS, ONLY: ATOMACTIVE, K_SPRING, IMAGE_DIST, NACTIVE
-         USE HELPER_FNCTS, ONLY: DISTANCE_ATOM_DIFF_IMAGES
-         
-         IMPLICIT NONE
-         
-         REAL(KIND = REAL64), INTENT(IN)  :: XYZ(3*NATOMS*(NIMAGES+2))  !< input coordinates
-         REAL(KIND = REAL64), INTENT(OUT) :: GGG(3*NATOMS*(NIMAGES+2))  !< gradient for each atom in each image
-         REAL(KIND = REAL64), INTENT(OUT) :: EEE(NIMAGES+2)             !< energy for repulsions (spring?)
-         REAL(KIND = REAL64), INTENT(OUT) :: ESPR                       !< energy for repulsions  (spring?)
-         REAL(KIND = REAL64 ) :: GRAD(3)
-
-         REAL(KIND = REAL64) :: EEE2(NIMAGES+2)  
-         REAL(KIND = REAL64) :: GGG2(3*NATOMS*(NIMAGES+2))
-         INTEGER :: J1, J2, NI1, NI2
-         REAL(KIND = REAL64) :: DPLUS, DUMMY, EMAX, SPGRAD(3)
-         REAL(KIND = REAL64) :: DVEC(NIMAGES+1)                          !< QUESTION: what is this?  
-         INTEGER :: IMAX
-               
-         REAL(KIND=REAL64) :: IMAGE_DISTANCE(NIMAGES+1)
-
-         REAL(KIND = REAL64) :: DISTATOM, DISTTOTAL, AVE_DIST, K_FORCE
-         REAL(KIND = REAL64) :: X1(3*NATOMS), X2(3*NATOMS), TANGENT(3*NATOMS), TANGENT_NORM
-         REAL(KIND=REAL64) ::  DMAX, DMIN
-         
-         EEE = 0.0D0; EEE2 = 0.0D0
-         GGG=0.0D0; GGG2 = 0.0D0
-         ESPR = 0.0D0
-         EMAX = -(HUGE(1.0D0))
-         IMAX = -1
-         FSPRINGMAX = 0.0D0
-       
-         DMAX = 0.0D0
-         DMIN = 1.0D100
-         AVE_DIST = 0.0D0
-         K_FORCE = 1.0D0
-         
-         
-         DO J1 =1, NIMAGES+1
-            DISTTOTAL = 0.0D0
-            X1(1:3*NATOMS) = XYZ((J1-1)*3*NATOMS+1:J1*3*NATOMS) !Image J
-            X2(1:3*NATOMS) = XYZ(J1*3*NATOMS+1:(J1+1)*3*NATOMS) !Image J+1
-            
-            DO J2=1,NATOMS
-               IF (ATOMACTIVE(J2)) THEN
-                  CALL DISTANCE_ATOM_DIFF_IMAGES(NATOMS, X1, X2, J2, DISTATOM)
-                  DISTTOTAL = DISTTOTAL + DISTATOM
-               END IF
-            END DO 
-
-            IMAGE_DISTANCE(J1) = DISTTOTAL
-            IF (DISTTOTAL.GT.DMAX) THEN
-               DMAX = DISTTOTAL
-            END IF
-            IF (DISTTOTAL.LT.DMIN) THEN
-               DMIN = DISTTOTAL
-            END IF
-
-         END DO
-
-         AVE_DIST = SUM(IMAGE_DISTANCE) / (NIMAGES-1)
-
-         DO J1=2, NIMAGES+1
-            
-            K_FORCE = -2.0D0 * KINT * (IMAGE_DISTANCE(J1) - AVE_DIST) 
-            
-            X1(1:3*NATOMS) = XYZ((J1-2)*3*NATOMS+1:(J1-1)*3*NATOMS) !Image J-1
-            X2(1:3*NATOMS) = XYZ(J1*3*NATOMS+1:(J1+1)*3*NATOMS) !Image J+1
-            TANGENT = X2 - X1
-
-            TANGENT_NORM = SQRT(SUM(TANGENT**2))
-            IF (TANGENT_NORM > 1.0D-10) THEN
-               TANGENT = TANGENT / TANGENT_NORM
-            ELSE
-               TANGENT = 0.0D0  ! Degenerate case (should rarely happen)
-            END IF
-
-
-
-         
-
-         END DO
-
-
-      END SUBROUTINE GET_SPRING_E2
       
       SUBROUTINE GET_AV_DEV(DVEC)
          USE QCIKEYS, ONLY: NIMAGES, QCIAVDEV
@@ -1315,7 +1232,7 @@ MODULE CONSTR_E_GRAD
          REAL(KIND = REAL64) :: SEPARATION, DEVIATION(1:NIMAGES+1)
 
          SEPARATION = SUM(DVEC(1:NIMAGES+1))
-         !QUESTION what is this formula
+
          DEVIATION(1:NIMAGES+1)=ABS(100*((NIMAGES+1)*DVEC(1:NIMAGES+1)/SEPARATION-1.0D0))
          QCIAVDEV=SUM(DEVIATION)/(NIMAGES+1)
       END SUBROUTINE GET_AV_DEV
@@ -1415,7 +1332,7 @@ MODULE CONSTR_E_GRAD
          IF ((DUMMY.GT.0.0D0).AND.(DUMMY.LT.1.0D0)) THEN
             NOINT=.FALSE.
             DP_G12_SQ = DP_G12**2
-            !QUESTION should this be other way around?  CS inequality...this will always evaluate negative
+            
             !d(theta*) = |G1|^2|G2|^2 - |G1*G2|^2 
             DUMMY2 =  DSQ1*DSQ2 - DP_G12_SQ 
             DSQI = MAX(DUMMY2/DINTMIN,0.0D0)

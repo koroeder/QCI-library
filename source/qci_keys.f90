@@ -95,12 +95,6 @@ MODULE QCIKEYS
    REAL(KIND=REAL64) :: QCIKINTMAX = 1.0D2
    REAL(KIND=REAL64) :: QCIADJUSTKFRAC = 1.05D0
    
-   LOGICAL :: USEIMAGEDENSITY = .FALSE. !< base number of images on interpolation density
-   REAL(KIND=REAL64) :: E2E_DIST = 0.D0 !< endpoint to endpoint distance after alignment
-   REAL(KIND=REAL64) :: IMAGEDENSITY = 0.5D0 !< Image density per unit distance (unused atm)
-   REAL(KIND = REAL64) :: IMSEPMAX=HUGE(1.0D0)
-   REAL(KIND = REAL64) :: IMSEPMIN=-1.0D0
-
    !-----------------------Linear groups -----------------------------!
   
    LOGICAL :: USELINGROUPS = .FALSE.  !< use linear groups
@@ -111,6 +105,13 @@ MODULE QCIKEYS
    INTEGER :: MAXINTIMAGE = 500
    INTEGER :: QCIIMAGECHECK = 10
    
+
+   LOGICAL :: USEIMAGEDENSITY = .FALSE. !< base number of images on interpolation density
+   REAL(KIND=REAL64) :: E2E_DIST = 0.D0 !< endpoint to endpoint distance after alignment
+   REAL(KIND=REAL64) :: IMAGEDENSITY = 0.5D0 !< Image density per unit distance (unused atm)
+   REAL(KIND = REAL64) :: IMSEPMAX=HUGE(1.0D0)
+   REAL(KIND = REAL64) :: IMSEPMIN=-1.0D0
+
    !--------------------- Permutations and chirality -----------------!
 
    INTEGER :: QCIPERMCHECKINT = 100
@@ -134,9 +135,8 @@ MODULE QCIKEYS
 
    REAL(KIND=REAL64) :: COLDFUSIONLIMIT = -1.0D15
 
-   !> Convergence test for energy
-   REAL(KIND=REAL64) :: MAXCONE = 0.01D0
-   !> convergence test for RMS
+  
+   REAL(KIND=REAL64) :: MAXCONE = 0.01D0 !> Convergence test for energy   !> convergence test for force
    REAL(KIND=REAL64) :: QCIRMSTOL=0.01D0
    REAL(KIND=REAL64) :: MAXERISE = 1.0D100
 
