@@ -41,6 +41,6 @@ def split_coords(infile, outfile):
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:
-        print("Usage: python split_coords.py coords.inpcrd start")
+        print("Usage: python inprcd2start.py coords.inpcrd start")
         sys.exit(1)
     split_coords(sys.argv[1], sys.argv[2])
