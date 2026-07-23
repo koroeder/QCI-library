@@ -1,6 +1,5 @@
 # Parameter options
 
-
 ## Admin 
 
 * `COMMENT` 
@@ -17,7 +16,6 @@
   * Units: None  
   * Example: `MAXITERATIONS 100`
 
-
 * `QCIREADGUESS <filename>`
   * Start from restart/guess 
   * Example: `QCIREADGUESS guess.xyz` 
@@ -27,7 +25,7 @@
 `QCIMODE <Topology_type>`
 
 * Topology type  
-* Valid types: `AMBER,` `HIRE`, `SBM`, `GEOMETRY`
+* Valid types: `AMBER`, `HIRE`, `SBM`, `GEOMETRY`
 * Example: `QCIMODE AMBE`
 
 ### Amber  
@@ -36,7 +34,7 @@
   * Amber topology file  
   * Example: `TOPFILENAME coords.prmtop`  
 * `AMBERCONSTRFILE <filename>`
-  * Amber constraints file  
+  * Amber constraints file. Use to add additional constrains not found in topology file.  
   * Example: 
 * `DETECTBASEPAIRS`
   * Automatically detect base-pairs and add base-pair constraints 
@@ -162,7 +160,6 @@
   * Units: Angstrom 
   * Example: `QCICONCUT 6.0` 
 
-  \
 
 ### Dihedrals   
 
@@ -190,8 +187,8 @@
   * Units: None  
   * Example: `ADJUSTSPRING 10`
 * `KSPACINGDEV <double>`
-  * Deviation based tolerance for adjusting (raising or lowering) the spring constant  
-  * Units: 
+  * Deviation from uniform image spacing which triggers raising or lowering spring constant.   
+  * Units: %
   * Example: `KSPACINGDEV 12.0`
 * `KMIN <double>`
   * Minimum strength of spring potential  
@@ -271,32 +268,32 @@
 ## Convergence criteria 
 
 * `MAXCONSTRAINTE <double>`
-  * Max constraint or repulsion energy of any atom
-  * Units: Energy
+  * Max constraint or repulsion energy of any atom   
+  * Units: Energy  
   * Example: `MAXCONSTRAINTE 1.0`
 * `RMSTOLERANCE <double>`
-  * Max constraint or repulsion force on any atom
-  * Units: Energy/Angstrom
+  * Max constraint or repulsion force on any atom  
+  * Units: Energy/Angstrom  
   * Example: `RMSTOLERANCE 1.5`
 * `MAXERISE <double>`
-  * Maximum energy rise from previous step
-  * Unites: Energy
+  * Maximum energy rise from previous step  
+  * Unites: Energy  
   * Example: `MAXERISE 1.0D100`
 * `SPRING_GRAD_CONV <double>`
-  * Maximum spring force on any atom
-  * Units: Energy / Angstrom
+  * Maximum spring force on any atom  
+  * Units: Energy / Angstrom  
   * Example: `SPRING_GRAD_CONV 2.5`
 * `QCIRESET <int>`
-  *  How often do we check the interpolation progress and adjust convergence criteria
-  * Units: None
-  * Example:  `QCIRESET 500`
+  *  How often do we check the interpolation progress and adjust convergence criteria. See [Developer Notes](/doc/developer-notes-6jEfGsENqZ#h-interpolation-and-resetting-the-convergence) for more details. 
+  * Units: None  
+  * Example:  `QCIRESET 500  `
 
 ## Output control 
 
 * `DUMPXYZ <int> `
-  * Output  frequency
-  * Units: None
-  * Example: `DUMPXYZ 500`
+  * Output  frequency  
+  * Units: None  
+  * Example: `DUMPXYZ 500`  
 
 ## Options in development 
 
@@ -320,5 +317,7 @@
 * `NMINUNFROZEN`
 * `FREEZEFILE`
 * `QCIFREEZE`
-* `INTCONSTRAINTDEL` - trying to use this keyword terminates QCI
-* `QCICONSTRREP` - trying to use this keyword terminates QCI
+* `INTCONSTRAINTDEL` - trying to use this keyword terminates QCI (old K_CONST)
+* `QCICONSTRREP` - trying to use this keyword terminates QCI (old K_REP)
+
+  
