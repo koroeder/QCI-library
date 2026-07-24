@@ -85,9 +85,9 @@ MODULE MOD_INTCOORDS
             !WRITE(*,*) "INLINLIST(CONJ(J1))" , INLINLIST(CONJ(J1))
 
             !Double check this condition
-            IF (QCILINEART) THEN 
-               IF( (.NOT.(INLINLIST(CONI(J1)))) .OR. (.NOT.INLINLIST(CONJ(J1))) )  CYCLE            
-            END IF
+            !IF (QCILINEART) THEN 
+            !   IF( (.NOT.(INLINLIST(CONI(J1)))) .OR. (.NOT.INLINLIST(CONJ(J1))) )  CYCLE            
+            !END IF
 
             ! we want to collect the change in atom positions between the endpoints
             CALL DISTANCE_ATOM_DIFF_IMAGES(NATOMS, XSTART, XFINAL, CONI(J1), D1)
@@ -285,6 +285,7 @@ MODULE MOD_INTCOORDS
 
          !Reallocate intcoords in case NIMAGES changes. 
          CALL ALLOC_INTCOORDS()
+         CALL ALLOC_PREVCOORDS()
          CALL ALLOC_STEPTAKING()
 
          REWIND(LUNIT)

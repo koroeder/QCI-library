@@ -4,10 +4,10 @@
 # 
 ############################################################
 
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.5)
 
 # Silence warnings about PROJECT_VERSION not being set
-cmake_policy(SET CMP0048 OLD)
+# cmake_policy(SET CMP0048 OLD)
 
 if (CMAKE_CURRENT_SOURCE_DIR MATCHES "^${CMAKE_BINARY_DIRECTORY}$")
   message( FATAL_ERROR "CMake should not be built in the source directory" )

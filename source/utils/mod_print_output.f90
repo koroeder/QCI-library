@@ -50,6 +50,11 @@ MODULE OUT_PRINT
 
     SUBROUTINE WRITE_QCI_KEYS()
         USE QCIKEYS
+        USE INTERPOLATION_KEYS
+        USE QCI_CONSTRAINT_KEYS
+        USE AMBER_CONSTRAINTS, ONLY: TOPFILENAME, AMBERCONSTRFILE
+        USE DIHEDRAL_CONSTRAINTS, ONLY: KDIH, DIHTYPE
+
         USE, INTRINSIC :: ISO_FORTRAN_ENV, ONLY: OUTPUT_UNIT
         
         INTEGER :: IU, I, N, NTRUE
@@ -72,34 +77,74 @@ MODULE OUT_PRINT
         ! General control parameters
         !============================================================================
         WRITE(IU,FMT_SEC) ''
-        WRITE(IU,FMT_SEC) '--- General control ---'
+        WRITE(IU,FMT_SEC) '--- General parameters ---'
         WRITE(IU,FMT_BOOL) 'DEBUG', DEBUG
         WRITE(IU,FMT_INT)  'NATOMS', NATOMS
         WRITE(IU,FMT_INT)  'NIMAGES', NIMAGES
-        WRITE(IU,FMT_INT)  'MAXITER', MAXITER
         WRITE(IU,FMT_INT)  'MAXINTIMAGE', MAXINTIMAGE
+        WRITE(IU,FMT_INT)  'MAXITERATIONS', MAXITER
 
         !============================================================================
-        ! QCI type flags
+        ! Guess file
         !============================================================================
         WRITE(IU,FMT_SEC) ''
-        WRITE(IU,FMT_SEC) '--- QCI type flags ---'
+        WRITE(IU,FMT_SEC) '--- Guess file ---'
+        WRITE(IU,FMT_BOOL) 'QCIREADGUESS', QCIREADGUESS
+        WRITE(IU,FMT_CHAR) 'GUESSFILE', TRIM(GUESSFILE)
+        
+        !============================================================================
+        ! Topology
+        !============================================================================
+        WRITE(IU,FMT_SEC) ''
+        WRITE(IU,FMT_SEC) '--- QCI topology flags ---'
         WRITE(IU,FMT_BOOL) 'QCIAMBERT', QCIAMBERT
         WRITE(IU,FMT_BOOL) 'QCIHIRET', QCIHIRET
         WRITE(IU,FMT_BOOL) 'QCISBMT', QCISBMT
         WRITE(IU,FMT_BOOL) 'QCIGEOMT', QCIGEOMT
 
+        IF (QCIAMBERT) THEN
+            WRITE(IU,FMT_SEC) ''
+            WRITE(IU,FMT_CHAR) 'TOPOLOGY', TRIM(TOPFILENAME)
+            WRITE(IU,FMT_CHAR) 'CONSTRAINTS', TRIM(AMBERCONSTRFILE)
+            WRITE(IU,FMT_BOOL) 'QCIUSEGROUPS', QCIUSEGROUPS
+            WRITE(IU,FMT_BOOL) 'BASEPAIRDETECTION', BASEPAIRDETECTION
+        END IF
+
+        !Congeom only
+        IF (QCIGEOMT) THEN
+            WRITE(IU,FMT_SEC) ''
+            WRITE(IU,FMT_REAL) 'QCICONSTRAINTTOL', QCICONSTRAINTTOL
+        END IF
+
+        !============================================================================
+        ! Atom adding options
+        !============================================================================
+        WRITE(IU,FMT_SEC) ''
+        WRITE(IU,FMT_SEC) '--- Atom adding options ---'
+
+        WRITE(IU,FMT_BOOL) 'USEINTERNALST', USEINTERNALST
+        WRITE(IU,FMT_BOOL) 'USEFOURATOMST', USEFOURATOMST
+        WRITE(IU,FMT_BOOL) 'QCITRILATERATION', QCITRILATERATION
+        WRITE(IU,FMT_BOOL) 'QCITRILATERATION2', QCITRILATERATION2
+
+        WRITE(IU,FMT_SEC) ''
+        WRITE(IU,FMT_BOOL) 'QCIADDACIDT', QCIADDACIDT
+        WRITE(IU,FMT_BOOL) 'QCIDOBACKALL', QCIDOBACKALL
+        WRITE(IU,FMT_BOOL) 'OPTIMISEAFTERADDITION', OPTIMISEAFTERADDITION
+        WRITE(IU,FMT_INT)  'NMINAFTERADD', NMINAFTERADD
+        
+        
         !============================================================================
         ! Backbone settings
         !============================================================================
         WRITE(IU,FMT_SEC) ''
         WRITE(IU,FMT_SEC) '--- Backbone settings ---'
         WRITE(IU,FMT_BOOL) 'QCIDOBACK', QCIDOBACK
-        IF (ALLOCATED(ISBBATOM)) THEN
+        IF (ALLOCATED(ISBBATOM).AND.DEBUG) THEN
             N = SIZE(ISBBATOM)
             NTRUE = COUNT(ISBBATOM)
             WRITE(IU,FMT_INT) 'ISBBATOM (size)', N
-            WRITE(IU,FMT_INT) 'ISBBATOM (.TRUE. count)', NTRUE
+           WRITE(IU,FMT_INT) 'ISBBATOM (.TRUE. count)', NTRUE
             IF (N <= MAX_PRINT_ARRAY) THEN
                 WRITE(IU,'(3X,A45,1X,"=",1X,*(L1,1X))') 'ISBBATOM', (ISBBATOM(I), I=1,N)
             ELSE
@@ -109,143 +154,52 @@ MODULE OUT_PRINT
             WRITE(IU,FMT_CHAR) 'ISBBATOM', 'not allocated'
         END IF
         WRITE(IU,FMT_INT)  'NBACKBONE', NBACKBONE
-        WRITE(IU,FMT_BOOL) 'DETECTBBCROSSING', DETECTBBCROSSING
-        WRITE(IU,FMT_INT)  'CHECKCROSSFREQ', CHECKCROSSFREQ
+        
+        !============================================================================
+        ! Penalty functions
+        !============================================================================
 
-        !============================================================================
-        ! Atom names
-        !============================================================================
         WRITE(IU,FMT_SEC) ''
-        WRITE(IU,FMT_SEC) '--- Atom names ---'
-        IF (ALLOCATED(NAMES)) THEN
-            N = SIZE(NAMES)
-            WRITE(IU,FMT_INT) 'NAMES (size)', N
-            IF (N <= MAX_PRINT_ARRAY) THEN
-                WRITE(IU,'(3X,A45,1X,"=",1X,*(A5,1X))') 'NAMES', (NAMES(I), I=1,N)
-            ELSE
-                WRITE(IU,'(3X,A45,1X,"=",1X,5(A5,1X),"...")') 'NAMES(1:5)', (NAMES(I), I=1,5)
-            END IF
-        ELSE
-            WRITE(IU,FMT_CHAR) 'NAMES', 'not allocated'
-        END IF
-
-        !============================================================================
-        ! Addition / optimisation logic
-        !============================================================================
-        WRITE(IU,FMT_SEC) ''
-        WRITE(IU,FMT_SEC) '--- Addition / optimisation logic ---'
-        WRITE(IU,FMT_BOOL) 'QCIADDACIDT', QCIADDACIDT
-        WRITE(IU,FMT_BOOL) 'QCIDOBACKALL', QCIDOBACKALL
-        WRITE(IU,FMT_BOOL) 'OPTIMISEAFTERADDITION', OPTIMISEAFTERADDITION
-        WRITE(IU,FMT_INT)  'NMINAFTERADD', NMINAFTERADD
-
-        !============================================================================
-        ! Interpolation methods
-        !============================================================================
-        WRITE(IU,FMT_SEC) ''
-        WRITE(IU,FMT_SEC) '--- Interpolation methods ---'
-        WRITE(IU,FMT_BOOL) 'USEINTERNALST', USEINTERNALST
-        WRITE(IU,FMT_BOOL) 'USEFOURATOMST', USEFOURATOMST
-        WRITE(IU,FMT_BOOL) 'QCITRILATERATION', QCITRILATERATION
-        WRITE(IU,FMT_BOOL) 'QCITRILATERATION2', QCITRILATERATION2
-
-        !============================================================================
-        ! Constraint / gradient settings
-        !============================================================================
-        WRITE(IU,FMT_SEC) ''
-        WRITE(IU,FMT_SEC) '--- Constraint / gradient settings ---'
-        WRITE(IU,FMT_BOOL) 'CHECKCONINT', CHECKCONINT
-        WRITE(IU,FMT_REAL) 'INTCONSTRAINTDEL', INTCONSTRAINTDEL
-        WRITE(IU,FMT_REAL) 'MAXGRADCOMP', MAXGRADCOMP
-
-        !============================================================================
-        ! Guess file
-        !============================================================================
-        WRITE(IU,FMT_SEC) ''
-        WRITE(IU,FMT_SEC) '--- Guess file ---'
-        WRITE(IU,FMT_BOOL) 'QCIREADGUESS', QCIREADGUESS
-        WRITE(IU,FMT_CHAR) 'GUESSFILE', TRIM(GUESSFILE)
-
-        !============================================================================
-        ! Image density / separation
-        !============================================================================
-        WRITE(IU,FMT_SEC) ''
-        WRITE(IU,FMT_SEC) '--- Image density / separation ---'
-        WRITE(IU,FMT_BOOL) 'USEIMAGEDENSITY', USEIMAGEDENSITY
-        WRITE(IU,FMT_REAL) 'E2E_DIST', E2E_DIST
-        WRITE(IU,FMT_REAL) 'IMAGEDENSITY', IMAGEDENSITY
-        WRITE(IU,FMT_REAL) 'IMSEPMAX', IMSEPMAX
-        WRITE(IU,FMT_REAL) 'IMSEPMIN', IMSEPMIN
-
-        !============================================================================
-        ! Linear atom / group settings
-        !============================================================================
-        WRITE(IU,FMT_SEC) ''
-        WRITE(IU,FMT_SEC) '--- Linear atom / group settings ---'
-        WRITE(IU,FMT_BOOL) 'QCILINEART', QCILINEART
-        IF (ALLOCATED(INLINLIST)) THEN
-            N = SIZE(INLINLIST)
-            NTRUE = COUNT(INLINLIST)
-            WRITE(IU,FMT_INT) 'INLINLIST (size)', N
-            WRITE(IU,FMT_INT) 'INLINLIST (.TRUE. count)', NTRUE
-            IF (N <= MAX_PRINT_ARRAY) THEN
-                WRITE(IU,'(3X,A45,1X,"=",1X,*(L1,1X))') 'INLINLIST', (INLINLIST(I), I=1,N)
-            END IF
-        ELSE
-            WRITE(IU,FMT_CHAR) 'INLINLIST', 'not allocated'
-        END IF
-        WRITE(IU,FMT_BOOL) 'LINEARBBT', LINEARBBT
-        WRITE(IU,FMT_BOOL) 'USELINGROUPS', USELINGROUPS
-
-        !============================================================================
-        ! Residue mapping
-        !============================================================================
-        WRITE(IU,FMT_SEC) ''
-        WRITE(IU,FMT_SEC) '--- Residue mapping ---'
-        IF (ALLOCATED(ATOMS2RES)) THEN
-            N = SIZE(ATOMS2RES)
-            WRITE(IU,FMT_INT) 'ATOMS2RES (size)', N
-            IF (N <= MAX_PRINT_ARRAY) THEN
-                WRITE(IU,'(3X,A45,1X,"=",1X,*(I0,1X))') 'ATOMS2RES', (ATOMS2RES(I), I=1,N)
-            END IF
-        ELSE
-            WRITE(IU,FMT_CHAR) 'ATOMS2RES', 'not allocated'
-        END IF
-
-        !============================================================================
-        ! Image checking / internal minima
-        !============================================================================
-        WRITE(IU,FMT_SEC) ''
-        WRITE(IU,FMT_SEC) '--- Image checking / internal minima ---'
-        WRITE(IU,FMT_INT)  'QCIIMAGECHECK', QCIIMAGECHECK
+        WRITE(IU,FMT_SEC) '--- Repulsion settings ---'
         WRITE(IU,FMT_REAL) 'INTMINFAC', INTMINFAC
-
+        
         !============================================================================
         ! Repulsion settings
         !============================================================================
+        
         WRITE(IU,FMT_SEC) ''
         WRITE(IU,FMT_SEC) '--- Repulsion settings ---'
-        WRITE(IU,FMT_REAL) 'QCIREPCUT', QCIREPCUT
-        WRITE(IU,FMT_REAL) 'QCICONSTRREP', QCICONSTRREP
-        WRITE(IU,FMT_INT)  'QCIINTREPMINSEP', QCIINTREPMINSEP
         WRITE(IU,FMT_REAL) 'K_REP', K_REP
-        WRITE(IU,FMT_REAL) 'K_CONST', K_CONST
-
+        WRITE(IU,FMT_REAL) 'QCIREPCUT', QCIREPCUT
+        WRITE(IU,FMT_REAL) 'CHECKREPCUTOFF', CHECKREPCUTOFF
+        WRITE(IU,FMT_INT)  'CHECKREPINTERVAL', CHECKREPINTERVAL
+        WRITE(IU,FMT_INT)  'QCIINTREPMINSEP', QCIINTREPMINSEP
+        WRITE(IU,FMT_INT)  'CHECKREPINTERVAL', CHECKREPINTERVAL
+        
         !============================================================================
-        ! Conactinact
+        ! Constraint settings
         !============================================================================
         WRITE(IU,FMT_SEC) ''
-        WRITE(IU,FMT_SEC) '--- Conactinact ---'
+        WRITE(IU,FMT_SEC) '--- Constraint settings ---'
+        
+        WRITE(IU,FMT_REAL) 'K_CONT', K_CONST
+        WRITE(IU,FMT_BOOL) 'CHECKINTMINCONSTR', CHECKCONINT
+        WRITE(IU,FMT_REAL) 'CONCUTABS', CONCUTABS
+
         WRITE(IU,FMT_BOOL) 'USECONACTINACT', USECONACTINACT
         WRITE(IU,FMT_REAL) 'CONACTINACT', CONACTINACT
 
+                
         !============================================================================
         ! Dihedral constraints
         !============================================================================
         WRITE(IU,FMT_SEC) ''
         WRITE(IU,FMT_SEC) '--- Dihedral constraints ---'
         WRITE(IU,FMT_BOOL) 'USEDIHEDRALCONST', USEDIHEDRALCONST
-        WRITE(IU,FMT_REAL) 'DIHDIFTOL', DIHDIFTOL
+        WRITE(IU,FMT_REAL) 'K_DIH', KDIH
+        WRITE(IU,FMT_INT)  'DIHTYPE', DIHTYPE
+
+        
 
         !============================================================================
         ! Spring constants
@@ -264,13 +218,47 @@ MODULE OUT_PRINT
         WRITE(IU,FMT_REAL) 'QCIADJUSTKFRAC', QCIADJUSTKFRAC
 
         !============================================================================
-        ! BFGS / step settings
+        ! Linear atom / group settings
         !============================================================================
         WRITE(IU,FMT_SEC) ''
-        WRITE(IU,FMT_SEC) '--- BFGS / step settings ---'
+        WRITE(IU,FMT_SEC) '--- Linear groups ---'
+        WRITE(IU,FMT_BOOL) 'USELINGROUPS', USELINGROUPS
+        WRITE(IU,FMT_REAL) 'DIHDIFTOL', DIHDIFTOL
+    
+        
+        !============================================================================
+        ! Image control
+        !============================================================================
+        WRITE(IU,FMT_SEC) ''
+        WRITE(IU,FMT_SEC) '--- Image control ---'
+        WRITE(IU,FMT_BOOL) 'USEIMAGEDENSITY', USEIMAGEDENSITY
+        WRITE(IU,FMT_REAL) 'E2E_DIST', E2E_DIST
+        WRITE(IU,FMT_REAL) 'IMAGEDENSITY', IMAGEDENSITY
+        WRITE(IU,FMT_REAL) 'IMSEPMAX', IMSEPMAX
+        WRITE(IU,FMT_REAL) 'IMSEPMIN', IMSEPMIN
+        WRITE(IU,FMT_INT)  'QCIIMAGECHECK', QCIIMAGECHECK
+
+        !============================================================================
+        ! Permutational settings
+        !============================================================================
+        WRITE(IU,FMT_SEC) ''
+        WRITE(IU,FMT_SEC) '--- Permutations & chirality ---'
+        WRITE(IU,FMT_INT)  'QCIPERMCHECKINT', QCIPERMCHECKINT
+        WRITE(IU,FMT_BOOL) 'QCIPERMT', QCIPERMT
+        WRITE(IU,FMT_REAL) 'QCIPERMCUT', QCIPERMCUT
+        WRITE(IU,FMT_REAL) 'ORBITTOL', ORBITTOL
+
+        WRITE(IU,FMT_BOOL) 'CHECKCHIRAL', CHECKCHIRAL
+      
+        !============================================================================
+        ! Energy minimisation options
+        !============================================================================
+        WRITE(IU,FMT_SEC) ''
+        WRITE(IU,FMT_SEC) '--- Energy minimisation options ---'
         WRITE(IU,FMT_REAL) 'DGUESS', DGUESS
         WRITE(IU,FMT_INT)  'MUPDATE', MUPDATE
         WRITE(IU,FMT_REAL) 'MAXQCIBFGS', MAXQCIBFGS
+        WRITE(IU,FMT_REAL) 'MAXGRADCOMP', MAXGRADCOMP
 
         !============================================================================
         ! Convergence / energy limits
@@ -291,39 +279,53 @@ MODULE OUT_PRINT
         WRITE(IU,FMT_INT)  'QCIRESETINT1', QCIRESETINT1
 
         !============================================================================
-        ! Misc flags / intervals
+        ! Output control
         !============================================================================
         WRITE(IU,FMT_SEC) ''
-        WRITE(IU,FMT_SEC) '--- Misc flags / intervals ---'
-        WRITE(IU,FMT_INT)  'CHECKREPINTERVAL', CHECKREPINTERVAL
-        WRITE(IU,FMT_BOOL) 'CHECKCHIRAL', CHECKCHIRAL
-        WRITE(IU,FMT_BOOL) 'QCIUSEGROUPS', QCIUSEGROUPS
-        WRITE(IU,FMT_BOOL) 'BASEPAIRDETECTION', BASEPAIRDETECTION
+        WRITE(IU,FMT_SEC) '--- Output control ---' 
+
         WRITE(IU,FMT_INT)  'DUMPQCIXYZFRQS', DUMPQCIXYZFRQS
         WRITE(IU,FMT_BOOL) 'DUMPQCIXYZ', DUMPQCIXYZ
 
+        
         !============================================================================
-        ! Permutational settings
+        ! Experimental / In development
         !============================================================================
         WRITE(IU,FMT_SEC) ''
-        WRITE(IU,FMT_SEC) '--- Permutational settings ---'
-        WRITE(IU,FMT_INT)  'QCIPERMCHECKINT', QCIPERMCHECKINT
-        WRITE(IU,FMT_BOOL) 'QCIPERMT', QCIPERMT
-        WRITE(IU,FMT_REAL) 'QCIPERMCUT', QCIPERMCUT
-        WRITE(IU,FMT_REAL) 'ORBITTOL', ORBITTOL
+        WRITE(IU,FMT_BOOL) 'DETECTBBCROSSING', DETECTBBCROSSING
+        WRITE(IU,FMT_INT)  'CHECKCROSSFREQ', CHECKCROSSFREQ
 
+        
+        !============================================================================
+        ! Options which will be potentially removed in future 
+        !============================================================================
+        WRITE(IU,FMT_SEC) ''
+        WRITE(IU,FMT_SEC) '--- Options which may be removed in future ---'
+        WRITE(IU,FMT_BOOL) 'QCILINEART', QCILINEART
+        IF (ALLOCATED(INLINLIST)) THEN
+            N = SIZE(INLINLIST)
+            NTRUE = COUNT(INLINLIST)
+            WRITE(IU,FMT_INT) 'INLINLIST (size)', N
+            WRITE(IU,FMT_INT) 'INLINLIST (.TRUE. count)', NTRUE
+            !IF (N <= MAX_PRINT_ARRAY) THEN
+            !    WRITE(IU,'(3X,A45,1X,"=",1X,*(L1,1X))') 'INLINLIST', (INLINLIST(I), I=1,N)
+            !END IF
+        ELSE
+            WRITE(IU,FMT_CHAR) 'INLINLIST', 'not allocated'
+        END IF
+        WRITE(IU,FMT_BOOL) 'LINEARBBT', LINEARBBT
+       
+              
         WRITE(IU,FMT_SEC) ''
         WRITE(IU,FMT_SEC) '============================================================'
         WRITE(IU,FMT_SEC) '        END OF EFFECTIVE CONFIGURATION'
         WRITE(IU,FMT_SEC) '============================================================'
 
 
-
     END SUBROUTINE WRITE_QCI_KEYS
 
     SUBROUTINE WRITE_IMAGE_DIST(FILENAME)
-        
-        
+             
         USE QCIKEYS, ONLY: NIMAGES
         USE INTERPOLATION_KEYS, ONLY: IMAGE_DIST
 
@@ -363,8 +365,7 @@ MODULE OUT_PRINT
   
     END SUBROUTINE WRITE_IMAGE_DIST
 
-     SUBROUTINE WRITE_IMAGE_E(FILENAME, EEE)
-        
+    SUBROUTINE WRITE_IMAGE_E(FILENAME, EEE)
         
         USE QCIKEYS, ONLY: NIMAGES
         
@@ -404,7 +405,6 @@ MODULE OUT_PRINT
         PRINT *, 'GNUPLOT SCRIPT GENERATED: ', TRIM(FILENAME)
   
     END SUBROUTINE WRITE_IMAGE_E
-
 
 
 END MODULE OUT_PRINT

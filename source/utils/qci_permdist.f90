@@ -507,6 +507,13 @@ MODULE QCIPERMDIST
                NEWPERM(NDUMMY+1) = PERMGROUP(NDUMMY)
             ENDIF
 
+            !Try a simple swap for three, but we have 3!=6 combinations for this groups size! - Need to think how to do that
+            IF ((PATOMS.EQ.3).AND.(J1.EQ.DOGROUP)) THEN
+               NEWPERM(NDUMMY) = PERMGROUP(NDUMMY+1) 
+               NEWPERM(NDUMMY+1) = PERMGROUP(NDUMMY+2)
+               NEWPERM(NDUMMY+2) = PERMGROUP(NDUMMY)
+            ENDIF
+
             XA=0.0D0; YA=0.0D0; ZA=0.0D0
             XB=0.0D0; YB=0.0D0; ZB=0.0D0
             DO J2=1,PATOMS
