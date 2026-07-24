@@ -4,7 +4,7 @@
 # 
 ############################################################
 
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.5)
 
 # Silence warnings about PROJECT_VERSION not being set
 # cmake_policy(SET CMP0048 OLD)
