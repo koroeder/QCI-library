@@ -1,4 +1,7 @@
+#!/usr/bin/python
+
 import sys
+import argparse
 
 class atom():
     def __init__(self):
@@ -39,9 +42,17 @@ Only works for canonical amino and nucleic
 acids with AMBER atom names
 ''')
 
+parser = argparse.ArgumentParser("create_perm_allow.py")
+parser.add_argument("input_file", help="PDB file to the parsed")
+parser.add_argument("--offset", default=1, type=int, help="Offset if numbering of residues does not start at 1 in pdb file (should be index of first residue)")
+args = parser.parse_args()
+
 data = dict()
-fname = sys.argv[1]
-print("Input file: ", fname)
+fname = args.input_file
+offset = args.offset
+
+print("Input file: "+ fname)
+print("starting index is {}".format(offset))
 
 curr_res = 0
 
@@ -55,8 +66,8 @@ with open(fname, "r") as f:
             thisresi = int(line[22:26])
         else:
             continue
-        # assume continuous numbering starting at 1
-        if thisresi != curr_res:
+        # assume continuous numbering starting at offset
+        if thisresi != curr_res + (offset-1):
             curr_res += 1
             data[curr_res] = dict()
             data[curr_res]["name"] = thisresn
@@ -168,6 +179,13 @@ for idx in range(1,ntotal+1):
             groups.append([get_indices(["O","OXT"],atomlist),2,0])
 
 print("Detected {} permutational groups".format(len(groups)))
+
+for group in groups:
+    for idx in group[0]:
+        if idx == -1:
+            msg = "Error: atom index is -1 after pattern matching: common reasons - wrong offset specified, poorly formatted pdb, or wrong atom names"
+            print(msg)
+            sys.exit(1)
 
 outf = open("perm.allow","w")
 
