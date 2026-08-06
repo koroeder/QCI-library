@@ -5,6 +5,7 @@ MODULE QCIINTERPOLATION
    IMPLICIT NONE
    LOGICAL :: QCICOMPLETE
 
+   REAL(KIND = REAL64) :: CONCUTABSSAVE, MAXCONE_SAVE, QCIRMSTOL_SAVE
    CONTAINS
       SUBROUTINE RUN_QCI_INTERPOLATION()
          USE QCIKEYS, ONLY: QCIREADGUESS, QCIFREEZET, MAXITER, MAXGRADCOMP, MAXCONE, &
@@ -12,24 +13,26 @@ MODULE QCIINTERPOLATION
                             KINT, MAXERISE, MAXINTIMAGE, MAXQCIBFGS, MUPDATE, DGUESS, &
                             DUMPQCIXYZFRQS, DUMPQCIXYZ, QCIADJUSTKFRQ, QCIADJUSTKT, QCIAVDEV, &
                             QCIKINTMIN, QCIKINTMAX, QCIADJUSTKFRAC, QCIADJUSTKTOL, QCIIMAGECHECK, &
-                            QCIPERMCHECKINT, QCIPERMT, QCIRMSTOL, QCIFROZEN, QCIRESET, QCIRESETINT1, &
-                            NMINAFTERADD, OPTIMISEAFTERADDITION
-         USE MOD_FREEZE, ONLY: ADD_CONSTR_AND_REP_FROZEN_ATOMS
+                            QCIPERMCHECKINT, QCIPERMT, QCIRMSTOL, QCIRESET, QCIRESETINT1, &
+                            NMINAFTERADD, OPTIMISEAFTERADDITION, DETECTBBCROSSING, CHECKCROSSFREQ
+         USE MOD_FREEZE, ONLY: ADD_CONSTR_AND_REP_NBEST
          USE CONSTR_E_GRAD, ONLY: CONGRAD, CONVERGECONTEST, CONVERGEREPTEST, &
-                                  FCONMAX, FREPMAX
+                                  FCONMAX, FREPMAX, GET_SPRING_CONSTANTS
          USE QCIPERMDIST, ONLY: NPERMGROUP, CHECK_COMMON_CONSTR, UPDATE_ACTIVE_PERMGROUPS, GROUPACTIVE, &
                                 NPERMSIZE, CHECK_PERM_BAND
          USE QCI_CONSTRAINT_KEYS
          USE CHIRALITY, ONLY: ASSIGNMENT_SR, CHIRALITY_CHECK
-         USE ADDINGATOM, ONLY: ADDATOM
+         USE ADDINGATOM, ONLY: ADDATOM, UPDATE_CONSTRAINTS, UPDATE_REPULSIONS
          USE REPULSION, ONLY: NREPULSIVE, CHECKREP, REPI, REPJ
          USE ADDREMOVE_IMAGES, ONLY: ADD_IMAGE, REMOVE_IMAGE
          USE HELPER_FNCTS, ONLY: DOTP
          USE MOD_CHECK_GRAD, ONLY: CHECK_GRAD
-         USE OUT_PRINT, ONLY: WRITE_CONGRADOUT
+         USE OUT_PRINT, ONLY: WRITE_CONGRADOUT, WRITE_IMAGE_DIST, WRITE_IMAGE_E
+         USE BOND_CROSSING_DETECTION, ONLY: DETECT_BOND_CROSSINGS
          IMPLICIT NONE
-         INTEGER :: NBEST, NITERDONE, FIRSTATOM, NCONCUTABSINC, NDECREASE, NFAIL, NLASTGOODE
-         INTEGER :: J1, I2
+         INTEGER :: NBEST !< Constraint with smallest DMIN
+         INTEGER :: NITERDONE, FIRSTATOM, NCONCUTABSINC, NDECREASE, NFAIL, NLASTGOODE
+         INTEGER :: J, J1, I2
          LOGICAL :: QCICONVT 
          LOGICAL :: ADDATOMT
          LOGICAL :: ACCEPTEDSTEP
@@ -40,7 +43,7 @@ MODULE QCIINTERPOLATION
          CHARACTER(25) :: RESETEEEFILE = "QCIreset.int.EofS"     
          CHARACTER(6) :: ITERSTRING
          REAL(KIND = REAL64) :: ETOTAL, EPREV
-         REAL(KIND = REAL64) :: CONCUTABSSAVE
+         
          INTEGER :: EXITSTATUS
          REAL(KIND = REAL64), PARAMETER :: INCREASETOL = 1.1D0   
          REAL(KIND = REAL64), PARAMETER :: STPREDUCTION = 10.0D0
@@ -66,38 +69,61 @@ MODULE QCIINTERPOLATION
 
          ! are we reading in a guess?
          IF (QCIREADGUESS) THEN
-            CALL READGUESS()
+            !CALL READGUESS()
+            !improved version of readguess 
+            WRITE(*,*) "Initiating interpolation from a guess ..."
+            CALL READ_BAND()
+            
+            !Need to activate all constraints and atoms, so we are not adding atoms again
+                        
+            ! get common constraints for atoms in permutational groups
+            IF (QCIPERMT) CALL CHECK_COMMON_CONSTR() 
+
+            NREPULSIVE=0
+            DO J = 1, NATOMS
+               TURNONORDER(:) = 0
+               ATOMACTIVE(J)=.TRUE.
+               CALL UPDATE_CONSTRAINTS(J)
+               CALL UPDATE_REPULSIONS(J)
+               NACTIVE = NACTIVE + 1
+            END DO                    
+            CALL GET_SPRING_CONSTANTS(XYZ) 
+         ELSE
+
+            ! get constraint with smallest distance between endpoints (respecting QCILINEAR and QCIDOBACK)
+            CALL GET_DISTANCES_CONSTRAINTS(NBEST)
+
+            ! get common constraints for atoms in permutational groups
+            IF (QCIPERMT) CALL CHECK_COMMON_CONSTR()
+
+            ! Turning first constraint on and activating atoms
+            CONACTIVE(NBEST)=.TRUE.
+            ATOMACTIVE(CONI(NBEST))=.TRUE.
+            ATOMACTIVE(CONJ(NBEST))=.TRUE.
+            IF (DEBUG) WRITE(*,'(A,I6,A,2I6)') ' QCIinterp> Turning on constraint ',NBEST,' for atoms ',CONI(NBEST),CONJ(NBEST)
+            !IF (.NOT.QCIFROZEN(CONI(NBEST))) THEN
+               TURNONORDER(NACTIVE+1)=CONI(NBEST)
+               NACTIVE=NACTIVE+1
+            !ENDIF
+            !IF (.NOT.QCIFROZEN(CONJ(NBEST))) THEN
+               TURNONORDER(NACTIVE+1)=CONJ(NBEST)
+               NACTIVE=NACTIVE+1
+            !ENDIF
+            
+            !Question What is this and do we need it? - doesn't seem to be used anywhere! 
+            NTRIES(CONI(NBEST))=1
+            NTRIES(CONJ(NBEST))=1
+            NREPULSIVE=0
+            !We turned on the 1st constraint above 
+            NCONSTRAINTON=1
+
+            ! add constraints and repulsions for all frozen atoms - this doesn not do that
+            !IF (QCIFREEZET) THEN
+            CALL ADD_CONSTR_AND_REP_NBEST(NBEST)
+            !END IF
          END IF
-
-         ! get constraint with smallest distance between endpoints (respecting QCILINEAR and QCIDOBACK)
-         CALL GET_DISTANCES_CONSTRAINTS(NBEST)
-
-         ! get common constraints for atoms in permutational groups
-         IF (QCIPERMT) CALL CHECK_COMMON_CONSTR()
-
-         ! Turning first constraint on and activating atoms
-         CONACTIVE(NBEST)=.TRUE.
-         ATOMACTIVE(CONI(NBEST))=.TRUE.
-         ATOMACTIVE(CONJ(NBEST))=.TRUE.
-         IF (DEBUG) WRITE(*,'(A,I6,A,2I6)') ' QCIinterp> Turning on constraint ',NBEST,' for atoms ',CONI(NBEST),CONJ(NBEST)
-         IF (.NOT.QCIFROZEN(CONI(NBEST))) THEN
-            TURNONORDER(NACTIVE+1)=CONI(NBEST)
-            NACTIVE=NACTIVE+1
-         ENDIF
-         IF (.NOT.QCIFROZEN(CONJ(NBEST))) THEN
-            TURNONORDER(NACTIVE+1)=CONJ(NBEST)
-            NACTIVE=NACTIVE+1
-         ENDIF
-         NTRIES(CONI(NBEST))=1
-         NTRIES(CONJ(NBEST))=1
-         NREPULSIVE=0
-         !We turned on the 1st constraint above 
-         NCONSTRAINTON=1
-         
-         ! add constraints and repulsions for all frozen atoms
-         !IF (QCIFREEZET) THEN
-         CALL ADD_CONSTR_AND_REP_FROZEN_ATOMS(NBEST)
-         !END IF
+                 
+        
          ! before we continue check repulsion neighbour list
          CALL CHECKREP(XYZ,0,1)
 
@@ -114,8 +140,10 @@ MODULE QCIINTERPOLATION
          !call check for cold fusion
          CALL CHECK_FOR_COLDFUSION(ETOTAL)
 
-         !save concut settings
+         !save concut and convergence settings 
          CONCUTABSSAVE = CONCUTABS
+         QCIRMSTOL_SAVE = QCIRMSTOL
+         MAXCONE_SAVE = MAXCONE
 
          NITERDONE = 0
          NITERUSE = 1
@@ -154,7 +182,8 @@ MODULE QCIINTERPOLATION
                   IF (NITERDONE-NCONCUTABSINC.GT.QCIRESETINT1) THEN ! reset CONCUTABS
                      CONCUTABS=CONCUTABSSAVE
                      CONCUTABSINC=.FALSE.
-                     WRITE(*,*) " QCIinterp> Interpolation seems to be stuck. Resetting concutabs"
+                     
+                     WRITE(*,*) " QCIinterp> Interpolation is NOT stuck. Resetting concutabs"
                      WRITE(*,*) "            MAXECON = ",MAXCONE, ", QCIRMSTOL = ", QCIRMSTOL, ", CONCUTABS = ", CONCUTABS
                   ENDIF
                ENDIF
@@ -191,20 +220,43 @@ MODULE QCIINTERPOLATION
             !end of permutational checks of band
 
             ! spring constant dynamic adjustment
+            ! Deviation 0 (QCIAVDEV=0) means we have perfect spacing. When QCIAVDEV is .GT. than deviation tolerance (QCIADJUSTKTOL)
+            ! we increase spring constant.  
             IF (QCIADJUSTKT.AND.MOD(NITERDONE,QCIADJUSTKFRQ).EQ.0) THEN
-               IF (QCIAVDEV.GT.QCIADJUSTKTOL) THEN
+               IF (QCIAVDEV.LT.QCIADJUSTKTOL) THEN
                   WRITE(*,*) " QCIinterp> Lowering spring constant from ", KINT, " to ", MAX(KINT/QCIADJUSTKFRAC,QCIKINTMIN)
                   KINT=MAX(KINT/QCIADJUSTKFRAC,QCIKINTMIN)
-               ELSE IF (QCIAVDEV.LT.QCIADJUSTKTOL) THEN
+               ELSE IF (QCIAVDEV.GT.QCIADJUSTKTOL) THEN
                   KINT=MIN(KINT*QCIADJUSTKFRAC,QCIKINTMAX)
                   WRITE(*,*) " QCIinterp> Increasing spring constant from ", KINT, " to ", MIN(KINT*QCIADJUSTKFRAC,QCIKINTMAX)
                END IF
+
+               CALL GET_SPRING_CONSTANTS(XYZ) 
+
             END IF
 
+            !Check for backbone crossings - DOES NOT WORK
+            IF (DETECTBBCROSSING.AND.(MOD(NITERDONE,CHECKCROSSFREQ).EQ.0)) THEN
+               !For now only do a passive check 
+               ! TODO: Develop strategy to deal resolve bond crossings 
+               CALL DETECT_BOND_CROSSINGS(XYZ)
+                           
+            END IF
+            
             !if not all atoms are active, we add an atom now to the active set and hence the images
             IF (ADDATOMT.AND.(NACTIVE.LT.NATOMS)) THEN
                WRITE(*,*) " QCIinterp> Adding the next atom to active set" 
+               
+               !IF (CHECKCHIRAL) THEN
+               !   WRITE(*,*) " QCIinterp> Checking chirality across band"
+               !   CALL CHIRALITY_CHECK(XYZ) 
+               !END IF
+               
                CALL ADDATOM()
+
+               !Moved this congrad call from ADDATOM 
+                ! call congrad routine
+               CALL CONGRAD(ETOTAL, XYZ, GGG, EEE, RMS)
                !scale gradient if necessary
                IF (MAXGRADCOMP.GT.0.0D0) CALL SCALEGRAD(DIMS,G,RMS,MAXGRADCOMP)
                NLASTGOODE=NITERDONE
@@ -354,6 +406,7 @@ MODULE QCIINTERPOLATION
                   DO WHILE(MOREIMAGES)
                      MOREIMAGES = .FALSE.
                      CALL GET_IMAGE_SEPARATION(CURRMINSEP,CURRMAXSEP,IDXMIN,IDXMAX)
+                  
                      IF ((CURRMAXSEP.GT.IMSEPMAX).AND.(NIMAGES.LT.MAXINTIMAGE)) THEN
                         WRITE(*,*) " QCIinterp> Adding image between images ", IDXMAX, " and ", IDXMAX+1
                         CALL ADD_IMAGE(IDXMAX,ETOTAL,RMS)
@@ -396,8 +449,10 @@ MODULE QCIINTERPOLATION
                   GPREV(:) = GGG(:)
                   XPREV(:) = XYZ(:)
                   ACCEPTEDSTEP = .TRUE.
-                  !This call to Congrad prints the congrad output
-                  !CALL CONGRAD(ETOTAL, XYZ, GGG, EEE, RMS, .TRUE.)
+                  
+                  !If we accept step the we consdider it good energy and don't need increse convergence tresholds?!
+                  !NLASTGOODE=NITERDONE
+                  
                ELSE
                   NDECREASE = NDECREASE + 1
                   !TODO: add NDECREASE and a parameter variable for its limit 
@@ -407,8 +462,7 @@ MODULE QCIINTERPOLATION
                      GGG(:) = GPREV(:)
                      WRITE(*,*) " QCIinterp> WARNING - LBFGS cannot find a lower energy, NFAIL=",NFAIL
                      ACCEPTEDSTEP = .TRUE. !we failed to many times, so for now we accept failure and leave the loop
-                     !This call to Congrad prints the congrad output - replaced with output writing function
-                     !CALL CONGRAD(ETOTAL, XYZ, GGG, EEE, RMS, .TRUE.)
+                     
                   ELSE
                      XYZ(:) = XPREV(:)
                      GGG(:) = GPREV(:)
@@ -447,6 +501,13 @@ MODULE QCIINTERPOLATION
             IF ((.NOT.(ADDATOMT)).AND.(EXITSTATUS.EQ.1)) THEN
                !we have converged and there is no more atom to add - we can leave the main loop
                EXIT
+            ELSE IF ((.NOT.(ADDATOMT)).AND.(EXITSTATUS.EQ.2)) THEN
+               !We have converged with higher E max and F max tolerance. Lower the tolerance and try for better conv.
+               QCIRMSTOL = QCIRMSTOL_SAVE
+               MAXCONE = MAXCONE_SAVE
+               WRITE(*,*) "QCIInterp> We converged with higher convergence criteria. "
+               WRITE(*,*) "QCIInterp> Resetting convergence crteria and concutabs." 
+               WRITE(*,*) "QCIRMSTOL ", QCIRMSTOL, " MAXCONE ", MAXCONE, " CONCUTABS ", CONCUTABS  
             END IF
 
             ! Compute the new step and gradient change
@@ -482,10 +543,15 @@ MODULE QCIINTERPOLATION
                                  ' RMS=',RMS,' images=',NIMAGES, ", but all atoms were activated."
             QCICOMPLETE = .FALSE.                     
          END IF
+         
          CALL GET_STATISTIC_INTERP()
          CALL WRITE_BAND(XYZFILE)
          CALL WRITE_ACTIVE_BAND(ADJUSTL(TRIM(XYZFILE))//".active")
          CALL WRITE_PROFILE(EEEFILE,EEE)
+         !DEBUG write distance between imahes as a profile
+         CALL WRITE_IMAGE_DIST('plot_image_dist.txt')
+         CALL WRITE_IMAGE_E('plot_energy_profile.txt', EEE)
+
          !WRITE(*,*) "GRADIENT CHECK"
          !CALL CHECK_GRAD(XYZ)
          WRITE(*,*) " QCIinterp> Leaving interpolation"
@@ -493,18 +559,32 @@ MODULE QCIINTERPOLATION
 
 
       SUBROUTINE SET_EXIT_STATUS(NITERDONE,EXITSTATUS)
-         USE CONSTR_E_GRAD, ONLY: CONVERGECONTEST, CONVERGEREPTEST, CONVERGENCEDIHTEST, FCONMAX, FREPMAX, FDIHMAX
-         USE QCIKEYS, ONLY: MAXCONE, QCIRMSTOL, INTADDATOM
+         USE CONSTR_E_GRAD, ONLY: CONVERGECONTEST, CONVERGEREPTEST, CONVERGENCEDIHTEST, FCONMAX, FREPMAX, FDIHMAX, FSPRINGMAX, FMAX_GLOBAL, MAX_E_PER_IMAGE
+         USE INTERPOLATION_KEYS, ONLY: RMS 
+         USE QCIKEYS, ONLY: MAXCONE, QCIRMSTOL, SPRING_GRAD_CONV
+         USE QCI_CONSTRAINT_KEYS, ONLY: CONCUTABS
          IMPLICIT NONE
          INTEGER, INTENT(IN) :: NITERDONE
          INTEGER, INTENT(OUT) :: EXITSTATUS
+         REAL(KIND = REAL64), PARAMETER :: EPS6 = 1.0D-6
 
          EXITSTATUS = 0
          !is the simulation converged?
-         IF ((FCONMAX.LT.QCIRMSTOL).AND.(FREPMAX.LT.QCIRMSTOL).AND.(FDIHMAX.LT.QCIRMSTOL).AND.&
-            (CONVERGECONTEST.LT.MAXCONE).AND.(CONVERGEREPTEST.LT.MAXCONE).AND.(CONVERGENCEDIHTEST.LT.MAXCONE)&
-            .AND.(NITERDONE.GT.1)) THEN
+
+         WRITE(*,*) "set_exit_status> NITERDONE ", NITERDONE 
+         WRITE(*,*) "set_exit_status> FMAX_GLOBAL ", FMAX_GLOBAL, "QCIRMSTOL", QCIRMSTOL
+
+         !.AND.(FMAX_GLOBAL.LT.QCIRMSTOL) 
+         IF ((NITERDONE.GT.1)&
+            .AND.(FCONMAX.LT.QCIRMSTOL).AND.(FREPMAX.LT.QCIRMSTOL).AND.(FDIHMAX.LT.QCIRMSTOL) &
+            .AND.(CONVERGECONTEST.LT.MAXCONE).AND.(CONVERGEREPTEST.LT.MAXCONE).AND.(CONVERGENCEDIHTEST.LT.MAXCONE) &
+            .AND.(FSPRINGMAX.LT.SPRING_GRAD_CONV)) THEN
             EXITSTATUS = 1
+               !EXITSTATUS = 2
+            !IF ( (DABS(MAXCONE_SAVE-MAXCONE).LE.EPS6).AND.(DABS(QCIRMSTOL_SAVE-QCIRMSTOL).LE.EPS6) ) THEN
+            !   EXITSTATUS = 1
+            !END IF
+
          END IF
 
       END SUBROUTINE SET_EXIT_STATUS
@@ -555,7 +635,8 @@ MODULE QCIINTERPOLATION
       END SUBROUTINE GET_STATISTIC_INTERP
 
       !> Calculate min and max image separations.    
-      !! The separation is defined as sum of all the distances 
+      !! The separation is defined as sum of all the distances per atom
+      !! between atom in different images - only active atoms
       SUBROUTINE GET_IMAGE_SEPARATION(DMIN,DMAX,JMIN,JMAX)
          USE QCIKEYS, ONLY: NATOMS, NIMAGES
          USE HELPER_FNCTS, ONLY: DISTANCE_ATOM_DIFF_IMAGES
@@ -597,12 +678,16 @@ MODULE QCIINTERPOLATION
                JMIN = J1
             END IF
          END DO
+
+         DMAX = DMAX / NACTIVE
+         DMIN = DMIN / NACTIVE
+
          !WRITE(*,'(A,F15.5)') " get_image_separation> The largest distance between images is ", DMAX
          !WRITE(*,'(A,F15.5)') "                       The smallest distance between images is ", DMIN
          !WRITE(*,'(A,I6,A,I4,A,I4)') "                       The largest distance by atom is for atom ",JAMAX_ATOM," between images", JAMAX_IMG," and ", JAMAX_IMG+1
 
-         WRITE(*,'(A,F15.5)') " get_image_separation> The largest distance between images is ", DMAX/NATOMS
-         WRITE(*,'(A,F15.5)') "                       The smallest distance between images is ", DMIN/NATOMS
+         WRITE(*,'(A,F15.5)') " get_image_separation> The largest distance between images is ", DMAX
+         WRITE(*,'(A,F15.5)') "                       The smallest distance between images is ", DMIN
          WRITE(*,'(A,I6,A,I4,A,I4)') "                       The largest distance by atom is for atom ",JAMAX_ATOM," between images", JAMAX_IMG," and ", JAMAX_IMG+1
 
       END SUBROUTINE GET_IMAGE_SEPARATION
@@ -625,9 +710,8 @@ MODULE QCIINTERPOLATION
          CALL ALLOC_ADDATOM()
       END SUBROUTINE INITIALISE_INTERPOLATION_VARS
 
-      ! Subroutine to sclae excessive gradient components
+      !> Subroutine to scale excessive gradient components
       SUBROUTINE SCALEGRAD(DIMS,G,RMS,MAXGRADCOMP)
-         !QUESTION not used atm - when do we want to use this?
          IMPLICIT NONE
          INTEGER, INTENT(IN) :: DIMS
          REAL(KIND=REAL64), INTENT(IN) :: MAXGRADCOMP

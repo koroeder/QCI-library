@@ -83,7 +83,10 @@ MODULE MOD_FREEZE
          CLOSE(FREEZEUNIT)
       END SUBROUTINE READ_FROZEN_ATOMS
 
-      SUBROUTINE ADD_CONSTR_AND_REP_FROZEN_ATOMS(NBEST)
+      !>For the two atoms in constraint NBEST, activate every related constraint that connects to an active atom, 
+      !!and add pairwise repulsion terms to all other active (non-frozen, non-constrained, sequence-distant) atoms 
+      !!using a distance cutoff derived from the start and end structures.
+      SUBROUTINE ADD_CONSTR_AND_REP_NBEST(NBEST)
          USE QCIPREC, ONLY: REAL64
          USE QCIKEYS, ONLY: NATOMS, QCIREPCUT, QCIFROZEN, QCIINTREPMINSEP
          USE INTERPOLATION_KEYS, ONLY: CONACTIVE, ATOMACTIVE, NCONSTRAINTON
@@ -121,7 +124,7 @@ MODULE MOD_FREEZE
             ! we have a minimum separation for atoms in sequence
             IF (ABS(I-NI).LE.QCIINTREPMINSEP) CYCLE
             ! ignore pairs of frozen atoms
-            IF (QCIFROZEN(I).AND.QCIFROZEN(NI)) CYCLE
+            !IF (QCIFROZEN(I).AND.QCIFROZEN(NI)) CYCLE
             ! make sure we are not adding a repulsion to an existing cosntraint
             SKIPREP = .FALSE.
             DO J=1,NCONSTRAINT
@@ -154,8 +157,8 @@ MODULE MOD_FREEZE
             ! we have a minimum separation for atoms in sequence
             IF (ABS(I-NJ).LE.QCIINTREPMINSEP) CYCLE
             ! ignore pairs of frozen atoms
-            IF (QCIFROZEN(I).AND.QCIFROZEN(NJ)) CYCLE
-            ! make sure we are not adding a repulsion to an existing cosntraint
+            !IF (QCIFROZEN(I).AND.QCIFROZEN(NJ)) CYCLE
+            ! make sure we are not adding a repulsion to an existing constraint
             SKIPREP = .FALSE.
             DO J=1,NCONSTRAINT
                IF (.NOT.CONACTIVE(J)) CYCLE
@@ -169,8 +172,9 @@ MODULE MOD_FREEZE
             END DO
             IF (.NOT.SKIPREP) THEN
                CALL DISTANCE_TWOATOMS(NATOMS,XSTART,NJ,I,DSTART)
-               CALL DISTANCE_TWOATOMS(NATOMS,XFINAL,NJ,I,DSTART)
+               CALL DISTANCE_TWOATOMS(NATOMS,XFINAL,NJ,I,DFINAL)
                DMIN = MIN(DSTART,DFINAL)
+               !QUESTION should it be MAX below?
                DMIN = MIN(DMIN-1.0D-3,QCIREPCUT)
                NREPULSIVE = NREPULSIVE + 1
                IF (NREPULSIVE.GT.NREPCURR) CALL DOUBLE_ALLOC_REP()
@@ -180,7 +184,7 @@ MODULE MOD_FREEZE
             END IF
          END DO
          
-      END SUBROUTINE ADD_CONSTR_AND_REP_FROZEN_ATOMS
+      END SUBROUTINE ADD_CONSTR_AND_REP_NBEST
 
       SUBROUTINE ALLOC_FREEZE(NATOMS)
          USE QCIKEYS, ONLY: QCIFROZEN, FREEZE

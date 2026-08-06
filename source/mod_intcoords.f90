@@ -22,7 +22,7 @@ MODULE MOD_INTCOORDS
 
       SUBROUTINE INITIATE_INTERPOLATION_BAND()
          USE QCIFILEHANDLER, ONLY: GETUNIT
-         USE QCIKEYS, ONLY: QCIFROZEN, NQCIFROZEN
+         !USE QCIKEYS, ONLY: QCIFROZEN, NQCIFROZEN
          IMPLICIT NONE
          INTEGER :: J1
          CHARACTER(LEN=25) :: LINFILE = "int_linear.xyz"
@@ -39,24 +39,26 @@ MODULE MOD_INTCOORDS
          XPREV(:)  = XYZ(:)
 
          !Deal with any frozen atoms
-         IF (NQCIFROZEN.GT.0) THEN
-            DO J1=1,NATOMS
-               IF (QCIFROZEN(J1)) THEN
-                  ATOMACTIVE(J1)=.TRUE.
-                  NACTIVE=NACTIVE+1
-                  TURNONORDER(NACTIVE)=J1
-                  NTRIES(J1)=1
-               END IF
-            END DO
-         END IF
+         !IF (NQCIFROZEN.GT.0) THEN
+         !   DO J1=1,NATOMS
+         !      IF (QCIFROZEN(J1)) THEN
+         !         ATOMACTIVE(J1)=.TRUE.
+         !         NACTIVE=NACTIVE+1
+         !         TURNONORDER(NACTIVE)=J1
+         !         NTRIES(J1)=1
+         !      END IF
+         !   END DO
+         !END IF
 
          IF (DEBUG) CALL WRITE_BAND(LINFILE)
 
       END SUBROUTINE INITIATE_INTERPOLATION_BAND
 
+      !> Get a constraint with smallest overall motion
+      !! Backbone and linear atoms get priority (if enabled)
       SUBROUTINE GET_DISTANCES_CONSTRAINTS(NBEST)
          USE QCI_CONSTRAINT_KEYS
-         USE QCIKEYS, ONLY: QCIDOBACK, ISBBATOM, QCIFROZEN, QCILINEART, INLINLIST
+         USE QCIKEYS, ONLY: QCIDOBACK, ISBBATOM, QCILINEART, INLINLIST
          USE HELPER_FNCTS, ONLY: DISTANCE_ATOM_DIFF_IMAGES
          IMPLICIT NONE
          INTEGER, INTENT(OUT) :: NBEST
@@ -72,17 +74,21 @@ MODULE MOD_INTCOORDS
 
          !adjust inlinlist to account for frozen atoms, 
          !these are active by default, so we don't need them in the linear interpolation
-         DO J1=1,NATOMS
-            IF (QCIFROZEN(J1)) INLINLIST(J1) = .FALSE.
-         END DO
+         !DO J1=1,NATOMS
+         !   IF (QCIFROZEN(J1).AND.QCILINEART) INLINLIST(J1) = .FALSE.
+         !END DO
+         
          WRITE(*,*) "DEBUGGING: NCONSTRAINT: " , NCONSTRAINT
          DO J1=1,NCONSTRAINT
             !WRITE(*,*) "QCILINEART: ", QCILINEART
             !WRITE(*,*) "INLINLIST(CONI(J1))" , INLINLIST(CONI(J1))
             !WRITE(*,*) "INLINLIST(CONJ(J1))" , INLINLIST(CONJ(J1))
 
-            IF (QCILINEART.AND. (.NOT.(INLINLIST(CONI(J1))).OR.(.NOT.INLINLIST(CONJ(J1)))) ) CYCLE            
-            !WRITE(*,*) "HELLO"
+            !Double check this condition
+            !IF (QCILINEART) THEN 
+            !   IF( (.NOT.(INLINLIST(CONI(J1)))) .OR. (.NOT.INLINLIST(CONJ(J1))) )  CYCLE            
+            !END IF
+
             ! we want to collect the change in atom positions between the endpoints
             CALL DISTANCE_ATOM_DIFF_IMAGES(NATOMS, XSTART, XFINAL, CONI(J1), D1)
             CALL DISTANCE_ATOM_DIFF_IMAGES(NATOMS, XSTART, XFINAL, CONJ(J1), D2)
@@ -210,4 +216,94 @@ MODULE MOD_INTCOORDS
 
          IF (DEBUG) WRITE(*,*) " write_profile> Interpolation energy profile written to ", FNAME
       END SUBROUTINE WRITE_PROFILE
+
+      SUBROUTINE READ_BAND()
+         USE QCIKEYS, ONLY: NATOMS, NIMAGES, GUESSFILE
+         USE QCIFILEHANDLER, ONLY: GETUNIT
+         IMPLICIT NONE
+         INTEGER :: LUNIT
+         INTEGER :: J1, J2, N, IOSTAT_VAL, NTOTAL
+         REAL(KIND = REAL64) :: X, Y, Z
+         CHARACTER(10) :: ATOMNAME
+         LOGICAL :: LEXIST
+
+      
+         INQUIRE(FILE=TRIM(GUESSFILE), EXIST=LEXIST)
+         IF (.NOT. LEXIST) THEN
+            WRITE(*,'(A,A,A)') 'ERROR: File "', TRIM(GUESSFILE), '" not found. Terminating.'
+            ERROR STOP
+         END IF
+
+         LUNIT = GETUNIT()
+         OPEN(UNIT=LUNIT, FILE=TRIM(GUESSFILE), STATUS='old', ACTION='read')
+
+         
+         ! Part1: scan only: count total images and validate NATOMS
+        
+         NTOTAL = 0
+         DO
+            READ(LUNIT, *, IOSTAT=IOSTAT_VAL) N
+            IF (IOSTAT_VAL /= 0) EXIT
+
+            IF (N.NE.NATOMS) THEN
+               WRITE(*,'(A,I0,A,I0)') 'ERROR: Expected NATOMS=', NATOMS, &
+                  ' but found ', N
+               CLOSE(LUNIT)
+               ERROR STOP
+            END IF
+
+            READ(LUNIT, *, IOSTAT=IOSTAT_VAL)  ! skip comment line
+            IF (IOSTAT_VAL.NE.0) THEN
+               WRITE(*,'(A,I0)') 'ERROR: EOF while skipping comment in frame ', NTOTAL+1
+               CLOSE(LUNIT)
+               ERROR STOP
+            END IF
+
+            DO J2 = 1, NATOMS
+               READ(LUNIT, *, IOSTAT=IOSTAT_VAL) ATOMNAME, X, Y, Z
+               IF (IOSTAT_VAL.NE.0) THEN
+                  WRITE(*,'(A,I0,A,I0)') 'ERROR: EOF at atom ', J2, &
+                     ' in frame ', NTOTAL+1
+                  CLOSE(LUNIT)
+                  ERROR STOP
+               END IF
+            END DO
+
+            NTOTAL = NTOTAL + 1
+         END DO
+
+         IF (NTOTAL.LT.2) THEN
+            WRITE(*,'(A,I0,A)') 'ERROR: Found ', NTOTAL, &
+               ' frame(s). Need at least 2 endpoints.'
+            CLOSE(LUNIT)
+            ERROR STOP
+         END IF
+
+         NIMAGES = NTOTAL - 2
+         WRITE(*,'(A,I0,A,I0,A)') 'Scan complete: ', NTOTAL, &
+            ' frames (', NIMAGES, ' images + 2 endpoints).'
+
+         !Reallocate intcoords in case NIMAGES changes. 
+         CALL ALLOC_INTCOORDS()
+         CALL ALLOC_PREVCOORDS()
+         CALL ALLOC_STEPTAKING()
+
+         REWIND(LUNIT)
+
+         ! Part3: Populate xyz
+         DO J1 = 1, NTOTAL
+            READ(LUNIT, *) N        ! natoms line (already validated)
+            READ(LUNIT, *)          ! skip comment line
+
+            DO J2 = 1, NATOMS
+               READ(LUNIT, *) ATOMNAME, X, Y, Z
+               XYZ((J1-1)*3*NATOMS + 3*(J2-1) + 1) = X
+               XYZ((J1-1)*3*NATOMS + 3*(J2-1) + 2) = Y
+               XYZ((J1-1)*3*NATOMS + 3*(J2-1) + 3) = Z
+            END DO
+         END DO
+
+         CLOSE(LUNIT)
+      END SUBROUTINE READ_BAND
+
 END MODULE MOD_INTCOORDS

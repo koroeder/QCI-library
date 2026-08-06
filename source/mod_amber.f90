@@ -36,6 +36,8 @@ MODULE AMBER_CONSTRAINTS
          USE MOD_INTCOORDS, ONLY: XSTART, XFINAL
          USE QCIFILEHANDLER, ONLY: GETUNIT, FILE_LENGTH
          USE HELPER_FNCTS, ONLY: DISTANCE_TWOATOMS
+         USE QCIKEYS, ONLY: USELINGROUPS
+
          IMPLICIT NONE
          INTEGER, INTENT(IN) :: NATOMS
          INTEGER :: NDUMMY ! counter for constraints
@@ -65,6 +67,10 @@ MODULE AMBER_CONSTRAINTS
          ! allocate the required arrays
          CALL ALLOC_AMBER_CONSTR()
          NDUMMY = 0
+         
+         !Save bonds to later use for linear groups detection
+         IF(USELINGROUPS) CALL SAVE_BONDS(BONDS,NBOND)
+         
          ! add bond constraints
          DO J1=1,NBOND
             NDUMMY = NDUMMY + 1
@@ -182,7 +188,7 @@ MODULE AMBER_CONSTRAINTS
       END SUBROUTINE AMBER_QCI_DEALLOCATE
 
       SUBROUTINE GET_ATOM_GROUPS()
-         USE QCIKEYS, ONLY: NATOMS, ATOMS2RES, QCIUSEGROUPS
+         USE QCIKEYS, ONLY: NATOMS, ATOMS2RES, QCIUSEGROUPS, QCIDOBACK
          IMPLICIT NONE         
          INTEGER, PARAMETER :: MAXGROUPSIZE = 14 !RNA or DNA sugar, AA groups are smaller
          INTEGER :: J1, CURRENT, RESID, PREV_RESID
@@ -199,7 +205,8 @@ MODULE AMBER_CONSTRAINTS
          ALLOCATE(GROUPLOOKUP(NATOMS), INGROUP(NATOMS), GROUPS_ADDED(NPLACINGGROUPS))
          ALLOCATE(SIZEPLACINGGROUPS(NPLACINGGROUPS),PLACINGGROUPS(NPLACINGGROUPS,MAXGROUPSIZE)) 
 
-         QCIUSEGROUPS = .TRUE.
+         !QCIDOBACK condition is a temp fix atm. 
+         IF (.NOT.QCIDOBACK) QCIUSEGROUPS = .TRUE.
 
          INGROUP(1:NATOMS) = .FALSE.
          GROUPLOOKUP(1:NATOMS) = -1
@@ -278,6 +285,10 @@ MODULE AMBER_CONSTRAINTS
          DO J1=1,NBACKBONE
             ISBBATOM(BACKBONE(J1)) = .TRUE.
          END DO
+
+         WRITE(*,*) "Get_backbone> N backbone: ", NBACKBONE 
+         IF (DEBUG) WRITE(*,*) "BBATOMS: ", BACKBONE
+
       END SUBROUTINE GET_BACKBONE
 
       SUBROUTINE GET_BIOCONSTR()
@@ -1004,5 +1015,38 @@ MODULE AMBER_CONSTRAINTS
          ENDDO
          RETURN
       END SUBROUTINE GET_ATOMID
+
+   !> Allocate and save bonds to qci_constraint_keys
+   SUBROUTINE SAVE_BONDS(BONDS_IN, NBOND_IN)
+      
+      USE QCI_CONSTRAINT_KEYS, ONLY: NBONDS, BOND_LIST
+      IMPLICIT NONE
+
+      ! === Inputs ===
+      INTEGER, INTENT(IN) :: NBOND_IN
+      INTEGER, INTENT(IN) :: BONDS_IN(NBOND_IN,2)
+
+      ! === Local ===
+      INTEGER :: I
+
+      ! === Sanity checks ===
+      IF (NBOND_IN <= 0) THEN
+         PRINT *, "SAVE_BONDS: nbonds <= 0, nothing to store"
+         RETURN
+      END IF
+
+      ! === Deallocate old storage if present ===
+      IF (ALLOCATED(BOND_LIST)) DEALLOCATE(BOND_LIST) 
+
+      ! === Allocate new storage ===
+      ALLOCATE(BOND_LIST(2, NBOND_IN))
+      NBONDS = NBOND_IN
+
+      DO I=1, NBONDS
+         BOND_LIST( 1, I) = BONDS_IN(I,1)
+         BOND_LIST( 2, I) = BONDS_IN(I,2)
+      END DO
+
+   END SUBROUTINE SAVE_BONDS
 
 END MODULE AMBER_CONSTRAINTS

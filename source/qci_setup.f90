@@ -2,14 +2,16 @@ MODULE QCISETUP
    USE QCIPREC
    CONTAINS
       SUBROUTINE QCI_INIT(PARAMETERFILE, ALIGNT)
-         USE QCIKEYS, ONLY: NATOMS, QCIAMBERT, QCIFREEZET, USEIMAGEDENSITY, QCIPERMT, USEDIHEDRALCONST
+         USE QCIKEYS, ONLY: NATOMS, QCIAMBERT, QCIFREEZET, USEIMAGEDENSITY, QCIPERMT, USEDIHEDRALCONST, QCILINEART, USELINGROUPS, QCIUSEGROUPS
          USE QCICONSTRAINTS, ONLY: CREATE_CONSTRAINTS
          USE QCIPERMDIST, ONLY: INIT_PERMALLOW
          USE MOD_FREEZE, ONLY: GET_FROZEN_ATOMS
          USE CHIRALITY, ONLY: FIND_CHIRAL_CENTRES
          USE REPULSION, ONLY: NREPCURR, ALLOC_REP_VARS
-         USE QCI_LINEAR, ONLY: GET_LINEAR_ATOMS
+         USE QCI_LINEAR, ONLY: GET_LINEAR_ATOMS, GET_LINEAR_GROUPS
          USE DIHEDRAL_CONSTRAINTS, ONLY: SETUP_DIH_CONSTR
+         USE OUT_PRINT, ONLY:  WRITE_QCI_KEYS
+
          IMPLICIT NONE
          CHARACTER(30), INTENT(IN) :: PARAMETERFILE
          LOGICAL, INTENT(IN) :: ALIGNT
@@ -17,16 +19,19 @@ MODULE QCISETUP
          ! parse settings
          WRITE(*,*) "qci_init> Reading parameter file ..."
          CALL PARSE_SETTINGS(PARAMETERFILE)
+         
+
          ! starting permutational setup perm.allow
          IF (QCIPERMT) THEN 
             CALL INIT_PERMALLOW(NATOMS)
             WRITE(*,*) "qci_init> Reading perm.allow file ..."
          ENDIF
          
+         CALL WRITE_QCI_KEYS()
          !Need to get frozen atoms before aligning the endpoints for loperdist to work atm. 
          !This will not actually assign frozen atoms, only allocates arrays 
-         WRITE(*,*) "qci_init> Calling GET_FROZEN_ATOMS ..."
-         CALL GET_FROZEN_ATOMS()
+         !WRITE(*,*) "qci_init> Calling GET_FROZEN_ATOMS ..."
+         !CALL GET_FROZEN_ATOMS()
         
          
          ! align endpoints
@@ -36,15 +41,21 @@ MODULE QCISETUP
             WRITE(*,*) "qci_init> Aligned endpoints"
          ENDIF
          !Now actually assign frozen atoms 
-         IF (QCIFREEZET) THEN
-            WRITE(*,*) "qci_init> Calling GET_FROZEN_ATOMS ..."
-            CALL GET_FROZEN_ATOMS()
-         ENDIF
+         !IF (QCIFREEZET) THEN
+         !   WRITE(*,*) "qci_init> Calling GET_FROZEN_ATOMS ..."
+         !   CALL GET_FROZEN_ATOMS()
+         !ENDIF
          
          ! get constraints
          CALL CREATE_CONSTRAINTS()
          ! get atoms for linear interpolation
-         CALL GET_LINEAR_ATOMS()
+         IF(QCILINEART) CALL GET_LINEAR_ATOMS()
+         
+         !IN DEVELOPMENT! 
+         !ATM LINEAR GROUPS DON'T WORK WITH FROZEN ATOMS
+         IF(USELINGROUPS) CALL GET_LINEAR_GROUPS()
+
+
          ! setting up repulsions
          ! we use NATOMS as initial size here for the number of repulsions
          NREPCURR = NATOMS
@@ -55,6 +66,8 @@ MODULE QCISETUP
          CALL SET_ELEMENTS()
          ! setup dihedral constraints
          IF (USEDIHEDRALCONST) CALL SETUP_DIH_CONSTR()
+
+         
       END SUBROUTINE QCI_INIT
 
       SUBROUTINE SET_ELEMENTS()
@@ -170,32 +183,35 @@ MODULE QCISETUP
       SUBROUTINE SETKEYS(ENTRY, VAL)
          USE QCIKEYS
          USE QCI_CONSTRAINT_KEYS, ONLY: MAXCONUSE, QCICONSEP, QCICONSTRAINTTOL, QCICONCUT, GEOMFILE, CONSTRFILE, &
-                                        CONCUTABST, CONCUTFRACT, CONCUTABSINC, CONCUTABS, CONCUTFRAC 
+                                        CONCUTABST, CONCUTFRACT, CONCUTABS, CONCUTFRAC 
          USE AMBER_CONSTRAINTS, ONLY: AMBERCONSTRFILE, TOPFILENAME
          USE HIRE_CONSTRAINTS, ONLY: HIRECONSTRFILE, HIRETOPFILE 
          USE SBM_CONSTRAINTS, ONLY: SBMCONTACTFILE
          USE QCI_LINEAR, ONLY: LINEARCUT, LINEARFILE
-         USE REPULSION, ONLY: CHECKREPCUTOFF
          USE ADDINGATOM, ONLY: QCIDISTCUT, QCIATOMSEP
-         USE DIHEDRAL_CONSTRAINTS, ONLY: KDIH
+         USE DIHEDRAL_CONSTRAINTS, ONLY: KDIH, DIHTYPE
          IMPLICIT NONE
          CHARACTER(25), INTENT(IN) :: ENTRY, VAL
 
+         !------------------------------------- Admin ----------------------------------------------------------! 
          IF (ENTRY.EQ."COMMENT") THEN
             RETURN
          ! basic set up
          ! enable debug
          ELSE IF (ENTRY.EQ."DEBUG") THEN
             DEBUG = .TRUE.
-         ! number of images to start with
-         ELSE IF (ENTRY.EQ."NIMAGES") THEN
-            READ(VAL, *) NIMAGES
-         ! maximum number of images
-         ELSE IF (ENTRY.EQ."MAXINTIMAGES") THEN
-            READ(VAL, *) MAXINTIMAGE
+         
+         !----------General Interpolation settings -----------------------!
          ! maximum number of iterations for band optimisation
          ELSE IF (ENTRY.EQ."MAXITERATIONS") THEN
             READ(VAL, *) MAXITER
+         !reading a guess for the band
+         ELSE IF (ENTRY.EQ."QCIREADGUESS") THEN
+            QCIREADGUESS = .TRUE.   
+            GUESSFILE = VAL
+         
+         !----------Topology options -------------------------------------!
+
          ! which potential is used?
          ELSE IF (ENTRY.EQ."QCIMODE") THEN
             IF (VAL.EQ."AMBER") THEN
@@ -211,19 +227,44 @@ MODULE QCISETUP
             ELSE 
                WRITE(*,*) " setkeys> QCI mode ", VAL, " is not a valid function"
             END IF
-         ! options for these potentials
+         
+         !options for these potentials
+         
+         !----------------------- Amber ------------------------------!
          ELSE IF (ENTRY.EQ."AMBERCONSTRFILE") THEN
             AMBERCONSTRFILE = VAL
          ELSE IF (ENTRY.EQ."DETECTBASEPAIRS") THEN
             BASEPAIRDETECTION = .TRUE.
          ELSE IF (ENTRY.EQ."TOPFILENAME") THEN
             TOPFILENAME = VAL
+         !-------------------- Hire ----------------------------------!
          ELSE IF (ENTRY.EQ."HIRECONSTRFILE") THEN
             HIRECONSTRFILE = VAL
          ELSE IF (ENTRY.EQ."HIRETOPFILE") THEN
             HIRETOPFILE = VAL
+         !-------------------- SBM -----------------------------------!
          ELSE IF (ENTRY.EQ."SBMCONTACTFILE") THEN
             SBMCONTACTFILE = VAL
+         !----------------- Geometry  --------------------------------!
+         ELSE IF (ENTRY.EQ."GEOMFILE") THEN
+            GEOMFILE = VAL
+
+
+         !--------------- Atom adding options ------------------------! 
+         ! use trilateration
+         ELSE IF (ENTRY.EQ."TRILATERATE") THEN
+            QCITRILATERATION = .TRUE.
+            USEINTERNALST = .FALSE.
+         ELSE IF (ENTRY.EQ."TRILATERATE2") THEN
+            QCITRILATERATION2 = .TRUE.
+            USEINTERNALST = .FALSE.
+         ! use internal corodinates for inteprolation
+         ELSE IF (ENTRY.EQ."USEINTERNALS") THEN
+            USEINTERNALST = .TRUE.
+         ! use four atom basis for interpolation
+         ELSE IF (ENTRY.EQ."USEFOURATOMS") THEN
+            USEFOURATOMST = .TRUE.
+  
          ! Strategies of how atoms are activated
          ELSE IF (ENTRY.EQ."QCIDOBACK") THEN
             QCIDOBACK = .TRUE. 
@@ -231,10 +272,7 @@ MODULE QCISETUP
             QCIDOBACKALL = .TRUE.             
          ELSE IF (ENTRY.EQ."QCIADDACID") THEN
             QCIADDACIDT = .TRUE.      
-         ELSE IF (ENTRY.EQ."GEOMFILE") THEN
-            GEOMFILE = VAL
-         ELSE IF (ENTRY.EQ."ADDATOMINTERVAL") THEN
-            READ(VAL,*) INTADDATOM
+         
          !limits on finding atoms for local axis set
          ELSE IF (ENTRY.EQ."DISTCUTADDATOM") THEN
             READ(VAL,*) QCIDISTCUT
@@ -244,67 +282,69 @@ MODULE QCISETUP
          ELSE IF (ENTRY.EQ."MINIMISEAFTERADD") THEN
             OPTIMISEAFTERADDITION = .TRUE.
             READ(VAL, *) NMINAFTERADD
-         ! use trilateration
-         ELSE IF (ENTRY.EQ."TRILATERATE") THEN
-            QCITRILATERATION = .TRUE.
-            USEINTERNALST = .FALSE.
-         ! use internal corodinates for inteprolation
-         ELSE IF (ENTRY.EQ."USEINTERNALS") THEN
-            USEINTERNALST = .TRUE.
-         ! use four atom basis for interpolation
-         ELSE IF (ENTRY.EQ."USEFOURATOMS") THEN
-            USEFOURATOMST = .TRUE.
-         ! use linear atoms
-         ELSE IF (ENTRY.EQ."QCILINEAR") THEN
-            QCILINEART = .TRUE.
-            LINEARFILE = VAL
-         ELSE IF (ENTRY.EQ."LINEARCUTOFF") THEN
-            READ(VAL, *) LINEARCUT
-         ELSE IF (ENTRY.EQ."LINEARBB") THEN
-            LINEARBBT = .TRUE.           
-         !reading a guess for the band
-         ELSE IF (ENTRY.EQ."QCIREADGUESS") THEN
-            QCIREADGUESS = .TRUE.   
-            GUESSFILE = VAL
-         ! permutational variables
-         ELSE IF (ENTRY.EQ."QCIPERMCHECK") THEN
-            QCIPERMT = .TRUE.
-            READ(VAL, *) QCIPERMCHECKINT
-         ELSE IF (ENTRY.EQ."QCIPERMCUT") THEN
-            READ(VAL, *) QCIPERMCUT
-         
-            ! use of frozen atoms
-         ELSE IF (ENTRY.EQ."FREEZEFILE") THEN
-            QCIFREEZET = .TRUE.            
-            FREEZEFILE = VAL
-         ELSE IF (ENTRY.EQ."NMINUNFROZEN") THEN
-            READ(VAL, *) NMINUNFROZEN
-         ELSE IF (ENTRY.EQ."FREEZEFILE") THEN
-            FREEZEFILE = VAL
-         ELSE IF (ENTRY.EQ."QCIFREEZE") THEN
-            QCIFREEZET = .TRUE.
-            READ(VAL, *) QCIFREEZETOL
-         
-            ! check for internal minima in constraints?
-         ELSE IF (ENTRY.EQ."CHECKINTMINCONSTR") THEN
-            CHECKCONINT = .TRUE.
+
+         !------------------------------------------------------------!
+         !----------------Penalty functions---------------------------!
+         !------------------------------------------------------------!
+
          ! scaling factor for internal minima
          ELSE IF (ENTRY.EQ."INTMINFACTOR") THEN 
             READ(VAL,*) INTMINFAC 
-         ! minimum distacne in sequence for internal minima
+         
+         !----------------Repulsions----------------------------------!
+         
+         ELSE IF (ENTRY.EQ."REPULSIONCUTOFF") THEN
+            READ(VAL, *) QCIREPCUT       
+         ELSE IF (ENTRY.EQ."CHECKREPCUTOFF") THEN
+            READ(VAL,*) CHECKREPCUTOFF
+         !New terms for energy scaling
+         ELSE IF (ENTRY.EQ."K_REP") THEN
+            READ(VAL,*) K_REP
+         !checking repulsions
+         ELSE IF (ENTRY.EQ."CHECKREPINTERVAL") THEN
+            READ(VAL, *) CHECKREPINTERVAL
+           ! minimum distacne in sequence for internal minima
          ELSE IF (ENTRY.EQ."REPINTMINSEP") THEN 
-            READ(VAL,*) QCIINTREPMINSEP      
-         ! constraint constant?
-         ELSE IF (ENTRY.EQ."INTCONSTRAINTDEL") THEN 
-            READ(VAL,*) INTCONSTRAINTDEL   
-         ! image control
-         ELSE IF (ENTRY.EQ."USEIMAGEDENSITY") THEN  
-            USEIMAGEDENSITY = .TRUE.
-            READ(VAL,*) IMAGEDENSITY
-         ELSE IF (ENTRY.EQ."MAXIMAGESEPARATION") THEN
-            READ(VAL,*) IMSEPMAX
-         ELSE IF (ENTRY.EQ."MINIMAGESEPARATION") THEN
-            READ(VAL,*) IMSEPMIN
+            READ(VAL,*) QCIINTREPMINSEP  
+         
+         !-----------------Constraints---------------------------------!
+         ELSE IF (ENTRY.EQ."K_CONST") THEN
+            READ(VAL,*) K_CONST
+         ! check for internal minima in constraints?
+         ELSE IF (ENTRY.EQ."CHECKINTMINCONSTR") THEN
+            CHECKCONINT = .TRUE.
+         
+         ELSE IF (ENTRY.EQ."MAXCONUSE") THEN
+            READ(VAL, *) MAXCONUSE        
+         ELSE IF (ENTRY.EQ."CONCUTABS") THEN
+            CONCUTABST = .TRUE.
+            READ(VAL, *) CONCUTABS
+         ELSE IF ( ENTRY.EQ."CONACTINACT") THEN
+            USECONACTINACT = .TRUE.
+            READ(VAL,*) CONACTINACT 
+         ELSE IF (ENTRY.EQ."CONCUTFRAC") THEN
+            CONCUTFRACT = .TRUE.
+            READ(VAL, *) CONCUTFRAC
+         
+         !--------------------Congeom ONLY options -------------------!
+         ELSE IF (ENTRY.EQ."QCICONSEP") THEN
+            READ(VAL, *) QCICONSEP
+         ELSE IF (ENTRY.EQ."QCICONSTRAINTTOL") THEN
+            READ(VAL, *) QCICONSTRAINTTOL
+         ELSE IF (ENTRY.EQ."QCICONCUT") THEN
+            READ(VAL, *) QCICONCUT
+         
+            
+         !---------------------Dihedrals------------------------------!
+         ELSE IF (ENTRY.EQ."DIHEDRALS") THEN
+            USEDIHEDRALCONST = .TRUE.
+            READ(VAL,*) DIHTYPE
+         ELSE IF (ENTRY.EQ."DIHEDRALCONSTR") THEN
+            USEDIHEDRALCONST = .TRUE.
+            READ(VAL,*) KDIH
+       
+         !---------------------Spring---------------------------------!
+         
          ! spring constant
          ELSE IF (ENTRY.EQ."KSPRING") THEN 
             READ(VAL,*) KINT
@@ -320,49 +360,40 @@ MODULE QCISETUP
          ELSE IF (ENTRY.EQ."KMAX") THEN
             READ(VAL,*) QCIKINTMAX
          ELSE IF (ENTRY.EQ."KADJUSTFRAC") THEN
-            READ(VAL,*) QCIADJUSTKFRAC            
-         ! constraints
-         ELSE IF (ENTRY.EQ."MAXCONUSE") THEN
-            READ(VAL, *) MAXCONUSE        
-         ELSE IF (ENTRY.EQ."QCICONSEP") THEN
-            READ(VAL, *) QCICONSEP
-         ELSE IF (ENTRY.EQ."QCICONSTRAINTTOL") THEN
-            READ(VAL, *) QCICONSTRAINTTOL
-         ELSE IF (ENTRY.EQ."QCICONCUT") THEN
-            READ(VAL, *) QCICONCUT
-         ELSE IF (ENTRY.EQ."CONCUTABS") THEN
-            CONCUTABST = .TRUE.
-            READ(VAL, *) CONCUTABS
-         ELSE IF (ENTRY.EQ."CONCUTABSINC") THEN
-            CONCUTABSINC = .TRUE.
-         ELSE IF (ENTRY.EQ."CONCUTFRAC") THEN
-            CONCUTFRACT = .TRUE.
-            READ(VAL, *) CONCUTFRAC
-         ELSE IF ( ENTRY.EQ."CONACTINACT") THEN
-            USECONACTINACT = .TRUE.
-            READ(VAL,*) CONACTINACT 
-         ELSE IF (ENTRY.EQ."DIHEDRALCONSTR") THEN
-            USEDIHEDRALCONST = .TRUE.
-            READ(VAL,*) KDIH
-         !repulsions
-         ELSE IF (ENTRY.EQ."REPULSIONCUTOFF") THEN
-            READ(VAL, *) QCIREPCUT
-         ELSE IF (ENTRY.EQ."QCICONSTRREP") THEN
-            READ(VAL, *) QCICONSTRREP
-         !
-         ELSE IF (ENTRY.EQ."CHECKREPCUTOFF") THEN
-            READ(VAL,*) CHECKREPCUTOFF
-         
-         !New terms for energy scaling
-         ELSE IF (ENTRY.EQ."K_REP") THEN
-            READ(VAL,*) K_REP
-         ELSE IF (ENTRY.EQ."K_CONST") THEN
-            READ(VAL,*) K_CONST
+            READ(VAL,*) QCIADJUSTKFRAC          
 
+         !--------------------Linear groups---------------------------!
+         ELSE IF(ENTRY.EQ."USELINGROUPS") THEN
+            USELINGROUPS = .TRUE.
+
+         !--------------------Image control---------------------------!   
+         ! number of images to start with
+         ELSE IF (ENTRY.EQ."NIMAGES") THEN
+            READ(VAL, *) NIMAGES
+         ! maximum number of images
+         ELSE IF (ENTRY.EQ."MAXINTIMAGES") THEN
+            READ(VAL, *) MAXINTIMAGE
+         
+         ELSE IF (ENTRY.EQ."MAXIMAGESEPARATION") THEN
+            READ(VAL,*) IMSEPMAX
+         ELSE IF (ENTRY.EQ."MINIMAGESEPARATION") THEN
+            READ(VAL,*) IMSEPMIN       
+        
+         !-------------------Permutations-----------------------------!
+
+         ! permutational variables
+         ELSE IF (ENTRY.EQ."QCIPERMCHECK") THEN
+            QCIPERMT = .TRUE.
+            READ(VAL, *) QCIPERMCHECKINT
+         ELSE IF (ENTRY.EQ."QCIPERMCUT") THEN
+            READ(VAL, *) QCIPERMCUT
+         
+            
+         !------------------Energy minimisation options---------------!
+              
          !maximum gradient component
          ELSE IF (ENTRY.EQ."MAXGRADCOMP") THEN
             READ(VAL, *) MAXGRADCOMP
-
          !settings for step taking
          ELSE IF (ENTRY.EQ."DIAGGUESS") THEN
             READ(VAL, *) DGUESS
@@ -373,6 +404,8 @@ MODULE QCISETUP
          ELSE IF (ENTRY.EQ."COLDFUSIONLIMIT") THEN
             READ(VAL, *) COLDFUSIONLIMIT
 
+
+         !------------------Convergence criteria----------------------!   
          !maximum constraint E - used for convergence
          ELSE IF (ENTRY.EQ."MAXCONSTRAINTE") THEN
             READ(VAL, *) MAXCONE
@@ -381,19 +414,77 @@ MODULE QCISETUP
             READ(VAL, *) QCIRMSTOL
          ELSE IF (ENTRY.EQ."MAXERISE") THEN
             READ(VAL, *) MAXERISE
-         
+         ELSE IF (ENTRY.EQ."SPRING_GRAD_CONV") THEN
+            READ(VAL, *) SPRING_GRAD_CONV
          !QCI resetting
          ELSE IF (ENTRY.EQ."QCIRESET") THEN
             QCIRESET = .TRUE.
             READ(VAL, *) QCIRESETINT1
-         !checking repulsions
-         ELSE IF (ENTRY.EQ."CHECKREPINTERVAL") THEN
-            READ(VAL, *) CHECKREPINTERVAL
+            IF (QCIRESETINT1.LE.0) QCIRESET = .FALSE.
+
+         !------------------Output control-----------------------------!
+       
          ! options for saving band
          ELSE IF (ENTRY.EQ."DUMPXYZ") THEN
             DUMPQCIXYZ = .TRUE.
             READ(VAL, *) DUMPQCIXYZFRQS
- 
+
+         !------------------------------------------------------------!
+         !------------------In development----------------------------!
+         !------------------------------------------------------------!
+         
+         ELSE IF (ENTRY.EQ."DETECTBBCROSSINGS") THEN
+            DETECTBBCROSSING = .TRUE.
+            READ(VAL, *) CHECKCROSSFREQ             
+         ELSE IF (ENTRY.EQ."USEIMAGEDENSITY") THEN  
+            USEIMAGEDENSITY = .TRUE.
+            READ(VAL,*) IMAGEDENSITY            
+            
+         !------------------------------------------------------------!
+         !------------------Stuff for removal-------------------------!
+         !------------------------------------------------------------!
+
+         ELSE IF (ENTRY.EQ."QCICONSTRREP") THEN
+            WRITE(*,*) "WARNING: QCICONSTRREP keyword has been replaced by K_REP"
+            WRITE(*,*) "Replace  QCICONSTRREP in the config file and try again."
+            WRITE(*,*) "Terminating ... "
+            CALL INT_ERR_TERMINATE()
+         ! constraint constant?
+         ELSE IF (ENTRY.EQ."INTCONSTRAINTDEL") THEN 
+            WRITE(*,*) "WARNING: INTCONSTRAINTDEL keyword has been replaced by K_CONST!"
+            WRITE(*,*) "Replace  INTCONSTRAINTDEL in the config file and try again."
+            WRITE(*,*) "Terminating ... "
+            CALL INT_ERR_TERMINATE()
+         
+         ! use linear atoms
+         ELSE IF (ENTRY.EQ."QCILINEAR") THEN
+            QCILINEART = .TRUE.
+            LINEARFILE = VAL
+         ELSE IF (ENTRY.EQ."LINEARCUTOFF") THEN
+            READ(VAL, *) LINEARCUT
+         ELSE IF (ENTRY.EQ."LINEARBB") THEN
+            LINEARBBT = .TRUE.
+
+         ! use of frozen atoms
+         ELSE IF (ENTRY.EQ."FREEZEFILE") THEN
+            WRITE(*,*) "Warning: Frozen atoms option has been removed from QCI!"
+            !QCIFREEZET = .TRUE.            
+            !FREEZEFILE = VAL
+         ELSE IF (ENTRY.EQ."NMINUNFROZEN") THEN
+            !READ(VAL, *) NMINUNFROZEN
+            WRITE(*,*) "Warning: Frozen atoms option has been removed from QCI!"
+         ELSE IF (ENTRY.EQ."FREEZEFILE") THEN
+            !FREEZEFILE = VAL
+            WRITE(*,*) "Warning: Frozen atoms option has been removed from QCI!"
+         ELSE IF (ENTRY.EQ."QCIFREEZE") THEN
+            !QCIFREEZET = .TRUE.
+            !READ(VAL, *) QCIFREEZETOL
+            WRITE(*,*) "Warning: Frozen atoms option has been removed from QCI!"
+
+         !------------------------------------------------------------!
+         !-------------------------------END--------------------------!
+         !------------------------------------------------------------!
+
          ELSE
             WRITE(*,*) " setkeys> Cannot find setting ", ENTRY, " - will skip this entry"
          END IF

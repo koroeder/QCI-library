@@ -112,6 +112,8 @@ MODULE QCIPERMDIST
          IF (ALLOCATED(STARTGROUP)) DEALLOCATE(STARTGROUP)
          IF (ALLOCATED(ENDGROUP)) DEALLOCATE(ENDGROUP)
          IF (ALLOCATED(GROUPACTIVE)) DEALLOCATE(GROUPACTIVE)
+         !Added missing deallacote statement
+         IF (ALLOCATED(CONCOMMON)) DEALLOCATE(CONCOMMON)
       END SUBROUTINE DEALLOC_QCIPERM
 
       !> Reads perm.allow file
@@ -503,6 +505,13 @@ MODULE QCIPERMDIST
             IF ((PATOMS.EQ.2).AND.(J1.EQ.DOGROUP)) THEN
                NEWPERM(NDUMMY) = PERMGROUP(NDUMMY+1) 
                NEWPERM(NDUMMY+1) = PERMGROUP(NDUMMY)
+            ENDIF
+
+            !Try a simple swap for three, but we have 3!=6 combinations for this groups size! - Need to think how to do that
+            IF ((PATOMS.EQ.3).AND.(J1.EQ.DOGROUP)) THEN
+               NEWPERM(NDUMMY) = PERMGROUP(NDUMMY+1) 
+               NEWPERM(NDUMMY+1) = PERMGROUP(NDUMMY+2)
+               NEWPERM(NDUMMY+2) = PERMGROUP(NDUMMY)
             ENDIF
 
             XA=0.0D0; YA=0.0D0; ZA=0.0D0
@@ -944,14 +953,24 @@ MODULE QCIPERMDIST
          !Copied fix from OPTIM
          
          ! Fix frozen atoms. DJW 17.5.2025
+         !DO J1=1,NATOMS
+         !   IF (LPERMOFF) THEN ! align COORDSB instead
+         !      IF (.NOT.QCIFROZEN(J1)) COORDSB(3*(J1-1)+1:3*(J1-1)+3)=TEMPB(3*(J1-1)+1:3*(J1-1)+3)
+         !   ELSE
+         !   ! finally, best COORDSA should include permutations for DNEB input!
+         !      IF (.NOT.QCIFROZEN(J1)) COORDSA(3*(J1-1)+1:3*(J1-1)+3)=XBEST(3*(J1-1)+1:3*(J1-1)+3) 
+         !   ENDIF
+         !ENDDO
+
          DO J1=1,NATOMS
             IF (LPERMOFF) THEN ! align COORDSB instead
-               IF (.NOT.QCIFROZEN(J1)) COORDSB(3*(J1-1)+1:3*(J1-1)+3)=TEMPB(3*(J1-1)+1:3*(J1-1)+3)
+               COORDSB(3*(J1-1)+1:3*(J1-1)+3)=TEMPB(3*(J1-1)+1:3*(J1-1)+3)
             ELSE
             ! finally, best COORDSA should include permutations for DNEB input!
-               IF (.NOT.QCIFROZEN(J1)) COORDSA(3*(J1-1)+1:3*(J1-1)+3)=XBEST(3*(J1-1)+1:3*(J1-1)+3) 
+               COORDSA(3*(J1-1)+1:3*(J1-1)+3)=XBEST(3*(J1-1)+1:3*(J1-1)+3) 
             ENDIF
          ENDDO
+
 
 
 
@@ -1183,7 +1202,7 @@ MODULE QCIPERMDIST
       END SUBROUTINE ROTXZ
 
       !> Moves centre of coords XA & XB to the origin, finds min distance rotational aligment
-      !> Returns the rotation matrix, does not modift the coordinates
+      !> Returns the rotation matrix, does not modify the coordinates
       SUBROUTINE NEWMINDIST2(RA,RB,NATOMS,DIST,DEBUG,RMAT,CMXA,CMYA,CMZA,CMXB,CMYB,CMZB,DWORST)
          IMPLICIT NONE
          INTEGER, INTENT(IN) :: NATOMS

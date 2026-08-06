@@ -5,7 +5,7 @@ MODULE HELPER_FNCTS
    CONTAINS
 
       !> Euclidean norm of a vector
-      FUNCTION EUC_NORM(V)
+      PURE FUNCTION EUC_NORM(V)
          REAL(KIND = REAL64) :: EUC_NORM
          REAL(KIND = REAL64), INTENT(IN) :: V(3)
          
@@ -13,7 +13,7 @@ MODULE HELPER_FNCTS
       END FUNCTION EUC_NORM
 
       !> Function to calculate dot product for any dimension of vector
-      FUNCTION DOTP(NSIZE,V1,V2)
+      PURE FUNCTION DOTP(NSIZE,V1,V2)
          REAL(KIND = REAL64) :: DOTP     ! dot product
          INTEGER, INTENT(IN) :: NSIZE    ! input size for vectors
          REAL(KIND = REAL64), INTENT(IN) :: V1(NSIZE), V2(NSIZE) !the vectors to be used
@@ -38,8 +38,8 @@ MODULE HELPER_FNCTS
          VN(1:3) = V(1:3)/NORM
       END SUBROUTINE NORM_VEC
 
-      FUNCTION CROSS_PROD(V1,V2) RESULT(A)
-         REAL(KIND = REAL64) :: V1(3), V2(3)
+      PURE FUNCTION CROSS_PROD(V1,V2) RESULT(A)
+         REAL(KIND = REAL64), INTENT(IN) :: V1(3), V2(3)
          REAL(KIND = REAL64) :: A(3)
 
          A(1) = V1(2) * V2(3) - V1(3) * V2(2)
@@ -56,6 +56,7 @@ MODULE HELPER_FNCTS
          U(1:3) = DOTP(3,V1,V2)/DOTP(3,V2,V2)*V2(1:3)
       END FUNCTION GS_PROJECTION
 
+      !Returns angle between 3 atoms in radians
       REAL(KIND = REAL64) FUNCTION ANGLE(COORDS) RESULT(ANG)
          REAL(KIND = REAL64) :: COORDS(9)
          REAL(KIND = REAL64) :: VEC1(3), VEC2(3)
@@ -71,6 +72,9 @@ MODULE HELPER_FNCTS
          ANG = ATAN2(CPMAG,DP)
       END FUNCTION ANGLE
 
+      !> calculate angle according to formula (Blondel and Karplus, 1996):
+      !! phi = atan2( ([b1 x b2] x [b2 x b3]) . (b2/|b2|), [b1 x b2] . [b2 x b3] )
+      !! Result in radians
       REAL(KIND = REAL64) FUNCTION DIHEDRAL(COORDS) RESULT(DIH)
          REAL(KIND = REAL64) :: COORDS(12)
          REAL(KIND = REAL64) :: VECS(9)
@@ -87,10 +91,20 @@ MODULE HELPER_FNCTS
          X = CROSS_PROD(B1xB2, B2xB3)
          B2NORM = VECS(4:6)/EUC_NORM(VECS(4:6))
 
-         ! calculate angle according to formula (Blondel and Karplus, 1996):
-         ! phi = atan2( ([b1 x b2] x [b2 x b3]) . (b2/|b2|), [b1 x b2] . [b2 x b3] )
+         
          DIH = ATAN2(DOTP(3,X,B2NORM), DOTP(3,B1xB2,B2xB3))
       END FUNCTION DIHEDRAL
+
+
+      REAL(KIND=REAL64) FUNCTION DIHEDRAL_DIFF(A, B) RESULT(DIH_DIFF)
+         REAL(KIND = REAL64), PARAMETER :: PI = 3.141592653589793D0
+         REAL(KIND=REAL64) :: A, B
+         !DIH_DIFF = ABS(MOD(A - B + PI, 2.0D0*PI) - PI)
+         DIH_DIFF = DABS(ATAN2(DSIN(A-B), DCOS(A-B)))
+      END FUNCTION
+
+
+
     
       SUBROUTINE DISTANCE_SIMPLE(X1, X2, DIST)
          IMPLICIT NONE
@@ -111,13 +125,25 @@ MODULE HELPER_FNCTS
          REAL(KIND = REAL64), INTENT(IN) :: X(3*NATOMS)
          INTEGER, INTENT(IN) :: IDX1, IDX2
          REAL(KIND = REAL64), INTENT(OUT) :: DIST
-         REAL(KIND = REAL64) :: XYZ1(3), XYZ2(3)
-         INTEGER :: J
-         DO J = 1,3
-            XYZ1(J) = X(3*(IDX1-1)+J)
-            XYZ2(J) = X(3*(IDX2-1)+J)
-         END DO
-         DIST = SQRT((XYZ1(1)-XYZ2(1))**2 + (XYZ1(2)-XYZ2(2))**2 + (XYZ1(3)-XYZ2(3))**2)
+         REAL(KIND = REAL64) :: DX, DY, DZ, D(3)
+         INTEGER :: I1, I2
+         
+         !INTEGER :: J
+         !DO J = 1,3
+         !   XYZ1(J) = X(3*(IDX1-1)+J)
+         !   XYZ2(J) = X(3*(IDX2-1)+J)
+         !END DO
+
+         I1 = 3*(IDX1-1)
+         I2 = 3*(IDX2-1)
+   
+         D(1) = X(I1+1) - X(I2+1)
+         D(2) = X(I1+2) - X(I2+2)
+         D(3) = X(I1+3) - X(I2+3)
+
+         !DIST = SQRT((XYZ1(1)-XYZ2(1))**2 + (XYZ1(2)-XYZ2(2))**2 + (XYZ1(3)-XYZ2(3))**2)
+         DIST = SQRT(DOT_PRODUCT(D,D)) 
+      
       END SUBROUTINE DISTANCE_TWOATOMS
 
       !> Calculate |X(IDX,J)-X(IDX,J-11)| IDX=atom id, J - image id
@@ -197,11 +223,19 @@ MODULE HELPER_FNCTS
             IF ((START_IND.EQ.0).AND.(LINE(J1:J1).NE.' ')) THEN
                START_IND=J1
             ENDIF
+
             IF (START_IND.GT.0) THEN
                IF (LINE(J1:J1).EQ.' ') END_IND=J1-1
                IF (J1.EQ.LEN(LINE)) END_IND=J1
                IF (END_IND.GT.0) THEN
                   J2=J2+1
+                  
+                  IF (J2 .GT. NWORDS) THEN
+                     WRITE(0, *) 'READ_LINE ERROR: more than NWORDS words found. NWORDS =', NWORDS
+                     WRITE(0, *) 'Offending line: ', TRIM(LINE)
+                     ERROR STOP 1
+                  END IF
+                  
                   WORD=LINE(START_IND:END_IND)
                   WORDSOUT(J2)=TRIM(WORD)
                   START_IND=0
@@ -211,5 +245,24 @@ MODULE HELPER_FNCTS
             J1=J1+1
          ENDDO
       END SUBROUTINE READ_LINE
+
+   SUBROUTINE APPLY_ROTATION_MATRIX(COORD, ROTATION_MATRIX)
+      USE QCIPREC
+      IMPLICIT NONE
+      REAL(KIND=REAL64), INTENT(INOUT) :: COORD(3)
+      REAL(KIND=REAL64), INTENT(IN) :: ROTATION_MATRIX(3, 3)
+      REAL(KIND=REAL64) :: TEMP(3)
+      INTEGER :: I, J
+      
+      TEMP(:) = 0.0D0
+      DO I = 1, 3
+         DO J = 1, 3
+               TEMP(I) = TEMP(I) + ROTATION_MATRIX(I, J) * COORD(J)
+         END DO
+      END DO
+      
+      COORD = TEMP
+
+END SUBROUTINE APPLY_ROTATION_MATRIX
 
 END MODULE HELPER_FNCTS

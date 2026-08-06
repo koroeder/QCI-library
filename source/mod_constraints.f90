@@ -7,7 +7,7 @@ MODULE QCICONSTRAINTS
 
       ! create constraints and check them
       SUBROUTINE CREATE_CONSTRAINTS()
-         USE QCIKEYS, ONLY: NATOMS, QCIAMBERT, QCIHIRET, QCISBMT, QCIDOBACK, QCIDOBACKALL, DEBUG
+         USE QCIKEYS, ONLY: NATOMS, QCIAMBERT, QCIHIRET, QCISBMT, DEBUG
          USE SBM_CONSTRAINTS, ONLY: SBMMODEL_QCI_CONSTRAINTS, DEALLOC_SBM_CONST, SBM_NCONST, &
                                     SBM_CONI, SBM_CONJ, SBM_CONDISTREF, SBM_CONCUT
          USE AMBER_CONSTRAINTS, ONLY: AMBER_QCI_CONSTRAINTS, DEALLOC_AMBER_CONSTR, GET_BACKBONE, AMBER_NCONST, &
@@ -220,7 +220,7 @@ MODULE QCICONSTRAINTS
       END SUBROUTINE CHECK_DUPLICATES
 
       SUBROUTINE CHECK_PERCOLATION(NATOMS, PERCT)
-         USE QCIKEYS, ONLY: NQCIFROZEN, QCIFROZEN
+         !USE QCIKEYS, ONLY: NQCIFROZEN , QCIFROZEN
          IMPLICIT NONE
          INTEGER, INTENT(IN) :: NATOMS
          LOGICAL, INTENT(OUT) :: PERCT
@@ -234,15 +234,15 @@ MODULE QCICONSTRAINTS
          NINGROUP(1:NATOMS) = 0
          GROUPS(1:NATOMS,1:NATOMS) = -1
 
-         IF (NQCIFROZEN.GT.0) THEN
-            DO J1=1,NATOMS
-               IF (QCIFROZEN(J1)) THEN
-                  CURRENTGROUP(J1) = 1
-                  NINGROUP(1) = NINGROUP(1) + 1
-                  GROUPS(1,NINGROUP(1)) = J1
-               END IF
-            END DO
-         END IF
+         !IF (NQCIFROZEN.GT.0) THEN
+         !   DO J1=1,NATOMS
+         !      IF (QCIFROZEN(J1)) THEN
+         !         CURRENTGROUP(J1) = 1
+         !         NINGROUP(1) = NINGROUP(1) + 1
+         !         GROUPS(1,NINGROUP(1)) = J1
+         !      END IF
+         !   END DO
+         !END IF
 
          DO J1=1,NCONSTRAINT
             ID1 = CONI(J1)
@@ -336,5 +336,67 @@ MODULE QCICONSTRAINTS
          ENDDO
 
       END SUBROUTINE GET_NCON_PERATOM
+
+
+      SUBROUTINE GET_NBONDS_PER_ATOM()
+      
+         USE QCIKEYS,              ONLY: NATOMS
+         USE QCI_CONSTRAINT_KEYS,  ONLY: NBONDS, BOND_LIST, N_BONDS_PER_ATOM, &
+                                       BONDS_PER_ATOM_LIST, MAX_BONDS_PER_ATOM
+         IMPLICIT NONE
+
+         INTEGER :: J1, JMAX
+
+         ALLOCATE( N_BONDS_PER_ATOM(NATOMS) )
+         !-------------------------------------------------------
+         ! First pass: count number of bonds per atom
+         !------------------------------------------------------------
+         N_BONDS_PER_ATOM(1:NATOMS) = 0
+         JMAX = 0
+
+         DO J1 = 1, NBONDS
+            N_BONDS_PER_ATOM(BOND_LIST(1,J1)) = N_BONDS_PER_ATOM(BOND_LIST(1,J1)) + 1
+            N_BONDS_PER_ATOM(BOND_LIST(2,J1)) = N_BONDS_PER_ATOM(BOND_LIST(2,J1)) + 1
+         ENDDO
+
+         !------------------------------------------------------------
+         ! Determine maximum number of bonds on any atom
+         !------------------------------------------------------------
+         MAX_BONDS_PER_ATOM = -1
+         DO J1 = 1, NATOMS
+            IF (N_BONDS_PER_ATOM(J1) .GT. MAX_BONDS_PER_ATOM) THEN
+               MAX_BONDS_PER_ATOM = N_BONDS_PER_ATOM(J1)
+               JMAX               = J1
+            ENDIF
+         ENDDO
+
+         WRITE(*,'(A,I6,A,I6)') &
+            ' get_nbonds_per_atom> maximum bonds ', MAX_BONDS_PER_ATOM, &
+            ' for atom ', JMAX
+
+         !------------------------------------------------------------
+         ! Allocate per-atom bond list
+         !------------------------------------------------------------
+         IF (ALLOCATED(BONDS_PER_ATOM_LIST)) DEALLOCATE(BONDS_PER_ATOM_LIST)
+         ALLOCATE(BONDS_PER_ATOM_LIST(NATOMS, MAX_BONDS_PER_ATOM))
+         BONDS_PER_ATOM_LIST(1:NATOMS, 1:MAX_BONDS_PER_ATOM) = 0
+         
+         !------------------------------------------------------------
+         ! Second pass: build per-atom bond list
+         !------------------------------------------------------------
+         N_BONDS_PER_ATOM(1:NATOMS) = 0
+
+         DO J1 = 1, NBONDS
+            N_BONDS_PER_ATOM(BOND_LIST(1,J1)) = N_BONDS_PER_ATOM(BOND_LIST(1,J1)) + 1
+            N_BONDS_PER_ATOM(BOND_LIST(2,J1)) = N_BONDS_PER_ATOM(BOND_LIST(2,J1)) + 1
+
+            BONDS_PER_ATOM_LIST(BOND_LIST(1,J1), N_BONDS_PER_ATOM(BOND_LIST(1,J1)) ) = BOND_LIST(2,J1)
+
+            BONDS_PER_ATOM_LIST(BOND_LIST(2,J1), N_BONDS_PER_ATOM(BOND_LIST(2,J1)) ) = BOND_LIST(1,J1)
+         ENDDO
+
+         WRITE(*,*) "get_nbonds_per_atoms> assigned all the variables"
+      END SUBROUTINE GET_NBONDS_PER_ATOM
+
 
 END MODULE QCICONSTRAINTS

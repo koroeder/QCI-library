@@ -1,9 +1,10 @@
 MODULE ADDINGATOM
    USE QCIPREC
    IMPLICIT NONE
+   !> Have we activated all the backbone atoms? 
    LOGICAL :: BBDONE = .FALSE.
    INTEGER, ALLOCATABLE :: NCONTOACTIVE(:)
-   !limits on finding atoms for local axis set
+   !> limits on finding atoms for local axis set
    REAL(KIND=REAL64) :: QCIDISTCUT = 10.0D0
    INTEGER :: QCIATOMSEP = 15
 
@@ -31,18 +32,54 @@ MODULE ADDINGATOM
          WRITE(*,*) " COMPARING FINISH COORDS: ", SUM(DIFF)
       END SUBROUTINE CHECK_DIFF_FINAL
 
+     !> Check wherer we are adding a single atom or a linear group and call appropriate routine
       SUBROUTINE ADDATOM()
+         
+         USE QCI_LINEAR, ONLY:ATOM2LINGROUP
+         USE QCIKEYS, ONLY: NATOMS, USELINGROUPS, QCIDOBACK, QCIDOBACKALL
+         IMPLICIT NONE
+         
+         INTEGER :: NEXTATOM, NCONTOACT
+         REAL(KIND=REAL64) :: SHORTESTCON
+         INTEGER :: GROUP_ID
+         REAL(KIND = REAL64) :: INVDTOACTIVE(1:NATOMS)      !< inverse distances of constraints to active atoms
+         INTEGER :: NMAXCON                                 !< current largest number of constraints to active set from any inactive atom
+         LOGICAL :: ISLINGROUP
+         
+         ISLINGROUP = .FALSE.
+         IF (QCIDOBACK.OR.QCIDOBACKALL) CALL CHECK_BBLIST()
+         CALL CREATE_NCONTOACTIVE_LIST(INVDTOACTIVE,NMAXCON)
+         !the priorities are: 1. QCILINEAR, 2. CHOOSEACID, 3. QCIDOBACK, and then the highest number of constraints to the active set
+         WRITE(*,*) "Call find next atom .... "
+         CALL FIND_NEXT_ATOM(.FALSE., 0 ,NEXTATOM,NCONTOACT,SHORTESTCON)
+         WRITE(*,*) "Found atom ", NEXTATOM
+         IF(USELINGROUPS) THEN
+            GROUP_ID = ATOM2LINGROUP(NEXTATOM)
+            IF(GROUP_ID.NE.-1) ISLINGROUP = .TRUE.
+         ENDIF
+         
+         IF(ISLINGROUP) THEN
+            CALL ADD_LINEAR_GROUP(GROUP_ID)
+         ELSE
+            CALL ADDATOM1()
+         END IF
+         
+
+      END SUBROUTINE ADDATOM
+    
+      SUBROUTINE ADDATOM1()
          USE MOD_INTCOORDS, ONLY: XYZ, EEE, GGG, RMS
          USE QCIKEYS, ONLY: QCIDOBACK, QCIADDACIDT, NATOMS, NIMAGES, DEBUG, QCILINEART, INLINLIST, &
                             QCITRILATERATION, QCIDOBACKALL, ATOMS2RES, ISBBATOM, CHECKCHIRAL, QCIUSEGROUPS, &
-                            USEINTERNALST
+                            USEINTERNALST, QCITRILATERATION2
          USE REPULSION, ONLY: NNREPULSIVE, NREPULSIVE, CHECKREP
          USE CONSTR_E_GRAD, ONLY: CONGRAD
          USE QCI_LINEAR, ONLY: NQCILINEAR
          USE QCI_CONSTRAINT_KEYS, ONLY: NCONSTRAINT, CONI, CONJ
          USE INTERPOLATION_KEYS, ONLY: CONACTIVE, NACTIVE, TURNONORDER, ATOMACTIVE
          USE MOD_INTCOORDS, ONLY: WRITE_ACTIVE_BAND
-         USE CHIRALITY, ONLY: GET_ACTIVE_CHIRAL_CENTRES, NCHIRAL, CHIRALITY_CHECK, CHECK_SINGLE_CHIRAL_CENTRE
+         USE CHIRALITY, ONLY: GET_ACTIVE_CHIRAL_CENTRES, NCHIRAL, CHIRALITY_CHECK, CHECK_SINGLE_CHIRAL_CENTRE, ONLY_CHECK_SINGLE_CHIRAL_CENTRE, &
+                              CHIRALITY_CHECK_ONLY
          USE AMBER_CONSTRAINTS, ONLY: GROUPLOOKUP, CURRENT_GROUP, CURRENTLY_ADDING_GROUP, INGROUP, PLACINGGROUPS, SIZEPLACINGGROUPS
          IMPLICIT NONE
          INTEGER :: NTOADD, NADDED                          !< number to be added and number already added
@@ -67,8 +104,20 @@ MODULE ADDINGATOM
          INTEGER :: INIT_NCHIRACTIVE, FINAL_NCHIRACTIVE, CHIRALCENTRE
          LOGICAL :: INIT_ACTIVE_CHIR_CENTRES(NCHIRAL), FINAL_ACTIVE_CHIR_CENTRES(NCHIRAL)
          LOGICAL :: ALLADDED
+         
          LOGICAL :: FAILED !< Have we failed to place the atom (via trilateration)? 
-      
+         LOGICAL :: SWAPPED, SSWAPPED
+         INTEGER :: SAVENEXTATOM
+         REAL(KIND = REAL64) :: SAVEXYZ(3*NATOMS*(NIMAGES+2)), TRYXYZ(3*NATOMS*(NIMAGES+2))
+
+         FAILED = .FALSE.
+         SWAPPED = .FALSE.
+         SSWAPPED = .FALSE.
+         !save current coords
+         SAVEXYZ = XYZ
+         TRYXYZ = XYZ
+
+
          ! setup book keeping
          NTOADD = 1
          IF (QCILINEART) NTOADD = MIN(NQCILINEAR - 2,NQCILINEAR-NACTIVE)
@@ -80,9 +129,21 @@ MODULE ADDINGATOM
          !Save current repulsion to speed up checks later
          NNREPSAVE=NNREPULSIVE
          NREPSAVE=NREPULSIVE
-
+       
          ! call check on number of chiral centres
          IF (CHECKCHIRAL) CALL GET_ACTIVE_CHIRAL_CENTRES(INIT_NCHIRACTIVE,INIT_ACTIVE_CHIR_CENTRES)
+         
+         !!!!!!!!!!!!!!! DEBUG !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
+         !check chirality accross the band before we start adding atoms
+         WRITE(*,*) "addatom> DEBUG - Check chirality before we start adding atoms. "
+         CALL CHIRALITY_CHECK_ONLY(XYZ, SWAPPED)
+         IF (SWAPPED)  THEN 
+            WRITE(*,*) "addatom> DEBUG - Chirality check found broken chirality"
+            SWAPPED = .FALSE.
+         ELSE 
+            WRITE(*,*) "addatom> DEBUG - chirality ok"
+         END IF 
+         !!!!!!!!!!!!!!!!!END DEBUG!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
          !Set variable for tracking whether we completed adding atoms
          MORETOADD = .TRUE.
@@ -92,7 +153,118 @@ MODULE ADDINGATOM
             !find the next atom to be added
             !the priorities are: 1. QCILINEAR, 2. CHOOSEACID, 3. QCIDOBACK, and then the highest number of constraints to the active set
             CALL FIND_NEXT_ATOM(CHOSENACID,ACID,NEXTATOM,NCONTOACT,SHORTESTCON)
+            
+            WRITE(*,'(A,I6,A,I4,A,I4)') "  addatom> Adding atom ", NEXTATOM, ", which has ", NCONTOACT, " constraints to active set out of maximum ", NMAXCON
+            WRITE(*,'(A,F8.4)') "           Shortest distance constraint to active set is: ", SHORTESTCON
 
+          
+            ! We get a list of constraint and closest atoms to construct local axis
+            ! We update constraint later
+            ! if we have four atoms, we use all four to build the local axis system, if we have three, we use three, otherwise we go linear
+            CALL GET_ATOMS_FOR_LOCAL_AXIS(NEXTATOM,NLOCAL,LOCALIDX,LOCALDIST)
+                      
+            !now we need to actually add the atom
+            ADDEDTHISCYCLE = .FALSE.
+            ELIN = 1.0D100
+            ECON = 1.0D100
+
+            !if we have three or more constraints, we use them and construct a local axis system
+            IF ((NLOCAL.GE.3).AND.(.NOT.QCILINEART)) THEN
+               ADDEDTHISCYCLE = .TRUE.
+               !use vectors within the local coordinate frame
+               IF (USEINTERNALST) THEN
+                  !build internal coordinates for interpolation
+                  CALL PLACE_INTERNALS(NEXTATOM,NLOCAL,LOCALIDX)
+                ELSE IF (QCITRILATERATION) THEN
+                  !trilaterate atoms, if this fails use fall back option. 
+                  CALL TRILATERATE_ATOMS(NEXTATOM,LOCALIDX,LOCALDIST, FAILED)
+                  IF (FAILED) THEN
+                     CALL PLACE_LINEAR_ATOM(NEXTATOM,NLOCAL,LOCALIDX)
+                  END IF
+               ELSE IF (QCITRILATERATION2) THEN
+                  !trilaterate atoms, if this fails use fall back option. 
+                  
+                  !First use PLACE_LINEAR_ATOM to get a sensible values in cases where trilateration fails                  
+                  CALL PLACE_LINEAR_ATOM(NEXTATOM,NLOCAL,LOCALIDX)
+                  CALL TRILATERATE_ATOMS2(NEXTATOM,LOCALIDX,LOCALDIST, FAILED)
+                  IF (FAILED) THEN
+                     WRITE(*,*) "addatom> Failed to add atom via trilateration"
+                  ELSE 
+                     WRITE(*,*) "addatom> Added atom via trilateration"
+                  END IF
+
+                  !check have we changed chirality by adding the atom
+                  WRITE(*,*) " addatom> Call chirality check after adding the atom.... "
+                  CALL CHIRALITY_CHECK_ONLY(XYZ,SWAPPED,NEXTATOM)
+      
+                  !IF (SWAPPED) THEN
+                  !   
+                  !   !Save next atom and new coordinates and also revert to old coordinates, so we can try again
+                  !   SAVENEXTATOM = NEXTATOM
+                  !   TRYXYZ = XYZ
+                  !
+                  !   XYZ = SAVEXYZ
+                  !   NEXTATOM = 0
+                  !   FAILED = .FALSE.
+                  !   !Try adding alternative atom
+                  !   WRITE(*,*) "addatom> Changed chirality while adding atom"
+                  !   WRITE(*,*) "addatom> Attempting to find alternative atom to add to preserve chirality"
+                  !   CALL FIND_NEXT_ATOM_FALLBACK(CHOSENACID,ACID,SAVENEXTATOM, NEXTATOM,NCONTOACT,SHORTESTCON)
+                  !   IF( NEXTATOM.EQ.0 ) THEN
+                  !      WRITE(*,*) "addatom> FAILED to find a better atom to add. ... go back to original choice. "
+                  !      XYZ = TRYXYZ
+                  !      NEXTATOM = SAVENEXTATOM
+                  !   ELSE
+                  !      WRITE(*,*) "addatom> Found alternative atom ", NEXTATOM, " to add. Attempting to add this atom instead."
+                  !      CALL GET_ATOMS_FOR_LOCAL_AXIS(NEXTATOM,NLOCAL,LOCALIDX,LOCALDIST)    
+                  !      CALL PLACE_LINEAR_ATOM(NEXTATOM,NLOCAL,LOCALIDX)
+                  !      CALL TRILATERATE_ATOMS2(NEXTATOM,LOCALIDX,LOCALDIST, FAILED)
+                  !   ENDIF   
+                  !   
+                  !    !check have we changed chirality by adding the atom
+                  !    WRITE(*,*) " addatom> Call chirality check after adding the atom.... "
+                  !    CALL CHIRALITY_CHECK_ONLY(XYZ,FAILED,NEXTATOM)
+                  !
+                  !   !If we failed again revert to previous coordinates and continue.
+                  !   IF (FAILED) THEN 
+                  !      XYZ = TRYXYZ
+                  !      NEXTATOM = SAVENEXTATOM
+                  !      WRITE(*,*) "addatom> Failed to add fallback atom, going back to original choice."
+                  !   ELSE 
+                  !      WRITE(*,*) "addatom> added atom: ", NEXTATOM, " after adding atom ", SAVENEXTATOM, " failed."
+                  !   END IF
+                  !
+                  !ELSE 
+                  !   WRITE(*,*) " addatom> Chirality check ok"
+                  !END IF
+                  
+               ELSE
+                  CALL PLACE_ATOM(NEXTATOM,NLOCAL,LOCALIDX)
+               END IF
+               ! before we continue check repulsion neighbour list
+               CALL CHECKREP(XYZ,NNREPSAVE,NREPSAVE+1)
+               ! call congrad routine
+               CALL CONGRAD(ETOTAL, XYZ, GGG, EEE, RMS)
+               ECON = ETOTAL
+               DO J1=1,NIMAGES
+                  NEWATOMOFFSET = J1*3*NATOMS + 3*(NEXTATOM-1)
+                  XCON(J1,1:3) = XYZ((NEWATOMOFFSET+1):(NEWATOMOFFSET+3)) 
+               END DO
+      
+            END IF
+            !if we haven't suceeded in adding the atom or it is QCIlinear, go for a linear interpolation for new atom based on the tightest constraint
+            IF ((.NOT.ADDEDTHISCYCLE).OR.QCILINEART) THEN
+               CALL PLACE_LINEAR_ATOM(NEXTATOM,NLOCAL,LOCALIDX)
+               CALL CHECKREP(XYZ,NNREPSAVE,NREPSAVE+1)
+               ! call congrad routine
+               CALL CONGRAD(ETOTAL, XYZ, GGG, EEE, RMS)
+               ELIN = ETOTAL
+               DO J1=1,NIMAGES
+                  NEWATOMOFFSET = J1*3*NATOMS + 3*(NEXTATOM-1)
+                  XLIN(J1,1:3) = XYZ(NEWATOMOFFSET+1:NEWATOMOFFSET+3) 
+               END DO
+            END IF   
+            
             !set chosenacid if needed
             IF ((QCIADDACIDT.AND.(.NOT.QCIDOBACK)).OR.QCIDOBACKALL) THEN
                IF (.NOT.CHOSENACID) THEN
@@ -100,13 +272,8 @@ MODULE ADDINGATOM
                   CHOSENACID = .TRUE.
                END IF
             END IF
-            
-            WRITE(*,'(A,I6,A,I4,A,I4)') "  addatom> Adding atom ", NEXTATOM, ", which has ", NCONTOACT, " constraints to active set out of maximum ", NMAXCON
-            WRITE(*,'(A,F8.4)') "           Shortest distance constraint to active set is: ", SHORTESTCON
 
-            ! We update the constraints and get a list of constraint and closest atoms to construct local 
-            ! if we have four atoms, we use all four to build the local axis system, if we have three, we use three, otherwise we go linear
-            CALL GET_ATOMS_FOR_LOCAL_AXIS(NEXTATOM,NLOCAL,LOCALIDX,LOCALDIST)
+            !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             !update the repulsions
             CALL UPDATE_REPULSIONS(NEXTATOM)
 
@@ -116,10 +283,10 @@ MODULE ADDINGATOM
             TURNONORDER(NACTIVE)=NEXTATOM
             !check consistency
             CALL CHECK_NACTIVE()
-
+            CALL UPDATE_CONSTRAINTS(NEXTATOM)
             !check whether we have a new group or completed the old one
-            IF (QCIUSEGROUPS) THEN
-               !if we have an active group, check whether we added all atoms
+             IF (QCIUSEGROUPS) THEN
+             !if we have an active group, check whether we added all atoms
                IF (CURRENTLY_ADDING_GROUP) THEN
                   ALLADDED = .TRUE.
                   DO J1=1,SIZEPLACINGGROUPS(CURRENT_GROUP)
@@ -141,78 +308,7 @@ MODULE ADDINGATOM
                   END IF
                END IF
             END IF
-            
-
-            !now we need to actually add the atom
-            ADDEDTHISCYCLE = .FALSE.
-            ELIN = 1.0D100
-            ECON = 1.0D100
-
-            !if we have three or more constraints, we use them and construct a local axis system
-            IF ((NLOCAL.GE.3).AND.(.NOT.QCILINEART)) THEN
-               ADDEDTHISCYCLE = .TRUE.
-               !use vectors within the local coordinate frame
-               IF (USEINTERNALST) THEN
-                  !build internal coordinates for interpolation
-                  CALL PLACE_INTERNALS(NEXTATOM,NLOCAL,LOCALIDX)
-               ELSE IF (QCITRILATERATION) THEN
-                  !trilaterate atoms, if this fails use fall back option. 
-                  CALL TRILATERATE_ATOMS(NEXTATOM,LOCALIDX,LOCALDIST, FAILED)
-                  IF (FAILED) THEN
-                     !This is fine for smaller systems <1k atoms, produces garbage for large system 
-                     WRITE(*,*) "addatom> Failed to add atom via trilateration, using place_linear_atom instead"
-                     CALL PLACE_LINEAR_ATOM(NEXTATOM,NLOCAL,LOCALIDX)
-                     !CALL PLACE_ATOM(NEXTATOM,NLOCAL,LOCALIDX)
-                  ELSE 
-                     WRITE(*,*) " trilaterate_atom> Added atom via trilateration"
-                  END IF
-               ELSE
-                  CALL PLACE_ATOM(NEXTATOM,NLOCAL,LOCALIDX)
-               END IF
-               ! before we continue check repulsion neighbour list
-               CALL CHECKREP(XYZ,NNREPSAVE,NREPSAVE+1)
-               ! call congrad routine
-               CALL CONGRAD(ETOTAL, XYZ, GGG, EEE, RMS)
-               ECON = ETOTAL
-               DO J1=1,NIMAGES
-                  NEWATOMOFFSET = J1*3*NATOMS + 3*(NEXTATOM-1)
-                  XCON(J1,1:3) = XYZ((NEWATOMOFFSET+1):(NEWATOMOFFSET+3)) 
-               END DO
-      
-            END IF
-            !if we haven't suceeded in adding the atom or it is QCIlinear, go for a linear interpolation for new atom based on the tightest constraint
-            IF ((.NOT.ADDEDTHISCYCLE).OR.QCILINEART) THEN
-               CALL PLACE_LINEAR_ATOM(NEXTATOM,NLOCAL,LOCALIDX)
- !              DO J1=1,NIMAGES
- !                 ! the images are technically running from 2 to NIMAGES+1, but the offset is (J1-1)*3*NATOMs, 
- !                 ! so we can just use a shifted range from 1 to NIMAGES
- !                 THISIMAGE = J1*3*NATOMS
- !                 ENDPOINT = 3*NATOMS*(NIMAGES+1)
- !                 NEWATOMOFFSET = 3*(NEXTATOM-1)
- !                 !there is always at least one constraint!
- !                 CONONEOFFSET = 3*(LOCALIDX(1)-1)
- !                 STARTWEIGHT = FRAC*(NIMAGES+1-J1)/(NIMAGES+1) 
- !                 ENDWEIGHT = 1.0D0*J1/(NIMAGES+1) !need to keep this 1.0D0* in here to convert the type correctly
- !                 !X coordinate
- !                 XYZ(THISIMAGE+NEWATOMOFFSET+1) = XYZ(THISIMAGE+CONONEOFFSET+1) + STARTWEIGHT*(XYZ(NEWATOMOFFSET+1)-XYZ(CONONEOFFSET+1)) + &
- !                                                  ENDWEIGHT*(XYZ(ENDPOINT+NEWATOMOFFSET+1)-XYZ(ENDPOINT+CONONEOFFSET+1))
- !                 !Y coordinate
- !                 XYZ(THISIMAGE+NEWATOMOFFSET+2) = XYZ(THISIMAGE+CONONEOFFSET+2) + STARTWEIGHT*(XYZ(NEWATOMOFFSET+2)-XYZ(CONONEOFFSET+2)) + &
- !                                                  ENDWEIGHT*(XYZ(ENDPOINT+NEWATOMOFFSET+2)-XYZ(ENDPOINT+CONONEOFFSET+2))
- !                 !Z coordinate
- !                 XYZ(THISIMAGE+NEWATOMOFFSET+3) = XYZ(THISIMAGE+CONONEOFFSET+3) + STARTWEIGHT*(XYZ(NEWATOMOFFSET+3)-XYZ(CONONEOFFSET+3)) + &
- !                                                  ENDWEIGHT*(XYZ(ENDPOINT+NEWATOMOFFSET+3)-XYZ(ENDPOINT+CONONEOFFSET+3))    
- !              END DO                                                                                
-
-               CALL CHECKREP(XYZ,NNREPSAVE,NREPSAVE+1)
-               ! call congrad routine
-               CALL CONGRAD(ETOTAL, XYZ, GGG, EEE, RMS)
-               ELIN = ETOTAL
-               DO J1=1,NIMAGES
-                  NEWATOMOFFSET = J1*3*NATOMS + 3*(NEXTATOM-1)
-                  XLIN(J1,1:3) = XYZ(NEWATOMOFFSET+1:NEWATOMOFFSET+3) 
-               END DO
-            END IF   
+            !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
             !select which interpolation is used based on energy if multiple are used (we shouldn't have this case except for QCIlinear)
             IF (DEBUG) WRITE(*,*) "ECON, ELIST: ", ECON, ELIN
@@ -285,14 +381,139 @@ MODULE ADDINGATOM
                   CALL CHIRALITY_CHECK(XYZ)
                END IF
             END IF
+            WRITE(*,*) "Addatom> Call chirality check after adding the atom. "
+            CALL CHIRALITY_CHECK(XYZ)
          END IF
+         
 
          CALL CHECKREP(XYZ,NNREPSAVE,NREPSAVE+1)
-         ! call congrad routine
-         CALL CONGRAD(ETOTAL, XYZ, GGG, EEE, RMS)
+        
+         !Moved congrad call from here to interpolation
          !we are done with QCIlinear, so set it to false
          QCILINEART = .FALSE.
-      END SUBROUTINE ADDATOM
+      END SUBROUTINE ADDATOM1
+
+      SUBROUTINE ADD_LINEAR_GROUP(GROUP_ID)
+         USE QCI_LINEAR, ONLY: GET_LIN_ROT_TRANSLATION, LINEAR_GROUPS, NINGROUP
+         USE QCIKEYS, ONLY: NATOMS, DEBUG, NIMAGES, QCIUSEGROUPS
+         USE MOD_INTCOORDS, ONLY: XSTART, XFINAL, XYZ
+         USE QUATERNIONS
+         USE HELPER_FNCTS, ONLY: APPLY_ROTATION_MATRIX
+         USE INTERPOLATION_KEYS, ONLY: CONACTIVE, NACTIVE, TURNONORDER, ATOMACTIVE
+         USE REPULSION, ONLY: NNREPULSIVE, NREPULSIVE, CHECKREP
+         USE AMBER_CONSTRAINTS, ONLY: GROUPLOOKUP, CURRENT_GROUP, CURRENTLY_ADDING_GROUP, INGROUP, PLACINGGROUPS, SIZEPLACINGGROUPS
+         INTEGER, INTENT(IN) :: GROUP_ID
+
+         !Vars needed for linear groups
+         INTEGER :: NNREPSAVE, NREPSAVE                     !< variables for saving repulsion list
+         LOGICAL :: ISINLINGROUP !<is the atom in a linear group
+         INTEGER :: NHERE, ATOM_ID
+         INTEGER :: IMAGE_OFFSET
+         REAL(KIND=REAL64) :: X(3)
+         INTEGER :: NADDED
+         REAL(KIND=REAL64) :: W 
+         REAL(KIND=REAL64) :: CXS(3), CXF(3), QSTART(4), QFINAL(4), QINTERP(4)
+         REAL(KIND=REAL64) :: TRANSLATION_VEC(3)
+         REAL(KIND=REAL64) :: ROT_INTERP(3,3)
+         INTEGER :: J1,J2
+         LOGICAL :: ALLADDED
+
+         !Initiate book keeping
+         NADDED = 0
+         ALLADDED = .TRUE.
+         !Save current repulsion to speed up checks later
+         NNREPSAVE=NNREPULSIVE
+         NREPSAVE=NREPULSIVE
+
+         NHERE = NINGROUP(GROUP_ID)
+         CALL GET_LIN_ROT_TRANSLATION(GROUP_ID, NHERE, CXS, CXF, QSTART, QFINAL)
+
+         WRITE(*,*) "Add_linear_group> Adding linear group ", GROUP_ID
+         DO J1 = 2, NIMAGES+1
+
+            W = 1.0D0*(J1-1)/(1.0D0*(NIMAGES+1)) !Keep 1.0D0 for correct type conversion
+
+            CALL SLERP_INTERPOLATION(QSTART,QFINAL, W, QINTERP)
+            CALL QUATERNION_TO_MATRIX(QINTERP, ROT_INTERP)
+            
+            !Get linear interpolation for centre of geometry
+            TRANSLATION_VEC(:) = CXS(:) + W*(CXF(:)-CXS(:))
+            
+            IMAGE_OFFSET = 3*NATOMS*(J1-1)
+            DO J2 = 1, NHERE
+               
+               ATOM_ID = LINEAR_GROUPS(GROUP_ID, J2)
+               X(1) = XSTART(3*(ATOM_ID-1)+1)
+               X(2) = XSTART(3*(ATOM_ID-1)+2)
+               X(3) = XSTART(3*(ATOM_ID-1)+3)
+
+              !Center to the start image
+               X(:) = X(:) - CXS(:)
+
+               !Now apply rotational matrix
+               CALL APPLY_ROTATION_MATRIX(X,ROT_INTERP)
+
+               !Final position = rotated + translated
+               X(:) = X(:) + TRANSLATION_VEC(:)
+                
+               XYZ(IMAGE_OFFSET+3*(ATOM_ID-1)+1) = X(1)
+               XYZ(IMAGE_OFFSET+3*(ATOM_ID-1)+2) = X(2)
+               XYZ(IMAGE_OFFSET+3*(ATOM_ID-1)+3) = X(3)
+
+            END DO
+         END DO
+
+         !Now we need to do bookkeeping for all the atoms we added 
+         DO J2 = 1, NHERE
+            ATOM_ID = LINEAR_GROUPS(GROUP_ID, J2)
+            !Need to make sure we haven't already added this atom
+            IF(ATOMACTIVE(ATOM_ID)) CYCLE
+            NADDED = NADDED + 1
+            
+            !update the repulsions
+            CALL UPDATE_REPULSIONS(ATOM_ID)
+
+            !activate new atom
+            ATOMACTIVE(ATOM_ID)=.TRUE.
+            NACTIVE=NACTIVE+1 
+            TURNONORDER(NACTIVE)=ATOM_ID
+           
+            CALL UPDATE_CONSTRAINTS(ATOM_ID)
+            WRITE(*,*) "Add_linear_group> Adding atom ", ATOM_ID
+
+
+            !check whether we have a new group or completed the old one
+             IF (QCIUSEGROUPS) THEN
+             !if we have an active group, check whether we added all atoms
+               IF (CURRENTLY_ADDING_GROUP) THEN
+                  ALLADDED = .TRUE.
+                  DO J1=1,SIZEPLACINGGROUPS(CURRENT_GROUP)
+                     IF (.NOT.ATOMACTIVE(PLACINGGROUPS(CURRENT_GROUP,J1))) THEN
+                        ALLADDED = .FALSE.
+                        EXIT
+                     END IF
+                  END DO
+                  !if so, we are done with the group and turn the group addition option opff for now
+                  IF (ALLADDED) THEN
+                     CURRENT_GROUP = 0
+                     CURRENTLY_ADDING_GROUP = .FALSE.
+                  END IF
+               ! if we are not actively adding a group, we have to check whether we started a new group
+               ELSE
+                  IF (INGROUP(ATOM_ID)) THEN
+                     CURRENTLY_ADDING_GROUP = .TRUE.
+                     CURRENT_GROUP = GROUPLOOKUP(ATOM_ID)
+                  END IF
+               END IF
+            END IF
+
+
+         END DO
+         ! before we continue check repulsion neighbour list
+         CALL CHECKREP(XYZ,NNREPSAVE,NREPSAVE+1)
+         !check consistency
+         CALL CHECK_NACTIVE()
+      END SUBROUTINE ADD_LINEAR_GROUP
 
       !> This routine needs tidying up/ potentially rewriting!
       SUBROUTINE GET_ATOMS_FOR_LOCAL_AXIS(NEWATOM,NLOCAL,LOCALIDX,LOCALDIST)
@@ -315,15 +536,17 @@ MODULE ADDINGATOM
          ! We sort by shortest average distance to avoid distant atoms having accidentally well preserved distance.
          CALL GET_ATOMS_BY_DISTANCE(NEWATOM,NDISTNEWATOM,BESTDIST,BESTIDX)
          ! Now update the constraints including the new atom, and get list of constraints ordered by distance
-         CALL UPDATE_CONSTRAINTS(NEWATOM,NCONNEWATOM,BESTCONDIST,BESTCONIDX)
+         !CALL UPDATE_CONSTRAINTS(NEWATOM,NCONNEWATOM,BESTCONDIST,BESTCONIDX)
+         CALL CHECK_CONSTRAINTS(NEWATOM,NCONNEWATOM,BESTCONDIST,BESTCONIDX)
 
          NCONST = MIN(4,NCONNEWATOM)
          NDISTS = MIN(4,NDISTNEWATOM)
          NCOUNT = 0
-         !WARNING/QUESTION what this NLOCAL & should this be 0?
+        
          NLOCAL = 0
          LOCALDIST(1:4) = 0.0D0
          LOCALIDX(1:4) = -1
+         
          IF (NCONST.NE.0) THEN
             DO J = 1,NCONST
                LOCALDIST(J) = BESTCONDIST(J)
@@ -383,7 +606,7 @@ MODULE ADDINGATOM
             END IF
          END IF
 
-         !IF (NLOCAL.LT.4) THEN
+         !Fall back to atoms sorted by distance if we don't have enough constraints or secondary constraints
          IF (NCOUNT.LT.4) THEN
             IF (NDISTS.NE.0) THEN
                IF (NCOUNT.EQ.0) THEN
@@ -435,8 +658,7 @@ MODULE ADDINGATOM
          NLOCAL = NCOUNT
       END SUBROUTINE GET_ATOMS_FOR_LOCAL_AXIS
 
-
-      SUBROUTINE TRILATERATE_ATOMS(NEWATOM,CONIDXLIST,CONDISTLIST, FAILED)
+       SUBROUTINE TRILATERATE_ATOMS(NEWATOM,CONIDXLIST,CONDISTLIST, FAILED)
          USE QCIKEYS, ONLY: NATOMS, DEBUG, NIMAGES
          USE MOD_INTCOORDS, ONLY: XYZ         
          IMPLICIT NONE
@@ -482,6 +704,143 @@ MODULE ADDINGATOM
          END DO
       END SUBROUTINE TRILATERATE_ATOMS
 
+      !> Atom trilateration routine
+      !! directly modifies XYZ
+      SUBROUTINE TRILATERATE_ATOMS2(NEWATOM,CONIDXLIST,CONDISTLIST, TFAILED)
+         USE QCIKEYS, ONLY: NATOMS, DEBUG, NIMAGES
+         USE MOD_INTCOORDS, ONLY: XYZ         
+         IMPLICIT NONE
+         INTEGER, INTENT(IN) :: NEWATOM
+         INTEGER, INTENT(IN) :: CONIDXLIST(4)        
+         REAL(KIND=REAL64), INTENT(IN) :: CONDISTLIST(4)
+         LOGICAL, INTENT(OUT) :: TFAILED !< Have we failed to place the new atom via trilateration?
+         REAL(KIND=REAL64) :: P1(3), P2(3), P3(3), P4(3), R1, R2, R3, R4
+         REAL(KIND=REAL64) :: SOL1(3), SOL2(3), PREV(3), D1SQ, D2SQ
+         INTEGER :: IMAGEOFFSET
+         INTEGER :: N1, N2, N3, N4, IDX1, IDX2, IDX3, IDX4, J1, I
+         LOGICAL :: FTEST, HAVE_4TH_CONSTRAINT
+         INTEGER :: N_IMAGES_FAILED
+         LOGICAL :: FAILED(NIMAGES+2), DFAILED(NIMAGES+2)
+         INTEGER :: NEAREST_BEFORE, NEAREST_AFTER
+         REAL(KIND=REAL64) :: FRAC_BEFORE, FRAC_AFTER
+         REAL(KIND=REAL64), PARAMETER :: FAIL_TOLERANCE_FRACTION = 0.1D0
+         REAL(KIND=REAL64) :: XYZ_BEFORE(3), XYZ_AFTER(3)
+         FAILED = .FALSE.
+         DFAILED = .FALSE.
+         TFAILED = .FALSE.
+         N_IMAGES_FAILED = 0
+
+         !set initial guess to the best three constrained atoms
+         N1=1; N2=2; N3=3; N4=4  
+         IDX1 = CONIDXLIST(N1); IDX2 = CONIDXLIST(N2); IDX3 = CONIDXLIST(N3)
+         IDX4 = CONIDXLIST(N4)
+
+         HAVE_4TH_CONSTRAINT = (IDX4.NE.-1)
+
+         DO J1=2,NIMAGES+1
+            IMAGEOFFSET = (J1-1)*3*NATOMS
+            P1(1:3)=XYZ((IMAGEOFFSET+3*(IDX1-1)+1):(IMAGEOFFSET+3*(IDX1-1)+3))
+            P2(1:3)=XYZ((IMAGEOFFSET+3*(IDX2-1)+1):(IMAGEOFFSET+3*(IDX2-1)+3))
+            P3(1:3)=XYZ((IMAGEOFFSET+3*(IDX3-1)+1):(IMAGEOFFSET+3*(IDX3-1)+3))     
+              
+            R1=CONDISTLIST(N1)
+            R2=CONDISTLIST(N2)
+            R3=CONDISTLIST(N3) 
+            CALL TRILATERATION(P1,P2,P3,R1,R2,R3,SOL1,SOL2,FTEST)
+                    
+            IF (.NOT.FTEST) THEN
+               PREV(1:3) = XYZ((IMAGEOFFSET+3*(NEWATOM-1)+1):(IMAGEOFFSET+3*(NEWATOM-1)+3))
+               
+               !Option to try with a distance from 4th constraint if it exists. 
+               !IF(HAVE_4TH_CONSTRAINT) THEN
+               !   P4(1:3)=XYZ((IMAGEOFFSET+3*(IDX4-1)+1):(IMAGEOFFSET+3*(IDX4-1)+3))
+               !   R4=CONDISTLIST(N4)
+               !
+               !   D1SQ = SQRT((SOL1(1)-P4(1))**2 + (SOL1(2)-P4(2))**2 + (SOL1(3)-P4(3))**2)
+               !   D2SQ = SQRT((SOL2(1)-P4(1))**2 + (SOL2(2)-P4(2))**2 + (SOL2(3)-P4(3))**2)
+               !ELSE
+                  D1SQ = (SOL1(1)-PREV(1))**2 + (SOL1(2)-PREV(2))**2 + (SOL1(3)-PREV(3))**2
+                  D2SQ = (SOL2(1)-PREV(1))**2 + (SOL2(2)-PREV(2))**2 + (SOL2(3)-PREV(3))**2
+               !END IF
+               
+               IF (D1SQ.LT.D2SQ) THEN
+                  XYZ((IMAGEOFFSET+3*(NEWATOM-1)+1):(IMAGEOFFSET+3*(NEWATOM-1)+3)) = SOL1(1:3)
+               ELSE
+                  XYZ((IMAGEOFFSET+3*(NEWATOM-1)+1):(IMAGEOFFSET+3*(NEWATOM-1)+3)) = SOL2(1:3)
+               END IF
+            ELSE
+               FAILED(J1) = .TRUE.
+               DFAILED(J1) = .TRUE.
+               TFAILED = .TRUE.
+               N_IMAGES_FAILED = N_IMAGES_FAILED + 1
+            END IF
+         END DO
+
+         WRITE(*,*) " trilaterate_atom> Failed to trilaterate" , N_IMAGES_FAILED, "images out of ", NIMAGES, " images."
+         
+         ! Interpolate failed images if we have some successful ones
+         IF ((N_IMAGES_FAILED.GT.0).AND.(N_IMAGES_FAILED*1.0D0.LT.NIMAGES*FAIL_TOLERANCE_FRACTION)) THEN
+            WRITE(*,*) " trilaterate_atom> Attempting to fix failed images by interpolation, as failure fraction is below tolerance of ", FAIL_TOLERANCE_FRACTION   
+            DO I = 2, NIMAGES+1
+               
+               IF( .NOT.(FAILED(I))) CYCLE !skip successful images
+               
+               !Find nearest successful image before this one
+               NEAREST_BEFORE = 0
+               DO J1 = I-1, 1, -1
+                  IF (.NOT. FAILED(J1)) THEN
+                     NEAREST_BEFORE = J1
+                     EXIT
+                  END IF
+               END DO
+               
+               !Find nearest successful image after this one
+               NEAREST_AFTER = 0
+               DO J1 = I+1, NIMAGES+2
+                  IF (.NOT. FAILED(J1)) THEN
+                     NEAREST_AFTER = J1
+                     EXIT
+                  END IF
+               END DO    
+            
+               !Linear interpolate if we have a successful image both before and after
+               IF ((NEAREST_BEFORE.GT.0) .AND. (NEAREST_AFTER.GT.0)) THEN
+                  !Linear interpolation between two successful images
+                  FRAC_BEFORE = 1.0D0*(NEAREST_AFTER - I)/ (1.0D0*(NEAREST_AFTER - NEAREST_BEFORE))
+                  FRAC_AFTER  = 1.0D0*(I - NEAREST_BEFORE)/ (1.0D0*(NEAREST_AFTER - NEAREST_BEFORE))
+                  
+                  IMAGEOFFSET = (NEAREST_BEFORE-1)*3*NATOMS+3*(NEWATOM-1)
+                  XYZ_BEFORE(1:3) = XYZ(IMAGEOFFSET+1:IMAGEOFFSET+3)
+               
+                  IMAGEOFFSET = (NEAREST_AFTER-1)*3*NATOMS+3*(NEWATOM-1)
+                  XYZ_AFTER(1:3) = XYZ(IMAGEOFFSET+1:IMAGEOFFSET+3)
+                  
+
+                  IMAGEOFFSET = (I-1)*3*NATOMS+3*(NEWATOM-1)
+
+                  XYZ(IMAGEOFFSET+1: IMAGEOFFSET+3) = FRAC_BEFORE * XYZ_BEFORE(1:3) + FRAC_AFTER * XYZ_AFTER(1:3)
+                  
+                  !Don't want to use images generated by interpolation to try to fix other images
+                  !use DFAILED to track total number of failed images
+                  DFAILED(I) = .FALSE. 
+               END IF
+            END DO
+      
+            ! Recount failures after interpolation
+            N_IMAGES_FAILED = COUNT(DFAILED)
+        
+         END IF
+   
+         ! Check if failure fraction exceeds tolerance
+         IF(N_IMAGES_FAILED.EQ.0) TFAILED = .FALSE. 
+
+         IF (TFAILED) THEN
+            WRITE(*,*) " trilaterate_atom> Failed to trilaterate atom ", NEWATOM, " in ", N_IMAGES_FAILED, " out of ", NIMAGES, " images."
+         END IF
+      END SUBROUTINE TRILATERATE_ATOMS2
+
+  
+
       !Intersection of three spheres with centres P1...P3 with radii R1...R3
       SUBROUTINE TRILATERATION(P1,P2,P3,R1,R2,R3,SOL1,SOL2,FTEST)
          USE HELPER_FNCTS, ONLY: CROSS_PROD, NORM_VEC
@@ -493,8 +852,8 @@ MODULE ADDINGATOM
          REAL(KIND=REAL64) :: V1(3), V2(3), V3(3), EX(3), EY(3), EZ(3)
          REAL(KIND=REAL64) :: NORM, NORM2, DOTX2, DOTY2, X, Y, Z, TEMP
           
-         REAL(KIND=REAL64) :: CROSS_CHECK(3), COLLINEARITY_TOL
-         COLLINEARITY_TOL = 1.0D-10
+         REAL(KIND=REAL64) :: CROSS_CHECK(3)
+         REAL(KIND=REAL64), PARAMETER :: TOL = 1.0D-6
 
          FTEST=.FALSE.
          !get vectors between centres
@@ -505,12 +864,12 @@ MODULE ADDINGATOM
          !check for colinearity: compute cross product V1 x V2
          CALL NORM_VEC(CROSS_PROD(V1, V2), CROSS_CHECK, NORM )
                   
-         IF (NORM .LT. COLLINEARITY_TOL) THEN
+         IF (NORM .LT. TOL) THEN
             FTEST=.TRUE.
             RETURN
          END IF
          
-         !Reset norm and temp
+         !Reset norm 
          NORM = 0.D0
          
          !get normalised version of V1 
@@ -522,6 +881,11 @@ MODULE ADDINGATOM
          EZ = CROSS_PROD(EX,EY)
 
          DOTY2 = EY(1)*V2(1) + EY(2)*V2(2) + EY(3)*V2(3) 
+
+         IF ((NORM .LT. TOL).OR.(DOTY2 .LT. TOL)) THEN
+            FTEST=.TRUE.
+            RETURN
+         END IF
 
          X=(R1*R1 - R2*R2 + NORM*NORM) / (2.0D0*NORM)
          Y=(R1*R1 - R3*R3 -2.0D0*DOTX2*X + DOTX2*DOTX2 + DOTY2*DOTY2) / (2.0D0*DOTY2)
@@ -682,7 +1046,7 @@ MODULE ADDINGATOM
          WRITE(*,'(A,I8)') " place_atom> New atom: ", NEWATOM
 
          !Setting up local axis system for the start image
-         IF ((NLOCAL.GT.3).AND.(USEFOURATOMST)) THEN
+         IF ((NLOCAL.GT.3)) THEN !.AND.(USEFOURATOMST)) THEN
             CALL GET_LOCAL_AXIS2(IDX1,IDX2,IDX3,IDX4,1,B1,B2,B3)
             WRITE(*,'(A)') " place_atom> Using four atoms for placement"
             IF (DEBUG) THEN
@@ -964,17 +1328,24 @@ MODULE ADDINGATOM
       END SUBROUTINE UPDATE_REPULSIONS
 
 
-      SUBROUTINE UPDATE_CONSTRAINTS(NEWATOM,NCONNEWATOM,BESTCONDIST,BESTCONIDX)
-         USE QCIKEYS, ONLY: NATOMS, QCIFROZEN, DEBUG
+      !SUBROUTINE UPDATE_CONSTRAINTS(NEWATOM,NCONNEWATOM,BESTCONDIST,BESTCONIDX)
+      SUBROUTINE UPDATE_CONSTRAINTS(NEWATOM)
+         USE QCIKEYS, ONLY: NATOMS, DEBUG !, QCIFROZEN
          USE INTERPOLATION_KEYS, ONLY: CONACTIVE, ATOMACTIVE, NCONSTRAINTON
          USE QCI_CONSTRAINT_KEYS, ONLY: NCONSTRAINT, CONI, CONJ, CONDISTREF, MAXCONUSE
          USE HELPER_FNCTS, ONLY: DISTANCE_TWOATOMS
          
          IMPLICIT NONE
          INTEGER, INTENT(IN) :: NEWATOM
-         REAL(KIND=REAL64), INTENT(OUT) :: BESTCONDIST(NATOMS)  !sorted list of average distances
-         INTEGER, INTENT(OUT)  :: BESTCONIDX(NATOMS)            !associated list of atom ids
-         INTEGER, INTENT(OUT) :: NCONNEWATOM                    !number of atoms found that are within the cut offs and active     
+         !REAL(KIND=REAL64), INTENT(OUT) :: BESTCONDIST(NATOMS)  !sorted list of average distances
+         !INTEGER, INTENT(OUT)  :: BESTCONIDX(NATOMS)            !associated list of atom ids
+         !INTEGER, INTENT(OUT) :: NCONNEWATOM                    !number of atoms found that are within the cut offs and active     
+         
+         REAL(KIND=REAL64) :: BESTCONDIST(NATOMS)  !sorted list of average distances
+         INTEGER  :: BESTCONIDX(NATOMS)            !associated list of atom ids
+         INTEGER  :: NCONNEWATOM                    !number of atoms found that are within the cut offs and active     
+         
+         
          INTEGER :: J1, J2, J3, ATOM1, ATOM2
 
          BESTCONDIST(1:NATOMS) = 1.0D100
@@ -1216,7 +1587,8 @@ MODULE ADDINGATOM
       END SUBROUTINE GET_ATOMS_BY_DISTANCE
 
       SUBROUTINE FIND_NEXT_ATOM(CHOSENACID,ACID,NEWATOM,NCONTOACT,SHORTESTCON)
-         USE QCIKEYS, ONLY: QCILINEART, INLINLIST, ATOMS2RES, QCIDOBACK, ISBBATOM, QCIUSEGROUPS, QCIFROZEN
+         USE QCIKEYS, ONLY: QCILINEART, USELINGROUPS, INLINLIST, ATOMS2RES, QCIDOBACK, ISBBATOM, QCIUSEGROUPS, USELINGROUPS !, QCIFROZEN
+         USE QCI_LINEAR, ONLY: ATOM2LINGROUP
          USE INTERPOLATION_KEYS, ONLY: ATOMACTIVE, CONACTIVE, NACTIVE
          USE QCI_CONSTRAINT_KEYS, ONLY: NCONSTRAINT, CONDISTREF, CONI, CONJ
          USE AMBER_CONSTRAINTS, ONLY: CURRENTLY_ADDING_GROUP, CHECK_IN_GROUP
@@ -1243,7 +1615,7 @@ MODULE ADDINGATOM
             ELSE IF (ATOMACTIVE(CONJ(J1)).AND.(.NOT.ATOMACTIVE(CONI(J1)))) THEN
                IDXACTIVE = CONJ(J1)
                IDXINACTIVE = CONI(J1) 
-            ELSE IF ( (ATOMACTIVE(CONJ(J1)).AND.ATOMACTIVE(CONI(J1)) ) .AND. ((.NOT.QCIFROZEN(CONI(J1))).OR.(.NOT.QCIFROZEN(CONJ(J1)))) ) THEN
+            ELSE IF ( ATOMACTIVE(CONJ(J1)).AND.ATOMACTIVE(CONI(J1))  ) THEN
                WRITE(*,*) " find_next_atom> WARNING: atoms ", CONI(J1), " and ", CONJ(J1), " are active, but the constraint", J1," between them is not!"
                CYCLE
             ELSE 
@@ -1251,7 +1623,10 @@ MODULE ADDINGATOM
             END IF 
             ! Now test for various options to get the next atom
             ! 1. Are we using QCIlinear, and is the inactive atom in the list?
-            IF (QCILINEART.AND.(.NOT.INLINLIST(IDXINACTIVE))) CYCLE
+            !IF (QCILINEART.AND.(.NOT.INLINLIST(IDXINACTIVE))) CYCLE
+            IF (QCILINEART) THEN 
+               IF (.NOT.INLINLIST(IDXINACTIVE)) CYCLE
+            END IF
             ! 2. Is CHOSENACID set, and is the inactive atom in the residue to be added?
             IF (CHOSENACID.AND.(.NOT.(ATOMS2RES(IDXINACTIVE).EQ.ACID))) CYCLE
             ! 3. Are we adding backbone atoms, and is the inactive atom a backbone atom?
@@ -1285,9 +1660,13 @@ MODULE ADDINGATOM
 
          !sanity check that we have found an atom to be added - if not we terminate
          IF (NEWATOM*NCONTOACT.EQ.0) THEN
-            WRITE(*,*) NCONTOACTIVE
+            !WRITE(*,*) NCONTOACTIVE
+            WRITE(*,*) "BBDONE =", BBDONE
             WRITE(*,*) "Nactive: ", NACTIVE
             WRITE(*,*) "QCI linear: ", QCILINEART
+            WRITE(*,*) "CHOSENACID: ", CHOSENACID
+            WRITE(*,*) "QCIDOBACK: ", QCIDOBACK
+            WRITE(*,*) "QCIUSEGROUPS: ", QCIUSEGROUPS
             WRITE(*,*) NEWATOM, NCONTOACT
             WRITE(*,*) " find_next_atom> Error - new active atom not set, NEWATOM: ", NEWATOM, " NCONTOACT: ", NCONTOACT
             CALL INT_ERR_TERMINATE()
@@ -1331,6 +1710,8 @@ MODULE ADDINGATOM
          
       END SUBROUTINE CREATE_NCONTOACTIVE_LIST
 
+      !> Go through bacbone atom list, if all the bacbone atoms have been activated
+      !! set BBDONE=T, otherwise return. 
       SUBROUTINE CHECK_BBLIST()
          USE QCIKEYS, ONLY: NATOMS, DEBUG, ISBBATOM
          USE INTERPOLATION_KEYS, ONLY: ATOMACTIVE
@@ -1348,5 +1729,141 @@ MODULE ADDINGATOM
          IF (DEBUG) WRITE(*,*) " check_bblist> All backbone atoms are active"
       END SUBROUTINE CHECK_BBLIST
 
+      !> Find next best atom and try adding it instead. 
+      SUBROUTINE FIND_NEXT_ATOM_FALLBACK(CHOSENACID,ACID, TRIED, NEWATOM,NCONTOACT,SHORTESTCON)
+         USE QCIKEYS, ONLY: QCILINEART, INLINLIST, ATOMS2RES, QCIDOBACK, ISBBATOM, QCIUSEGROUPS !, QCIFROZEN
+         USE INTERPOLATION_KEYS, ONLY: ATOMACTIVE, CONACTIVE, NACTIVE
+         USE QCI_CONSTRAINT_KEYS, ONLY: NCONSTRAINT, CONDISTREF, CONI, CONJ
+         USE AMBER_CONSTRAINTS, ONLY: CURRENTLY_ADDING_GROUP, CHECK_IN_GROUP
+         IMPLICIT NONE
+         INTEGER, INTENT(IN) :: ACID
+         INTEGER, INTENT(IN) :: TRIED
+         LOGICAL, INTENT(IN) :: CHOSENACID
+         INTEGER, INTENT(OUT) :: NEWATOM
+         INTEGER, INTENT(OUT) :: NCONTOACT
+         REAL(KIND=REAL64), INTENT(OUT)  :: SHORTESTCON
+         INTEGER :: J1, IDXACTIVE, IDXINACTIVE
+
+         !resetting all dummy variuables
+         NEWATOM = 0
+         NCONTOACT = 0
+         SHORTESTCON = 1.0D100
+
+         DO J1=1,NCONSTRAINT
+            !ignore active constraints
+            IF (CONACTIVE(J1)) CYCLE
+            !set the active and inactive atoms in the constraint and cycle if neither or both (shouldn't happen) are active
+
+            IF((CONI(J1).EQ.TRIED).OR.(CONJ(J1).EQ.TRIED)) THEN
+               !we have already tried this atom, so skip
+               CYCLE
+            END IF
+
+            IF (ATOMACTIVE(CONI(J1)).AND.(.NOT.ATOMACTIVE(CONJ(J1)))) THEN
+               IDXACTIVE = CONI(J1)
+               IDXINACTIVE = CONJ(J1)
+            ELSE IF (ATOMACTIVE(CONJ(J1)).AND.(.NOT.ATOMACTIVE(CONI(J1)))) THEN
+               IDXACTIVE = CONJ(J1)
+               IDXINACTIVE = CONI(J1) 
+            ELSE IF ( (ATOMACTIVE(CONJ(J1)).AND.ATOMACTIVE(CONI(J1)) )  ) THEN
+               WRITE(*,*) " find_next_atom> WARNING: atoms ", CONI(J1), " and ", CONJ(J1), " are active, but the constraint", J1," between them is not!"
+               CYCLE
+            ELSE 
+               CYCLE
+            END IF 
+            ! Now test for various options to get the next atom
+            ! 1. Are we using QCIlinear, and is the inactive atom in the list?
+            IF (QCILINEART) THEN
+               IF(.NOT.INLINLIST(IDXINACTIVE)) CYCLE
+            END IF
+            ! 2. Is CHOSENACID set, and is the inactive atom in the residue to be added?
+            IF (CHOSENACID.AND.(.NOT.(ATOMS2RES(IDXINACTIVE).EQ.ACID))) CYCLE
+            ! 3. Are we adding backbone atoms, and is the inactive atom a backbone atom?
+            IF (QCIDOBACK.AND.(.NOT.BBDONE).AND.(.NOT.ISBBATOM(IDXINACTIVE))) CYCLE
+            ! 4. Is the atom in the current group?
+            IF (QCIUSEGROUPS.AND.CURRENTLY_ADDING_GROUP) THEN
+               IF (.NOT.CHECK_IN_GROUP(IDXINACTIVE)) CYCLE
+            END IF
+
+            !IF (NCONTOACTIVE(IDXINACTIVE).GE.NCONTOACT) THEN
+            !   IF (CONDISTREF(J1).LT.SHORTESTCON) THEN
+            !      SHORTESTCON = CONDISTREF(J1)
+            !      NEWATOM = IDXINACTIVE
+            !      NCONTOACT = NCONTOACTIVE(IDXINACTIVE)
+            !   END IF
+            !END IF
+
+            IF (NCONTOACTIVE(IDXINACTIVE).GT.NCONTOACT) THEN
+               ! New atom has more constraints, so higher priority
+               SHORTESTCON = CONDISTREF(J1)
+               NEWATOM = IDXINACTIVE
+               NCONTOACT = NCONTOACTIVE(IDXINACTIVE)
+            ELSE IF (NCONTOACTIVE(IDXINACTIVE).EQ.NCONTOACT .AND. CONDISTREF(J1).LT.SHORTESTCON) THEN
+               ! Same number of constraints, but closer
+               SHORTESTCON = CONDISTREF(J1)
+               NEWATOM = IDXINACTIVE
+               NCONTOACT = NCONTOACTIVE(IDXINACTIVE)
+            END IF
+         END DO
+
+         !If we didn't find a new atom, we need to go back to the first choice
+         IF (NEWATOM*NCONTOACT.EQ.0) THEN
+            WRITE(*,*) "Nactive: ", NACTIVE
+            WRITE(*,*) "QCI linear: ", QCILINEART
+            WRITE(*,*) NEWATOM, NCONTOACT
+            WRITE(*,*) " find_next_atom_fallback> Didn't find a fallback atom, revert to original choice. "
+         END IF
+      END SUBROUTINE FIND_NEXT_ATOM_FALLBACK
+
+      !> Same as update constraints, but only checking which constraints would be turned on without actually turning them on.
+      SUBROUTINE CHECK_CONSTRAINTS(NEWATOM,NCONNEWATOM,BESTCONDIST,BESTCONIDX)
+         USE QCIKEYS, ONLY: NATOMS, QCIFROZEN, DEBUG
+         USE INTERPOLATION_KEYS, ONLY: CONACTIVE, ATOMACTIVE, NCONSTRAINTON
+         USE QCI_CONSTRAINT_KEYS, ONLY: NCONSTRAINT, CONI, CONJ, CONDISTREF, MAXCONUSE
+         USE HELPER_FNCTS, ONLY: DISTANCE_TWOATOMS
+         
+         IMPLICIT NONE
+         INTEGER, INTENT(IN) :: NEWATOM
+         REAL(KIND=REAL64), INTENT(OUT) :: BESTCONDIST(NATOMS)  !sorted list of average distances
+         INTEGER, INTENT(OUT)  :: BESTCONIDX(NATOMS)            !associated list of atom ids
+         INTEGER, INTENT(OUT) :: NCONNEWATOM                    !number of atoms found that are within the cut offs and active     
+         INTEGER :: J1, J2, J3, ATOM1, ATOM2
+
+         BESTCONDIST(1:NATOMS) = 1.0D100
+         BESTCONIDX(1:NATOMS) = -1
+         NCONNEWATOM = 0
+
+         DO J1=1,NCONSTRAINT
+            IF (CONACTIVE(J1)) CYCLE
+            ATOM1 = CONI(J1)
+            ATOM2 = CONJ(J1)
+            !if either atom1 is the new atom and atom2 is active or vice versa, this is a new possible constraint
+            IF (((ATOM1.EQ.NEWATOM).AND.(ATOMACTIVE(ATOM2))).OR.((ATOM2.EQ.NEWATOM).AND.(ATOMACTIVE(ATOM1)))) THEN
+               NCONNEWATOM = NCONNEWATOM + 1
+               DO J2=1,NCONNEWATOM
+                  IF (CONDISTREF(J1).LT.BESTCONDIST(J2)) THEN
+                     DO J3=NCONNEWATOM,J2+1,-1
+                        BESTCONDIST(J3)=BESTCONDIST(J3-1)
+                        BESTCONIDX(J3)=BESTCONIDX(J3-1)
+                     END DO
+                     BESTCONDIST(J2) = CONDISTREF(J1)
+                     IF (ATOM1.EQ.NEWATOM) BESTCONIDX(J2) = ATOM2
+                     IF (ATOM2.EQ.NEWATOM) BESTCONIDX(J2) = ATOM1
+                     EXIT
+                  END IF
+               END DO
+               WRITE(*,*) " New constraint: ", ATOM1, ATOM2, "new atom: ", NEWATOM, " distance: ", CONDISTREF(J1)
+            END IF              
+         END DO
+         
+         IF (DEBUG) THEN
+            WRITE(*,*) " get_constraints_by_dist> Constraints including new atom by average reference distance:"
+            WRITE(*,'(10G12.4)') BESTCONDIST(1:MIN(10,NCONNEWATOM))
+            WRITE(*,*) "                    Average distances:"
+            WRITE(*,'(10I6)') BESTCONIDX(1:MIN(10,NCONNEWATOM))
+         END IF
+
+        
+      END SUBROUTINE CHECK_CONSTRAINTS
 
 END MODULE ADDINGATOM
