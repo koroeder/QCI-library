@@ -1,4 +1,5 @@
 PROGRAM QCI_STANDALONE
+   USE, INTRINSIC :: ISO_FORTRAN_ENV, ONLY: COMPILER_VERSION
    USE QCI_INTERFACE
    USE TIMER_MODULE
    IMPLICIT NONE
@@ -21,8 +22,10 @@ PROGRAM QCI_STANDALONE
       READ(NATSDUMMY,*) NATOMS
       CALL GET_COMMAND_ARGUMENT(2, PARAMFILE) 
    ELSE IF (NARGS.EQ.0) THEN
-      WRITE(STDOUT,'(A,I4)') "QCI - Standalone Quasi-Continious Interpolation "
-      WRITE(STDOUT,'(A,I4)') "Usage: ./QCI <n_atoms> <params_file> > output"
+      WRITE(*,'(A)')   " QCI - Standalone Quasi-Continuous Interpolation"
+      WRITE(*,'(A)')   " Usage: ./QCI <n_atoms> <params_file> > output"
+      WRITE(*,'(A,A,A,A)') ' Built on:    ', __DATE__, ' ', __TIME__
+      WRITE(*,'(A,A)')   ' Compiler:    ', TRIM(COMPILER_VERSION())
       STOP
    ELSE
       WRITE(STDOUT,'(A,I4)') "Expecting two arguments, but got ", NARGS

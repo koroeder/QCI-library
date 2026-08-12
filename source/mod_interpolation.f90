@@ -53,6 +53,8 @@ MODULE QCIINTERPOLATION
          REAL(KIND = REAL64) :: CURRMAXSEP, CURRMINSEP !< current minimum and maximum image separation
          INTEGER :: IDXMIN, IDXMAX !< id for minimum and maximum distance images
          
+         REAL(KIND = REAL64) :: IM_DIST_MIN, IM_DIST_MAX
+         INTEGER :: IM_N_MIN, IM_N_MAX
          !DEGBUG
          INTEGER :: UNITCONSTR
 
@@ -537,6 +539,7 @@ MODULE QCIINTERPOLATION
          IF (EXITSTATUS.EQ.1) THEN
             WRITE(*,*) " QCIinterp> Converged after ", NITERDONE," steps, energy/image=",ETOTAL/NIMAGES, &
                                  ' RMS=',RMS,' images=',NIMAGES
+            
             QCICOMPLETE = .TRUE.
          ELSE
             WRITE(*,*) " QCIinterp> Not converged after ", NITERDONE," steps, energy/image=",ETOTAL/NIMAGES, &
@@ -544,6 +547,10 @@ MODULE QCIINTERPOLATION
             QCICOMPLETE = .FALSE.                     
          END IF
          
+         WRITE(*,*) "K_SPRING END ", K_SPRING
+         CALL GET_IMAGE_SEPARATION( IM_DIST_MIN, IM_DIST_MAX, IM_N_MIN, IM_N_MAX)
+         WRITE(,*,) "Max-min im sep>", IM_DIST_MAX-IM_DIST_MIN
+
          CALL GET_STATISTIC_INTERP()
          CALL WRITE_BAND(XYZFILE)
          CALL WRITE_ACTIVE_BAND(ADJUSTL(TRIM(XYZFILE))//".active")

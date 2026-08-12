@@ -31,11 +31,13 @@ MODULE CONSTR_E_GRAD
 
       SUBROUTINE CONGRAD(ETOTAL, XYZ, GGG, EEE, RMS)
          USE QCIKEYS, ONLY: NIMAGES, NATOMS, CHECKCONINT
+         USE IEEE_ARITHMETIC
          REAL(KIND = REAL64), INTENT(IN) :: XYZ(3*NATOMS*(NIMAGES+2))   !< input coordinates
          REAL(KIND = REAL64), INTENT(OUT) :: GGG(3*NATOMS*(NIMAGES+2))  !< gradient for each atom in each image
          REAL(KIND = REAL64), INTENT(OUT) :: EEE(NIMAGES+2)             !< energy for each image
          REAL(KIND = REAL64), INTENT(OUT) :: ETOTAL                    !< overall energy
          REAL(KIND = REAL64), INTENT(OUT) :: RMS                       !< total force
+         INTEGER :: I
 
          ! call correct congrad routine
          IF (CHECKCONINT) THEN
@@ -43,6 +45,18 @@ MODULE CONSTR_E_GRAD
             ELSE
             CALL CONGRAD1(ETOTAL, XYZ, GGG, EEE, RMS)
          END IF
+
+         ! check input coordinates for NaN or infinity
+         DO I = 1, 3*NATOMS*(NIMAGES+2)
+            IF (.NOT. IEEE_IS_FINITE(XYZ(I))) THEN
+               IF (IEEE_IS_NAN(XYZ(I))) THEN
+                  WRITE(*,'(A,I0)') 'ERROR in CONGRAD: NaN detected in XYZ '
+               ELSE
+                  WRITE(*,'(A,I0)') 'ERROR in CONGRAD: Infinity detected in XYZ '
+               END IF
+               CALL INT_ERR_TERMINATE()
+            END IF
+         END DO
          
       END SUBROUTINE CONGRAD
 
