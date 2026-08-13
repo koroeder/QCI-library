@@ -4,7 +4,7 @@
 ! version 2 (congrad2) - tests for internal minimum in repulsion and constraints
 !
 
-! @Note on energy addition for internal minimum
+! Note on energy addition for internal minimum
 ! For internal minima the energy contribution is shared between J-1 and J images 
 ! In practice this looks like EEE(J1)=EEE(J1)+DUMMY/2 & EEE(J1-1)=EEE(J1-1)+DUMMY/2
 ! However, use of EEE(J1-1)=EEE(J1-1)+DUMMY/2 causes error at the order of epsilon every time we do this 

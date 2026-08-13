@@ -549,7 +549,7 @@ MODULE QCIINTERPOLATION
          
          WRITE(*,*) "K_SPRING END ", K_SPRING
          CALL GET_IMAGE_SEPARATION( IM_DIST_MIN, IM_DIST_MAX, IM_N_MIN, IM_N_MAX)
-         WRITE(,*,) "Max-min im sep>", IM_DIST_MAX-IM_DIST_MIN
+         WRITE(*,*) "Max-min im sep>", IM_DIST_MAX-IM_DIST_MIN
 
          CALL GET_STATISTIC_INTERP()
          CALL WRITE_BAND(XYZFILE)
