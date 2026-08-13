@@ -287,9 +287,6 @@ MODULE CONSTR_E_GRAD
          ECON = 0.0D0
          DO J2=1,NCONSTRAINT
 
-            ! only active constraints contribute
-            !IF (.NOT.CONACTIVE(J2)) CYCLE
-            ! get constraint cut off for this contraint
             
             !added extra conditions for active-inactive           
             IF (.NOT.USECONACTINACT) THEN
@@ -304,6 +301,7 @@ MODULE CONSTR_E_GRAD
                ! one atom active
                LOCALCONFACTOR = CONACTINACT
             ELSE
+               !Skip if neither atom is active
                CYCLE
             END IF
                   
@@ -517,6 +515,7 @@ MODULE CONSTR_E_GRAD
             ELSE
                CYCLE
             END IF
+            
             ! get constraint cut off for this contraint
             CALL GET_CCLOCAL(J2,CCLOCAL)            
             ! go through all images 
