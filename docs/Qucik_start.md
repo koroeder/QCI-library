@@ -5,52 +5,37 @@
 
 1. Clone the qci library:
 
-```bash
-git clone git@github.com:koroeder/QCI-library.git
-```
+    ```bash
+    git clone git@github.com:koroeder/QCI-library.git
+    ```
 
 
 2. Load/install libraries
 
    
-   1. **Create**
+   **Ubuntu**
 
-      Request interactive session for the compute node
+   Install missing libraries with: `sudo apt install liblapack-dev libopenblas-dev gfortran make cmake`
 
-```bash
-  srun -p roeder_cpu --time 60 --pty /bin/bash -l
-```
+3. Create build directory in the standaloneQCI dir
 
-       Load modules
-
-```bash
-  module load gcc/11.4.0-gcc-11.4.0 cmake/3.27.7-gcc-11.4.0 openblas/0.3.24-gcc-11.4.0
-```
-
-     b. **Ubuntu**
-
-          Install missing libraries with: `sudo apt install liblapack-dev libopenblas-dev gfortran make cmake`
-
- 3. Create build directory in the standaloneQCI dir
-
-```bash
-cd QCI-library/standaoneQCI      
-mkdir build && cd build                
-```
+    ```bash
+    cd QCI-library/standaoneQCI      
+    mkdir build && cd build                
+    ```
 
 
 4. Run cmake
 
-```bash
-FC=gfortran cmake ..
-```
+    ```bash
+    FC=gfortran cmake ..
+    ```
 
 
 5. Run make
-
-```bash
-make
-```
+    ```bash
+    make
+    ```
 
 ## Usage 
 
@@ -60,7 +45,7 @@ make
   * `coords.prmtop` - Amber topology file
   * `QCI_params.dat` - QCI parameter file
 * Running QCI:
-  * `./QCI <N_atoms> QCI_params.dat > output` 
+  * `./QCI QCI_params.dat > output` 
 * Output files:
   * `output` -  logfile
   * `int.xyz`  - interpolated images in trajectory format
@@ -73,18 +58,9 @@ make
 * Script  `QCI-library/scripts/inpcrd2start.py` can be used to convert Amber coordinate file to `start` type file
 * Use: `python3 inprcd2start.py coords.inpcrd start`
 
-### perm.allow
+### `perm.allow`
 
-* Script used to create perm.allow files is available with OPTIM code: <https://www-wales.ch.cam.ac.uk/OPTIM/>
-  * relative path in OPTIM source code:  `wales/SCRIPTS/make_perm.allow`
-  * Use: `python2 perm-pdb.py conf.pdb AMBER`
-
-### Symmetrise  topology file:
-
-* Script is available with OPTIM code: <https://www-wales.ch.cam.ac.uk/OPTIM/>
-  * Relative path: `wales/SCRIPTS/AMBER/symmetrise_prmtop`
-  * Use: `python2 perm-prmtop.ff19.py coords.prmtop.old coords.prmtop wales/AMBERTOOLS/dat/leap/lib` 
-    * *Note: change path to Amber to absolute path* 
+* Script used to create `perm.allow` file is available in the `scripts` dir. 
 
 
 ## Visualising output 

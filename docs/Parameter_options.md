@@ -26,7 +26,7 @@
 
 * Topology type  
 * Valid types: `AMBER`, `HIRE`, `SBM`, `GEOMETRY`
-* Example: `QCIMODE AMBE`
+* Example: `QCIMODE AMBER`
 
 ### Amber  
 
