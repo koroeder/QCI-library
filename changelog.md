@@ -1,6 +1,10 @@
 # Standalone Quasi-Continious Interpolation (QCI) code
 
-### 23.07.2016.
+### 14.08.2026
+- Change use from: ./QCI <natoms> <params_file> to ./QCI <params_file>
+- Add NaN checks and check input files for correct format
+- Add perm.allow generator script
+### 23.07.2026.
 - Full dihedrals now work
     - Parameter file setting: DIHEDRALS 2
 - Added simple permutations for group size 3 (still in development)
