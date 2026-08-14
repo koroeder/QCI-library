@@ -53,9 +53,13 @@ MODULE QCIINTERPOLATION
          REAL(KIND = REAL64) :: CURRMAXSEP, CURRMINSEP !< current minimum and maximum image separation
          INTEGER :: IDXMIN, IDXMAX !< id for minimum and maximum distance images
          
+         REAL(KIND = REAL64) :: IM_DIST_MIN, IM_DIST_MAX
+         INTEGER :: IM_N_MIN, IM_N_MAX
          !DEGBUG
          INTEGER :: UNITCONSTR
 
+         
+         ETOTAL = 0.0D0
          !initiate variables for the interpolation, including image density set nimage
          CALL ALLOC_INTERPOLATION_VARS()
          CALL ALLOC_STEPTAKING()
@@ -247,11 +251,6 @@ MODULE QCIINTERPOLATION
             IF (ADDATOMT.AND.(NACTIVE.LT.NATOMS)) THEN
                WRITE(*,*) " QCIinterp> Adding the next atom to active set" 
                
-               !IF (CHECKCHIRAL) THEN
-               !   WRITE(*,*) " QCIinterp> Checking chirality across band"
-               !   CALL CHIRALITY_CHECK(XYZ) 
-               !END IF
-               
                CALL ADDATOM()
 
                !Moved this congrad call from ADDATOM 
@@ -320,7 +319,6 @@ MODULE QCIINTERPOLATION
                            ELSE
                               XYZ(:) = XPREV(:)
                               GGG(:) = GPREV(:)
-                              !TODO: add stepreduction as parameter variable at 10.0D0
                               STP(1:DIMS) = STP(1:DIMS)/STPREDUCTION  
                               WRITE(*,*) " QCIinterp> Energy increased from ", EPREV, "to", ETOTAL, "; decreasing step size"                 
                            END IF
@@ -537,6 +535,7 @@ MODULE QCIINTERPOLATION
          IF (EXITSTATUS.EQ.1) THEN
             WRITE(*,*) " QCIinterp> Converged after ", NITERDONE," steps, energy/image=",ETOTAL/NIMAGES, &
                                  ' RMS=',RMS,' images=',NIMAGES
+            
             QCICOMPLETE = .TRUE.
          ELSE
             WRITE(*,*) " QCIinterp> Not converged after ", NITERDONE," steps, energy/image=",ETOTAL/NIMAGES, &

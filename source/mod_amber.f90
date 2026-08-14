@@ -8,8 +8,12 @@ MODULE AMBER_CONSTRAINTS
    INTEGER, ALLOCATABLE :: AMBER_CONI(:), AMBER_CONJ(:)
    REAL(KIND = REAL64), ALLOCATABLE :: AMBER_CONDISTREF(:)
    REAL(KIND = REAL64), ALLOCATABLE :: AMBER_CONCUT(:)
+   
+   !QUESTION Should these be in the qci keys? 
+   LOGICAL :: USE_EXTRA_AMBER_CONSTRAINS
    CHARACTER(LEN=30) :: AMBERCONSTRFILE = "constraintfile"
    CHARACTER(LEN=25) :: TOPFILENAME = "coords.prmtop"
+   
    CHARACTER(LEN=1), ALLOCATABLE :: NASIMPLE(:)
    INTEGER, ALLOCATABLE :: BONDS(:,:)
    INTEGER, ALLOCATABLE :: ANGLES(:,:)
@@ -56,8 +60,10 @@ MODULE AMBER_CONSTRAINTS
          ! check for additional constraints in file
          INQUIRE(FILE=AMBERCONSTRFILE, EXIST=YESNO)
          IF (YESNO) THEN
+            USE_EXTRA_AMBER_CONSTRAINS = .TRUE.
             NADDCONSTR = FILE_LENGTH(AMBERCONSTRFILE)
          ELSE
+            USE_EXTRA_AMBER_CONSTRAINS = .FALSE.
             NADDCONSTR = 0
          END IF
          CALL GET_BIOCONSTR()
@@ -130,6 +136,10 @@ MODULE AMBER_CONSTRAINTS
             OPEN(CONUNIT,FILE=AMBERCONSTRFILE,STATUS='OLD')
             DO J1=1,NADDCONSTR
                READ(CONUNIT,*) IDX1, IDX2
+               IF( (IDX1.GT.NATOMS).OR.(IDX2.GT.NATOMS) ) THEN
+                  WRITE(*,*) "ERROR: Amberconstraint file contains out of range index: ", IDX1, IDX2
+                  CALL INT_ERR_TERMINATE
+               END IF
                NDUMMY = NDUMMY + 1
                CALL DISTANCE_TWOATOMS(NATOMS, XSTART, IDX1, IDX2, DS)
                CALL DISTANCE_TWOATOMS(NATOMS, XFINAL, IDX1, IDX2, DF) 
@@ -145,6 +155,7 @@ MODULE AMBER_CONSTRAINTS
             END DO
             CLOSE(CONUNIT)
          END IF
+         
          WRITE(*,*) " amber_constraints> Identified ", AMBER_NCONST, " constraints"
          WRITE(*,*) "                    Bonds: ", NBOND, ", angles: ", NANGLE, ", additional constraints: ", NADDCONSTR + NBIOCONSTR
 
@@ -712,6 +723,7 @@ MODULE AMBER_CONSTRAINTS
          CHARACTER(25) :: ENTRIES(NWORDS)='' !array of entries per line
          INTEGER :: NBONDH, NBONDA, NANGH, NANGA
          INTEGER :: NLINES
+         INTEGER :: TOP_NATOMS
          INTEGER :: J1, J2, IDX, INTDUM, NDUMMY
          INTEGER, ALLOCATABLE :: INDICES(:)
          CHARACTER(4) :: NAMES_CURR(20)
@@ -728,11 +740,23 @@ MODULE AMBER_CONSTRAINTS
          LINECOUNTER = 0
 
          OPEN(TOPUNIT,FILE=TOPFILENAME,STATUS='OLD')
+         
+         READ(TOPUNIT,'(A)') ENTRY
+         
+         
+         IF (INDEX(ENTRY, '%VERSION') .EQ. 0) THEN
+            WRITE(*,*) " qci_amber_constr> File does not appear to be a valid AMBER topology"
+            STOP
+         END IF
+         REWIND(TOPUNIT)
+         
+         
          !parse topology file
          DO
             !check whether we are at the end of the file
             LINECOUNTER = LINECOUNTER + 1
             IF (LINECOUNTER.GT.TOPLENGTH) EXIT
+           
             ! read line and parse it
             READ(TOPUNIT,'(A)') ENTRY
             CALL READ_LINE(ENTRY,NWORDS,ENTRIES) 
@@ -740,10 +764,17 @@ MODULE AMBER_CONSTRAINTS
                !ignore format identifier after flag
                READ(TOPUNIT,*)                             
                LINECOUNTER = LINECOUNTER + 1
-               ! the first line contains the information we ar eintereste din 
+               ! the first line contains the information we are interested in 
                READ(TOPUNIT,'(A)') ENTRY
                LINECOUNTER = LINECOUNTER + 1
                CALL READ_LINE(ENTRY,NWORDS,ENTRIES)
+               READ(ENTRIES(1),'(I8)') TOP_NATOMS
+               
+               IF (NATOMS.NE.TOP_NATOMS) THEN
+                  WRITE(*,*) "ERROR: Amber topology file reports ", TOP_NATOMS, " atoms, expected ", NATOMS
+                  CALL INT_ERR_TERMINATE
+               END IF
+               
                READ(ENTRIES(3),'(I8)') NBONDH
                READ(ENTRIES(4),'(I8)') NBONDA
                NBOND = NBONDH + NBONDA

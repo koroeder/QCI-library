@@ -152,6 +152,17 @@ MODULE QCIPERMDIST
                ENDIF
                READ(PERMUNIT,*) PERMGROUP(NDUMMY:NDUMMY+NPERMSIZE(J1)-1),((SETS(PERMGROUP(J3),J1,J2), &
                                 J3=NDUMMY,NDUMMY+NPERMSIZE(J1)-1), J2=1,NSETS(J1))
+               
+                ! Check that atom IDs in PERMGROUP do not exceed NATOMS
+               DO J3=NDUMMY,NDUMMY+NPERMSIZE(J1)-1
+                  IF (PERMGROUP(J3).GT.NATOMS .OR. PERMGROUP(J3).LT.1) THEN
+                     WRITE(*,*) 'init_permallow> ERROR - atom ID ',PERMGROUP(J3), &
+                                      ' in perm.allow is out of range (1,NATOMS)'
+                     CALL INT_ERR_TERMINATE()
+                  ENDIF
+               ENDDO
+
+               
                STARTGROUP(J1)=NDUMMY
                GROUPACTIVE(J1)=.FALSE.              
                NDUMMY=NDUMMY+NPERMSIZE(J1)
@@ -205,7 +216,7 @@ MODULE QCIPERMDIST
          LOGICAL :: BULKT = .FALSE., TWOD = .FALSE.
          REAL(KIND=REAL64) :: DISTANCE, DIST2
 
-        !REAL(KIND = REAL64) :: SAVECOORDSA(3*NATOMS)
+         !REAL(KIND = REAL64) :: SAVECOORDSA(3*NATOMS)
         
          REAL(KIND=REAL64) :: SAVELOCALPERMCUT
          SAVELOCALPERMCUT=LOCALPERMCUT

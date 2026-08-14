@@ -52,7 +52,7 @@ MODULE OUT_PRINT
         USE QCIKEYS
         USE INTERPOLATION_KEYS
         USE QCI_CONSTRAINT_KEYS
-        USE AMBER_CONSTRAINTS, ONLY: TOPFILENAME, AMBERCONSTRFILE
+        USE AMBER_CONSTRAINTS, ONLY: TOPFILENAME, AMBERCONSTRFILE, USE_EXTRA_AMBER_CONSTRAINS
         USE DIHEDRAL_CONSTRAINTS, ONLY: KDIH, DIHTYPE
 
         USE, INTRINSIC :: ISO_FORTRAN_ENV, ONLY: OUTPUT_UNIT
@@ -90,22 +90,20 @@ MODULE OUT_PRINT
         WRITE(IU,FMT_SEC) ''
         WRITE(IU,FMT_SEC) '--- Guess file ---'
         WRITE(IU,FMT_BOOL) 'QCIREADGUESS', QCIREADGUESS
-        WRITE(IU,FMT_CHAR) 'GUESSFILE', TRIM(GUESSFILE)
+        IF (QCIREADGUESS) WRITE(IU,FMT_CHAR) 'GUESSFILE', TRIM(GUESSFILE)
         
         !============================================================================
         ! Topology
         !============================================================================
         WRITE(IU,FMT_SEC) ''
         WRITE(IU,FMT_SEC) '--- QCI topology flags ---'
-        WRITE(IU,FMT_BOOL) 'QCIAMBERT', QCIAMBERT
-        WRITE(IU,FMT_BOOL) 'QCIHIRET', QCIHIRET
-        WRITE(IU,FMT_BOOL) 'QCISBMT', QCISBMT
-        WRITE(IU,FMT_BOOL) 'QCIGEOMT', QCIGEOMT
-
+        
+        !Amber only
         IF (QCIAMBERT) THEN
             WRITE(IU,FMT_SEC) ''
-            WRITE(IU,FMT_CHAR) 'TOPOLOGY', TRIM(TOPFILENAME)
-            WRITE(IU,FMT_CHAR) 'CONSTRAINTS', TRIM(AMBERCONSTRFILE)
+            WRITE(IU,FMT_CHAR) 'TOPOLOGY', 'AMBER'
+            WRITE(IU,FMT_CHAR) 'TOPOLOGY FILE', TRIM(TOPFILENAME)
+            IF ( USE_EXTRA_AMBER_CONSTRAINS ) WRITE(IU,FMT_CHAR) 'CONSTRAINTS', TRIM(AMBERCONSTRFILE)
             WRITE(IU,FMT_BOOL) 'QCIUSEGROUPS', QCIUSEGROUPS
             WRITE(IU,FMT_BOOL) 'BASEPAIRDETECTION', BASEPAIRDETECTION
         END IF
@@ -113,8 +111,20 @@ MODULE OUT_PRINT
         !Congeom only
         IF (QCIGEOMT) THEN
             WRITE(IU,FMT_SEC) ''
+            WRITE(IU,FMT_CHAR) 'TOPOLOGY', 'GEOMETRIC'
             WRITE(IU,FMT_REAL) 'QCICONSTRAINTTOL', QCICONSTRAINTTOL
         END IF
+
+        !Hire
+        IF (QCIHIRET) THEN
+            WRITE(IU,FMT_BOOL) 'TOPOLOGY', 'HIRE'
+        END IF
+
+        !SBM
+        IF (QCISBMT) THEN
+            WRITE(IU,FMT_CHAR) 'TOPOLOGY', 'SBM'
+        END IF
+
 
         !============================================================================
         ! Atom adding options
@@ -160,7 +170,7 @@ MODULE OUT_PRINT
         !============================================================================
 
         WRITE(IU,FMT_SEC) ''
-        WRITE(IU,FMT_SEC) '--- Repulsion settings ---'
+        WRITE(IU,FMT_SEC) '--- Penalty functions settings ---'
         WRITE(IU,FMT_REAL) 'INTMINFAC', INTMINFAC
         
         !============================================================================

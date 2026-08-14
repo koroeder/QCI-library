@@ -6,8 +6,8 @@ SUBROUTINE INT_ERR_TERMINATE()
    USE MOD_TERMINATE, ONLY: FINISH_QCI
    IMPLICIT NONE
 
-   WRITE(*,*) " terminateQCI> An error was encountered - QCI is terminated"
-   WRITE(*,*) " terminateQCI> Deallocating variables"
+   WRITE(*,*) "terminateQCI> An error was encountered - QCI is terminated"
+   WRITE(*,*) "terminateQCI> Deallocating variables"
  
    CALL FINISH_QCI()
    STOP
