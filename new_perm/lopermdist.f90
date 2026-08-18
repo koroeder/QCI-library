@@ -20,6 +20,8 @@ module lpermdist
 
       subroutine lopermdist(coordsb,coordsa,distance,dist2,rmatbest,nmove,newperm)
          use defs, only: natoms, debug
+         use minperm_mod
+         use logger, only: log_message
          use perm_defs
          implicit none
          real(kind=real64), intent(in) :: coordsb(3*natoms) !coordinates of one point preserved
@@ -30,7 +32,7 @@ module lpermdist
          integer, intent(out) :: newperm(natoms)
 
          !arrays to track permutations
-         integer :: lperm(natoms), lpermbest(natoms), lpermbestatom(natoms)
+         integer :: lperm(natoms), lpermbest(natoms), lpermbestatom(natoms), updateperm(natoms)
          real(kind=real64) :: pdummya(3*natoms), pdummyb(3*natoms), spdummya(3*natoms), spdummyb(3*natoms), xbest(3*natoms)
 
          integer :: j1, j2, j3, j4, ndummy, ndummy2, idx1, idx2, nats, jmax1a, jmax2a, jmax1b, jmax2b
@@ -41,7 +43,7 @@ module lpermdist
          ! number of atoms in current group
          integer :: patoms
          ! best distances (squared) for all groups and local one for finding it
-         real(kind=real64) :: ldbest(npermgroup), ldbestatom
+         real(kind=real64) :: ldbest(npermgroup), ldbestatom, ldistance, worstrad, dworst
          !array to track atoms we have tried so far
          integer :: tried(natoms)
          !number of distances in list
@@ -237,7 +239,7 @@ module lpermdist
                   ndummy2 = 1
                   !use iteration to increment ndummy2 by the sizes of all groups up to the relevant one
                   do j2=1,ingroup(idx1)-1
-                     ndummy2 = ndummy2 + permsize(j2)
+                     ndummy2 = ndummy2 + npermsize(j2)
                   end do
                   !now check the other atoms in the permutable group
                   do j2=1,npermsize(ingroup(idx1))
@@ -287,8 +289,8 @@ module lpermdist
                nats = nother+patoms
                call standard_orient(nats,pdummya(1:3*nats),jmax1a,jmax2a,rota,rotinva)
                call standard_orient(nats,pdummyb(1:3*nats),jmax1b,jmax2b,rotb,rotinvb)
-               write(inout,*) " lpermdist> group ", j1, " for A: atom with z alignment is ", jmax1a, " and for xy alignment is ", jmax2a
-               write(inout,*) " lpermdist> group ", j1, " for B: atom with z alignment is ", jmax1b, " and for xy alignment is ", jmax2b 
+               write(*,*) " lpermdist> group ", j1, " for A: atom with z alignment is ", jmax1a, " and for xy alignment is ", jmax2a
+               write(*,*) " lpermdist> group ", j1, " for B: atom with z alignment is ", jmax1b, " and for xy alignment is ", jmax2b 
 
                ! Optimimise permutational isomer for the standard orientation for the
                ! current choice of atoms from the possible orbits.
@@ -305,7 +307,7 @@ module lpermdist
                !check we are not changing permutations of non-permutable atoms
                do j2=1,nother
                   if (lperm(patoms+j2).ne.patoms+j2) then
-                     if (.not.(permutable(dlist(j2)))) then
+                     if ((.not.(permutable(dlist(j2)))).and.(.not.(permutable2(dlist(j2))))) then 
                         ldistance = 1.0d300
                         exit
                      end if
@@ -357,11 +359,11 @@ module lpermdist
                end do
             end if
             !update newperm
-            newparm(1:natoms) = newperm(1:natoms)
+            newperm(1:natoms) = updateperm(1:natoms)
             ! update distance
             dsum = dsum + sqrt(ldbest(j1))
             !update ndummy to account for the size of the group
-            ndummy = ndummy + permsize(j1)
+            ndummy = ndummy + npermsize(j1)
          end do ! end of loop to iterate over all perm groups
 
          !update the coordinates for dummya with the permutation
@@ -381,7 +383,7 @@ module lpermdist
          call mindist(dummyb,dummya,rmatbest,distance,dworst,xbest)
          dist2 = distance**2
          coordsa(1:3*natoms) = xbest(1:3*natoms)
-         write(iounit,*) " lopermdist> Distance after alignment is ", distance
+         write(*,*) " lopermdist> Distance after alignment is ", distance
       end subroutine lopermdist
    
       subroutine standard_orient(nats,coords,jmax1,jmax2,rot,rotinv)
@@ -409,7 +411,7 @@ module lpermdist
                cox(j2) = cox(j2) + coords(idx+j2)
             end do
          end do
-         cox(1:3) = cox(1:3)/patoms
+         cox(1:3) = cox(1:3)/nats
 
          ! move centre of coordinates to origin (centre of mass with unit masses)
          do j1=1,nats
@@ -437,7 +439,7 @@ module lpermdist
          end do
 
          !rotate the atoms to the align jamx1 with the z axis
-         call rotate_to_z_axis(nats,coords,newx,jmax,dmax,xvec,yvec,zvec)
+         call rotate_to_z_axis(nats,coords,newx,jmax1,dmax,xvec,yvec,zvec)
 
          ! now find the next atom to align to the xy plane -> again we simplifiy compared to myorient assuming there is a unique furthest atom
          ! note that the distances here are the xy distances only
@@ -478,10 +480,10 @@ module lpermdist
          idx = 3*(jmax-1)
 
          !check we don't have an unusual set of coordinates that are basically aligned
-         if ((abs(x(idx+1)).lt.thresh).and.(abs(x(idx+1)).lt.thresh)) then
+         if ((abs(x(idx+1)).lt.thresh).and.(abs(x(idx+2)).lt.thresh)) then
             !if z component is greater than zero we are already in the right orientation
-            if (q(idx+3).gt.0.0d0) then
-               newx(1:3*nats) = x(3*nats)
+            if (x(idx+3).gt.0.0d0) then
+               newx(1:3*nats) = x(1:3*nats)
             ! otherwise rotate around the x axis (make sure not to invert by accident)
             else
                do j1=1,nats
@@ -574,6 +576,7 @@ module lpermdist
             idx2 = 3*(j1-1)
             newx(idx2+1) = x(idx2+1)*cost + x(idx2+2)*sint
             newx(idx2+2) = x(idx2+2)*cost - x(idx2+1)*sint
+            newx(idx2+3) = x(idx2+3)
          end do
 
          !update unit vectors
@@ -602,10 +605,34 @@ module lpermdist
          real(kind=real64), intent(out) :: newxb(3*natoms)
          real(kind=real64) :: distbefore, thisdist
          integer :: idx, j
+         real(kind=real64) :: cmxa(3), cmxb(3), cxa(3*natoms), cxb(3*natoms), rotxb(3*natoms)
 
-         newxb(1:3*natoms) = xb(1:3*natoms)
-         call get_rot_matrix(xa,xb,rmat,distbefore)
-         call apply_rot(xb,rmat,newxb) !TODO:L check which way we need to go here: is xa should be rotated, but do we need to change xa and xb in get_rot_matrix?
+         ! we need centre coordinates
+         cmxa(1:3) = 0.0d0
+         cmxb(1:3) = 0.0d0
+
+         do idx=1,natoms
+            j=3*(idx-1)
+            cmxa(1:3) = cmxa(1:3) + xa(j+1:j+3)
+            cmxb(1:3) = cmxb(1:3) + xb(j+1:j+3)
+         end do
+
+         cmxa(1:3) = cmxa(1:3)/natoms
+         cmxb(1:3) = cmxb(1:3)/natoms
+
+         do idx=1,natoms
+            j=3*(idx-1)
+            cxa(j+1:j+3) = xa(j+1:J+3) - cmxa(1:3)
+            cxb(j+1:j+3) = xb(J+1:j+3) - cmxb(1:3)
+         end do
+
+         call get_rot_matrix(cxa,cxb,rmat,distbefore)
+         call apply_rot(cxb,rmat,rotxb) 
+
+         do idx=1,natoms
+            j=3*(idx-1)
+            newxb(j+1:j+3) = rotxb(j+1:j+3) + cmxa(1:3)
+         end do
 
          dworst=0.0d0
          distance=0.0d0
@@ -618,8 +645,8 @@ module lpermdist
          distance = sqrt(distance)
          dworst = sqrt(dworst)
          if (debug) then
-            write(iounit,*) " mindist> Distance before rotation: ", distbefore, " | Distance after rotation: ", distance
-            write(iounit,*) "          Largest distance for single atom: ", dworst
+            write(*,*) " mindist> Distance before rotation: ", distbefore, " | Distance after rotation: ", distance
+            write(*,*) "          Largest distance for single atom: ", dworst
          end if
       end subroutine
 
@@ -652,6 +679,8 @@ module lpermdist
       !> New analytic method based on quaterions from Kearsley, Acta Cryst. A, 45, 208-210, 1989.
       subroutine get_rot_matrix(xa,xb,rmat,distance)
          use defs, only: natoms
+         use logger, only: log_message
+         implicit none
          real(kind=real64), intent(in) :: xa(3*natoms), xb(3*natoms)
          real(kind=real64), intent(out) :: rmat(3,3)
          real(kind=real64), intent(out) :: distance

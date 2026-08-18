@@ -19,6 +19,9 @@ module perm_defs
    !> maximum number of random rotations to try in minpermdist
    integer :: nranrot = 0
 
+   !> number of permutational groups 
+   integer :: npermgroup = 0
+
    integer, allocatable :: npermsize(:)
    integer, allocatable :: permgroup(:)
    integer, allocatable :: bestperm(:)
