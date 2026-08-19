@@ -1,5 +1,5 @@
 module perm_setup
-   use prec
+   use qciprec
    use perm_defs
    implicit none
 
@@ -27,7 +27,7 @@ module perm_setup
       end subroutine dealloc_perm
 
       subroutine setup_perm()
-         use defs
+         use qcikeys
          use utils_io, only: file_exist, getunit
          use logger, only: log_message
          implicit none

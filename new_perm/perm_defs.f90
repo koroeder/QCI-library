@@ -1,5 +1,5 @@
 module perm_defs
-   use prec
+   use qciprec
    implicit none
    !> #permutational checks
    !> perm file

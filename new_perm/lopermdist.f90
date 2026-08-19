@@ -1,31 +1,29 @@
 module lpermdist
-   use prec
+   use qciprec
    implicit none
    contains
-      !  This routine uses local optimal alignment for each group of permutable atoms.
-      !  It is intended for use with CHARMM and AMBER.
-      !  Overall alignment is based on the transformation for the best preserved local group.
-      !
-      !  COORDSA becomes the optimal alignment of the optimal permutation
-      !  isomer, but without the permutations. DISTANCE is the residual square distance
-      !  for the best alignment with respect to permutation as well as
-      !  orientation and centre of mass.
-      !
-      !  The centres of coordinates for COORDSA and COORDSB can be anywhere. On return, the
-      !  centre of coordinates of COORDSA will be the same as for COORDSB.
-      !
-      !  This routine can also be called from intlbfgs to find the largest region built
-      !  around any perutational group that can be aligned. 
-      !  In this case DOGROUP=0 and LPERMOFF is true, and we rotate COORDSB for the best regional alignment.
-
+      !>  This routine uses local optimal alignment for each group of permutable atoms.
+      !!  It is intended for use with CHARMM and AMBER.
+      !!  Overall alignment is based on the transformation for the best preserved local group.
+      !!
+      !!  COORDSA becomes the optimal alignment of the optimal permutation
+      !!  isomer with the coordinate permutations applied. DISTANCE is the residual square distance
+      !!  for the best alignment with respect to permutation as well as
+      !!  orientation and centre of mass.
+      !!
+      !!  The centres of coordinates for COORDSA and COORDSB can be anywhere. On return, the
+      !!  centre of coordinates of COORDSA will be the same as for COORDSB.
+      !!
       subroutine lopermdist(coordsb,coordsa,distance,dist2,rmatbest,nmove,newperm)
-         use defs, only: natoms, debug
+         use qcikeys, only: natoms !, debug
          use minperm_mod
-         use logger, only: log_message
+         !use logger, only: log_message
          use perm_defs
+         
          implicit none
-         real(kind=real64), intent(in) :: coordsb(3*natoms) !coordinates of one point preserved
-         real(kind=real64), intent(inout) :: coordsa(3*natoms) ! coordinates of second point that will change
+         
+         real(kind=real64), intent(in) :: coordsb(3*natoms) !< coordinates of one point preserved
+         real(kind=real64), intent(inout) :: coordsa(3*natoms) !< coordinates of second point that will change
          real(kind=real64), intent(out) :: distance, dist2
          real(kind=real64), intent(out) :: rmatbest(3,3)
          integer, intent(out) :: nmove
@@ -36,31 +34,31 @@ module lpermdist
          real(kind=real64) :: pdummya(3*natoms), pdummyb(3*natoms), spdummya(3*natoms), spdummyb(3*natoms), xbest(3*natoms)
 
          integer :: j1, j2, j3, j4, ndummy, ndummy2, idx1, idx2, nats, jmax1a, jmax2a, jmax1b, jmax2b
-         !local copies of the coordinates
+         !> local copies of the coordinates
          real(kind=real64) :: dummya(3*natoms), dummyb(3*natoms)
-         !sum of distances
+         !> sum of distances
          real(kind=real64) :: dsum
-         ! number of atoms in current group
+         !> number of atoms in current group
          integer :: patoms
-         ! best distances (squared) for all groups and local one for finding it
+         !> best distances (squared) for all groups and local one for finding it
          real(kind=real64) :: ldbest(npermgroup), ldbestatom, ldistance, worstrad, dworst
-         !array to track atoms we have tried so far
+         !> array to track atoms we have tried so far
          integer :: tried(natoms)
-         !number of distances in list
+         !> number of distances in list
          integer :: ndmean
-         !list of distances
+         !> list of distances
          real(kind=real64) ::dmean(natoms)
-         !reference of atoms in distance list
+         !> reference of atoms in distance list
          integer :: sortlist(natoms)
-         ! centre for each group in a and b
+         !> centre for each group in a and b
          real(kind=real64) :: xa, ya, za, xb, yb, zb
-         ! distances between atoms
+         !> distances between atoms
          real(kind=real64) :: da, db, thisd
-         ! logicals used to control list addition etc
+         !> logicals used to control list addition etc
          logical :: done, more2addt
-         ! information about atoms in obligatory groups
+         !> information about atoms in obligatory groups
          integer :: dlist(natoms), nother, nadded
-         ! rotation matrices for standard alignments
+         !> rotation matrices for standard alignments
          real(kind=real64) :: rota(3,3), rotinva(3,3), rotb(3,3), rotinvb(3,3)
 
          !  Bipartite matching routine for permutations. Coordinates in DUMMYB do not change
@@ -197,6 +195,7 @@ module lpermdist
             !this replaces the original goto statements
             do while (more2addt)
                !restore the coordinates from saved coords
+
                pdummya(1:3*patoms)=spdummya(1:3*patoms)
                pdummyb(1:3*patoms)=spdummyb(1:3*patoms)   
                !intialise used variables
@@ -221,7 +220,8 @@ module lpermdist
                      nother = nother + 1
                      !sanity check
                      if (nother+patoms.gt.natoms) then
-                        call log_message(3, "Number of neighbours plus permutable atoms exceeds natoms")
+                        !call log_message(3, "Number of neighbours plus permutable atoms exceeds natoms")
+                        write(*,*) "Number of neighbours plus permutable atoms exceeds natoms"
                         stop
                      end if
                      dlist(nother) = sortlist(j2)
@@ -252,12 +252,14 @@ module lpermdist
                         nadded = nadded + 1
                         !sanity check
                         if (nother+patoms.gt.natoms) then
-                           call log_message(3, " Number of neighbours plus permutable atoms exceeds natoms")
+                           !call log_message(3, " Number of neighbours plus permutable atoms exceeds natoms")
+                           write(*,*) " Number of neighbours plus permutable atoms exceeds natoms"
                            stop
                         end if
                         dlist(nother) = permgroup(idx2)
                      else
-                        call log_message(3, " Partner atom has alreasy been tried")
+                        !call log_message(3, " Partner atom has alreasy been tried")
+                        write(*,*) " Partner atom has alreasy been tried"
                         stop                  
                      end if
                   end do
@@ -350,11 +352,13 @@ module lpermdist
             do j2=1,patoms
                updateperm(permgroup(ndummy+j2-1)) = newperm(permgroup(ndummy+lperm(j2)-1))
             end do
+            write(*,*) "DEBUG> updateperm: ", updateperm
+            write(*,*) "DEBUG> newperm: ", newperm
             !update permutations of any associated atoms
             if (nsets(j1).gt.0) then
                do j2=1,patoms
                   do j3=1,nsets(j1)
-                     updateperm(sets(permgroup(ndummy+j2-1),j1,j3)) = sets(newperm(permgroup(ndummy+lperm(j2)-1),j1,j3))
+                     updateperm(sets(permgroup(ndummy+j2-1),j1,j3)) = sets( newperm(permgroup(ndummy+lperm(j2)-1)) , j1, j3)
                   end do
                end do
             end if
@@ -377,6 +381,7 @@ module lpermdist
                dummya(idx1+2) = coordsa(idx2+2)
                dummya(idx1+3) = coordsa(idx2+3)
                nmove = nmove + 1
+               
             end if
          end do
 
@@ -387,7 +392,7 @@ module lpermdist
       end subroutine lopermdist
    
       subroutine standard_orient(nats,coords,jmax1,jmax2,rot,rotinv)
-         use defs, only: natoms
+         use qcikeys, only: natoms
          implicit none
          integer, intent(in) :: nats !patoms + nother in lpermdist
          real(kind=real64), intent(inout) :: coords(3*nats) !coordinates
@@ -444,7 +449,7 @@ module lpermdist
          ! now find the next atom to align to the xy plane -> again we simplifiy compared to myorient assuming there is a unique furthest atom
          ! note that the distances here are the xy distances only
          dmax = -1.0d0
-         do j1=1,natoms
+         do j1=1, nats !natoms
             idx = 3*(j1-1)
             dist(j1) = sqrt(newx(idx+1)**2 + newx(idx+2)**2)
             if (dist(j1).gt.dmax) then
@@ -595,7 +600,7 @@ module lpermdist
       end subroutine rotxz
 
       subroutine mindist(xa,xb,rmat,distance,dworst,newxb)
-         use defs, only: natoms, debug
+         use qcikeys, only: natoms, debug
          implicit none
          real(kind=real64), intent(in) :: xa(3*natoms)
          real(kind=real64), intent(in) :: xb(3*natoms)
@@ -652,7 +657,7 @@ module lpermdist
 
       !assumes centred coordinates
       subroutine apply_rot(x,rmat,newx)
-         use defs, only: natoms
+         use qcikeys, only: natoms
          implicit none
          real(kind=real64), intent(in) :: x(3*natoms)
          real(kind=real64), intent(out) :: newx(3*natoms)        
@@ -678,8 +683,8 @@ module lpermdist
       !> assumes xa and xb are both centred at the origin
       !> New analytic method based on quaterions from Kearsley, Acta Cryst. A, 45, 208-210, 1989.
       subroutine get_rot_matrix(xa,xb,rmat,distance)
-         use defs, only: natoms
-         use logger, only: log_message
+         use qcikeys, only: natoms
+         !use logger, only: log_message
          implicit none
          real(kind=real64), intent(in) :: xa(3*natoms), xb(3*natoms)
          real(kind=real64), intent(out) :: rmat(3,3)
@@ -721,7 +726,8 @@ module lpermdist
 
          call dsyev('V','U',4,qmat,4,diag,tempa,9*natoms,info)
          if (info.ne.0) then
-            call log_message(2, "get_rot_matrix> non-zero exit status in DSYEV")
+            !call log_message(2, "get_rot_matrix> non-zero exit status in DSYEV")
+            write(*,*) "get_rot_matrix> non-zero exit status in DSYEV"
          end if
 
          ! find current distance and min value
@@ -738,7 +744,8 @@ module lpermdist
                minv = 0.0d0
             else
                minv = -minv
-               call log_message(2, " get_rot_matrix> minv is negative, change to absolute value")
+               !call log_message(2, " get_rot_matrix> minv is negative, change to absolute value")
+               write(*,*) " get_rot_matrix> minv is negative, change to absolute value"
             end if
          end if
 

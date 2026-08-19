@@ -1,31 +1,31 @@
 module align
-   use prec
+   use qciprec
    implicit none
 
    contains
 
       subroutine align_endpoints()
-         use defs, only: natoms
-         use dneb_defs, only: xs, xf, dist
+         use qcikeys, only: natoms
+         use INTERPOLATION_KEYS, only: xstart, xfinal, dist
          implicit none
          real(kind=real64) :: newxf(3*natoms)
          real(kind=real64) :: dist2, dworst, rmat(3,3)
          integer :: nmove, nperm(natoms)
 
          ! make sure endpoints are both centred at the origin
-         call move_to_origin(xs)
-         call move_to_origin(xf)
+         call move_to_origin(xstart)
+         call move_to_origin(xfinal)
 
          if (hiret) then
-            call mindist(xs,xf,rmat,dist,dworst,newxf)
+            call mindist(xstart,xfinal,rmat,dist,dworst,newxf)
             xf = newxf
          else if (ambert) then
-            call lpermdist(xs,xf,dist,dist2,rmat,nmove,newperm)
+            call lpermdist(xstart,xfinal,dist,dist2,rmat,nmove,newperm)
          end if
       end subroutine align_endpoints
 
       subroutine move_to_origin(x)
-         use defs, only: natoms
+         use qcikeys, only: natoms
          implicit none
          real(kind=real64) :: x(3*natoms)
          real(kind=real64) :: cox(3)

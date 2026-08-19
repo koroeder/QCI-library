@@ -17,7 +17,7 @@
 !       sum(i=1,n) permdist(p(i), q(perm(i))) == dist
 
 module minperm_mod
-   use prec, only: int64, real64
+   use qciprec, only: int64, real64
    implicit none
    ! Save the largest arrays between iterations to reduce allocations.
    !     cc, kk:  Sparse matrix of distances
@@ -30,36 +30,36 @@ module minperm_mod
       subroutine minperm(n, p, q, perm, dist, worstdist, worstradius)
          implicit none
 
-         !     Input
-         !       n  : System size
-         !       p,q: Coordinate vectors (n particles)
-         !       pbc: Periodic boundary conditions?
+         !>     Input
+         !!       n  : System size
+         !!       p,q: Coordinate vectors (n particles)
+         !!       pbc: Periodic boundary conditions?
          integer, intent(in) :: n
          real(kind=real64) :: p(3*n), q(3*n), worstdist, worstradius
          !remove--> sx, sy,sz, s
          !remove--> logical pbc
 
-         !     Output
-         !       perm: Permutation so that p(i) <--> q(perm(i))
-         !       dist: Minimum attainable distance
+         !>     Output
+         !!       perm: Permutation so that p(i) <--> q(perm(i))
+         !!       dist: Minimum attainable distance
          integer, intent(out) :: perm(n)
          real(kind=real64),intent(out) :: dist
          real(kind=real64) :: dummy
-         !     Parameters
-         !       scale : Precision
-         !       maxnei: Maximum number of closest neighbours
+         !>     Parameters
+         !!       scale : Precision
+         !!       maxnei: Maximum number of closest neighbours
          real(kind=real64), parameter :: scale = 1.0d6
          integer, parameter :: maxnei = 60
 
-         !     Internal variables
-         !     first:
-         !       Sparse matrix of distances
-         !     first(i):
-         !       Beginning of row i in data,index vectors
-         !     kk(first(i)..first(i+1)-1):
-         !       Column indexes of existing elements in row i
-         !     cc(first(i)..first(i+1)-1):
-         !       Matrix elements of row i
+         !>     Internal variables
+         !!     first:
+         !!       Sparse matrix of distances
+         !!     first(i):
+         !!       Beginning of row i in data,index vectors
+         !!     kk(first(i)..first(i+1)-1):
+         !!       Column indexes of existing elements in row i
+         !!     cc(first(i)..first(i+1)-1):
+         !!       Matrix elements of row i
          integer(kind=int64) :: first(n+1), x(n), y(n)
          integer(kind=int64) :: u(n), v(n), h
          integer(kind=int64) :: m, i, j, k, l, l2, t, a, i3, j3
@@ -92,7 +92,7 @@ module minperm_mod
             do i=1,n
                k = first(i)-1
                do j=1,n
-                  cc(k+j) = permdist(p(3*i-2), q(3*j-2), s, pbc)*scale
+                  cc(k+j) = permdist(p(3*i-2), q(3*j-2))*scale
                   kk(k+j) = j
                enddo
             enddo
@@ -105,7 +105,7 @@ module minperm_mod
             do i=1,n
                k = first(i)-1
                do j=1,m
-                  cc(k+j) = permdist(p(3*i-2), q(3*j-2), s, pbc)*scale
+                  cc(k+j) = permdist(p(3*i-2), q(3*j-2))*scale
                   kk(k+j) = j
                   l = j
 10                if(l .le. 1) goto 11
@@ -123,7 +123,7 @@ module minperm_mod
 11             enddo
             
                do j=m+1,n
-                  d = permdist(p(3*i-2), q(3*j-2), s, pbc)*scale
+                  d = permdist(p(3*i-2), q(3*j-2))*scale
                   if(d .lt. cc(k+1)) then
                      cc(k+1) = d
                      kk(k+1) = j
@@ -195,7 +195,7 @@ module minperm_mod
          worstdist=-1.0d0
          do i=1,n
          ! DUMMY=(p(3*(i-1)+1)-q(3*(perm(i)-1)+1))**2+(p(3*(i-1)+2)-q(3*(perm(i)-1)+2))**2+(p(3*(i-1)+3)-q(3*(perm(i)-1)+3))**2
-            dummy=permdist(p(3*i-2),q(3*(perm(i)-1)+1),s,pbc)
+            dummy=permdist(p(3*i-2),q(3*(perm(i)-1)+1))
             if (dummy.gt.worstdist) then
                worstdist=dummy 
                worstradius=p(3*(i-1)+1)**2+p(3*(i-1)+2)**2+p(3*(i-1)+3)**2
@@ -205,11 +205,11 @@ module minperm_mod
          worstradius=max(sqrt(worstradius),1.0d0)
       end subroutine minperm 
       
-      !     permdist is the distance or weight function. It is coded
-      !     separately for clarity. Just hope that the compiler
-      !     knows how to to do proper inlining!
-      !     Input
-      !       p,q: Coordinates
+      !>     permdist is the distance or weight function. It is coded
+      !!     separately for clarity. Just hope that the compiler
+      !!     knows how to to do proper inlining!
+      !!     Input
+      !!       p,q: Coordinates
       real(kind=real64) function permdist(p, q)
          implicit none
          real(kind=real64) , intent(in) :: p(3), q(3)
