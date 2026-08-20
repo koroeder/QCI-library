@@ -11,6 +11,8 @@ MODULE QCISETUP
          USE QCI_LINEAR, ONLY: GET_LINEAR_ATOMS, GET_LINEAR_GROUPS
          USE DIHEDRAL_CONSTRAINTS, ONLY: SETUP_DIH_CONSTR
          USE OUT_PRINT, ONLY:  WRITE_QCI_KEYS
+         use align, only: align_endpoints
+         use perm_setup, only: setup_perm, alloc_perm
 
          IMPLICIT NONE
          CHARACTER(30), INTENT(IN) :: PARAMETERFILE
@@ -23,7 +25,9 @@ MODULE QCISETUP
 
          ! starting permutational setup perm.allow
          IF (QCIPERMT) THEN 
-            CALL INIT_PERMALLOW(NATOMS)
+            !CALL INIT_PERMALLOW()
+            call alloc_perm()
+            call setup_perm()
             WRITE(*,*) "qci_init> Reading perm.allow file ..."
          ENDIF
          
@@ -37,7 +41,8 @@ MODULE QCISETUP
          ! align endpoints
           IF (ALIGNT.OR.USEIMAGEDENSITY) THEN 
             WRITE(*,*) "qci_init> Running ALIGN_ENDOINTS" 
-            CALL ALIGN_ENDPOINTS()
+            !call align_endpoints()
+            !CALL ALIGN_ENDPOINTS()
             WRITE(*,*) "qci_init> Aligned endpoints"
          ENDIF
          !Now actually assign frozen atoms 
@@ -135,50 +140,50 @@ MODULE QCISETUP
          CLOSE(PARAMUNIT)
       END SUBROUTINE PARSE_SETTINGS
 
-      SUBROUTINE ALIGN_ENDPOINTS()
-         USE QCIPERMDIST, ONLY: LOPERMDIST, LPERMOFF, LOCALPERMCUT, LOCALPERMCUT2, LOCALPERMNEIGH
-         USE QCIMINDIST, ONLY: ALIGNXBTOA
-         USE QCIKEYS, ONLY : NATOMS, E2E_DIST, QCIPERMT, DEBUG
-         USE MOD_INTCOORDS, ONLY: XSTART, XFINAL
-         IMPLICIT NONE
-         REAL(KIND=REAL64) :: DIST2, RMATBEST(3,3)
-         REAL(KIND=REAL64) :: SAVELOCALPERMCUT, SAVELOCALPERMCUT2
-         INTEGER :: NMOVE, NEWPERM(NATOMS), SAVELOCALPERMNEIGH
-
-         !QUERY: will lopermdist actually change coordinates or do we need a wrapper to do so?
-         ! -> lopermdist outputs xfinal and xstart
-         IF (QCIPERMT) THEN
-            !WRITE(*,*) "Call LOPERMDIST: DOGROUP=0" 
-            !WARNING added below to turn on local permutations for initial alignement 
-            !Adding settings from OPTIM here
-            SAVELOCALPERMNEIGH=LOCALPERMNEIGH
-            SAVELOCALPERMCUT=LOCALPERMCUT
-            SAVELOCALPERMCUT2=LOCALPERMCUT2
-            LOCALPERMNEIGH=NATOMS
-            LOCALPERMCUT=1.2D0
-            LOCALPERMCUT2=1.0D10
-
-            LPERMOFF = .TRUE.
-            CALL LOPERMDIST(XFINAL,XSTART,E2E_DIST,DIST2,RMATBEST,0,NMOVE,NEWPERM)
-            LPERMOFF = .FALSE.
-            LOCALPERMNEIGH=SAVELOCALPERMNEIGH
-            LOCALPERMCUT=SAVELOCALPERMCUT
-            LOCALPERMCUT2=SAVELOCALPERMCUT2
-
-            WRITE(*,*) " align_endpoints> Total distance between endpoints is    ", E2E_DIST
-            WRITE(*,*) " align_endpoints> Per atom distance between endpoints is ", E2E_DIST/NATOMS
-         ELSE
-            CALL ALIGNXBTOA(XSTART, XFINAL, NATOMS)
-         END IF
-         IF (DEBUG) THEN
-            OPEN(UNIT=55,FILE="start.aligned")
-            WRITE(55,'(3F20.7)') XSTART
-            CLOSE(55)
-            OPEN(UNIT=55,FILE="finish.aligned")
-            WRITE(55,'(3F20.7)') XFINAL
-            CLOSE(55)         
-         END IF
-      END SUBROUTINE ALIGN_ENDPOINTS
+      !SUBROUTINE ALIGN_ENDPOINTS()
+      !   USE QCIPERMDIST, ONLY: LOPERMDIST, LPERMOFF, LOCALPERMCUT, LOCALPERMCUT2, LOCALPERMNEIGH
+      !   USE QCIMINDIST, ONLY: ALIGNXBTOA
+      !   USE QCIKEYS, ONLY : NATOMS, E2E_DIST, QCIPERMT, DEBUG
+      !   USE MOD_INTCOORDS, ONLY: XSTART, XFINAL
+      !   IMPLICIT NONE
+      !   REAL(KIND=REAL64) :: DIST2, RMATBEST(3,3)
+      !   REAL(KIND=REAL64) :: SAVELOCALPERMCUT, SAVELOCALPERMCUT2
+      !   INTEGER :: NMOVE, NEWPERM(NATOMS), SAVELOCALPERMNEIGH
+      !
+      !   !QUERY: will lopermdist actually change coordinates or do we need a wrapper to do so?
+      !   ! -> lopermdist outputs xfinal and xstart
+      !   IF (QCIPERMT) THEN
+      !      !WRITE(*,*) "Call LOPERMDIST: DOGROUP=0" 
+      !      !WARNING added below to turn on local permutations for initial alignement 
+      !      !Adding settings from OPTIM here
+      !      SAVELOCALPERMNEIGH=LOCALPERMNEIGH
+      !      SAVELOCALPERMCUT=LOCALPERMCUT
+      !      SAVELOCALPERMCUT2=LOCALPERMCUT2
+      !      LOCALPERMNEIGH=NATOMS
+      !      LOCALPERMCUT=1.2D0
+      !      LOCALPERMCUT2=1.0D10
+      !
+      !      LPERMOFF = .TRUE.
+      !      CALL LOPERMDIST(XFINAL,XSTART,E2E_DIST,DIST2,RMATBEST,0,NMOVE,NEWPERM)
+      !      LPERMOFF = .FALSE.
+      !      LOCALPERMNEIGH=SAVELOCALPERMNEIGH
+      !      LOCALPERMCUT=SAVELOCALPERMCUT
+      !      LOCALPERMCUT2=SAVELOCALPERMCUT2
+      !
+      !      WRITE(*,*) " align_endpoints> Total distance between endpoints is    ", E2E_DIST
+      !      WRITE(*,*) " align_endpoints> Per atom distance between endpoints is ", E2E_DIST/NATOMS
+      !   ELSE
+      !      CALL ALIGNXBTOA(XSTART, XFINAL, NATOMS)
+      !   END IF
+      !   IF (DEBUG) THEN
+      !      OPEN(UNIT=55,FILE="start.aligned")
+      !      WRITE(55,'(3F20.7)') XSTART
+      !      CLOSE(55)
+      !      OPEN(UNIT=55,FILE="finish.aligned")
+      !      WRITE(55,'(3F20.7)') XFINAL
+      !      CLOSE(55)         
+      !   END IF
+      !END SUBROUTINE ALIGN_ENDPOINTS
 
       SUBROUTINE SETKEYS(ENTRY, VAL)
          USE QCIKEYS

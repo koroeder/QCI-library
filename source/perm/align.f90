@@ -5,22 +5,24 @@ module align
    contains
 
       subroutine align_endpoints()
-         use qcikeys, only: natoms
-         use INTERPOLATION_KEYS, only: xstart, xfinal, dist
+         use qcikeys, only: natoms, E2E_DIST, qciambert, qcihiret
+         use INTERPOLATION_KEYS, only: xstart, xfinal
+         use lpermdist, only: lopermdist, mindist
+
          implicit none
          real(kind=real64) :: newxf(3*natoms)
          real(kind=real64) :: dist2, dworst, rmat(3,3)
-         integer :: nmove, nperm(natoms)
+         integer :: nmove, newperm(natoms)
 
          ! make sure endpoints are both centred at the origin
          call move_to_origin(xstart)
          call move_to_origin(xfinal)
 
-         if (hiret) then
-            call mindist(xstart,xfinal,rmat,dist,dworst,newxf)
-            xf = newxf
-         else if (ambert) then
-            call lpermdist(xstart,xfinal,dist,dist2,rmat,nmove,newperm)
+         if (qcihiret) then
+            call mindist(xstart,xfinal,rmat,e2e_dist,dworst,newxf)
+            xfinal = newxf
+         else if (qciambert) then
+            call lopermdist(xstart,xfinal,e2e_dist,dist2,rmat,nmove,newperm, .false.)
          end if
       end subroutine align_endpoints
 

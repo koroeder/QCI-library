@@ -14,10 +14,9 @@ module lpermdist
       !!  The centres of coordinates for COORDSA and COORDSB can be anywhere. On return, the
       !!  centre of coordinates of COORDSA will be the same as for COORDSB.
       !!
-      subroutine lopermdist(coordsb,coordsa,distance,dist2,rmatbest,nmove,newperm)
+      subroutine lopermdist(coordsb,coordsa,distance,dist2,rmatbest,nmove,newperm, active_perm_only)
          use qcikeys, only: natoms !, debug
          use minperm_mod
-         !use logger, only: log_message
          use perm_defs
          
          implicit none
@@ -28,6 +27,7 @@ module lpermdist
          real(kind=real64), intent(out) :: rmatbest(3,3)
          integer, intent(out) :: nmove
          integer, intent(out) :: newperm(natoms)
+         logical, intent(in) :: active_perm_only
 
          !arrays to track permutations
          integer :: lperm(natoms), lpermbest(natoms), lpermbestatom(natoms), updateperm(natoms)
@@ -87,6 +87,13 @@ module lpermdist
          !start iteration over all groups - we use dummy counter to access arrays with varying group sizes
          ndummy = 1
          do j1=1,npermgroup
+
+            !Apply permutations to active groups only
+            if (active_perm_only) then
+               if (.not.groupactive(j1)) cycle
+            end if
+            
+
             !copy group size to local variable - we need it a lot
             patoms = npermsize(j1)
             !allocate some local variables, including lperm and lpermbest
@@ -352,8 +359,7 @@ module lpermdist
             do j2=1,patoms
                updateperm(permgroup(ndummy+j2-1)) = newperm(permgroup(ndummy+lperm(j2)-1))
             end do
-            write(*,*) "DEBUG> updateperm: ", updateperm
-            write(*,*) "DEBUG> newperm: ", newperm
+            
             !update permutations of any associated atoms
             if (nsets(j1).gt.0) then
                do j2=1,patoms
@@ -392,8 +398,9 @@ module lpermdist
       end subroutine lopermdist
    
       subroutine standard_orient(nats,coords,jmax1,jmax2,rot,rotinv)
-         use qcikeys, only: natoms
+         
          implicit none
+         
          integer, intent(in) :: nats !patoms + nother in lpermdist
          real(kind=real64), intent(inout) :: coords(3*nats) !coordinates
          integer, intent(out) :: jmax1, jmax2 
@@ -467,6 +474,102 @@ module lpermdist
          rot(1:3,1) = xvec(1:3); rot(1:3,2) = yvec(1:3); rot(1:3,3) = zvec(1:3)
          rotinv(1,1:3) = xvec(1:3); rotinv(2,1:3) = yvec(1:3); rotinv(3,1:3) = zvec(1:3)
       end subroutine standard_orient
+
+       SUBROUTINE CHECK_PERM_BAND( REVERSET)
+         USE QCIKEYS, ONLY: DEBUG, NATOMS, NIMAGES, QCIPERMCUT
+         USE MOD_INTCOORDS, ONLY: XYZ
+         
+         IMPLICIT NONE
+
+         LOGICAL, INTENT(IN) :: REVERSET  !<stepping direction through images
+
+         INTEGER :: J1, J2, IDX, FIRSTIMAGE, SECONDIMAGE
+         INTEGER :: STARTIDX, ENDIDX, STEP
+         REAL(KIND = REAL64) :: COORDSA(3*NATOMS), COORDSB(3*NATOMS)
+         INTEGER :: PERMP(NATOMS), NMOVEP
+         REAL(KIND = REAL64) :: RMATBEST(3,3)
+         REAL(KIND=REAL64) :: DISTANCE, DIST2
+
+         !REAL(KIND = REAL64) :: SAVECOORDSA(3*NATOMS)
+        
+         REAL(KIND=REAL64) :: SAVELOCALPERMCUT
+         !SAVELOCALPERMCUT=LOCALPERMCUT
+         !LOCALPERMCUT=QCIPERMCUT !This was coppied from OPTIM 
+
+
+         ! going forward through the images
+         IF (.NOT.REVERSET) THEN
+            STARTIDX = 1
+            ENDIDX = NIMAGES
+            STEP = 1
+         ! going backward through the images
+         ELSE
+            STARTIDX = NIMAGES
+            ENDIDX  = 1
+            STEP = -1
+         END IF
+
+         DO J1=STARTIDX,ENDIDX,STEP !cycling through images
+            ! Test alignment with neighbouring image
+            ! Including endpoints (J): (start) 1 - 2 - 3 - ... -  J-1 -   J  - J+1 - J+2  - ... - NIMAGES+1 - NIMAGES (finish)
+            ! Excluding endpoints (J1):            1 - 2 - ... - J1-2 - J1-1 -  J1 - J1+1 - ... - NIMAGES
+            ! We want to go forward and start from the starting image up to the last interpolation image,
+            ! and reverse from the the finish coordinates up to the first interpolation image
+            ! So for the forward direction we want to start with comparing J=1 to J=2 (start to the first interpolation image)
+            ! up to comparing J=NIMAGES to J=NIMAGES+1 (second-to-last to last interpoaltion image).
+            ! For the reverse direction we want to start with comparing J=NIMAGES+2 to J=NIMASGES+1 (finish to last interpolation image)
+            ! down to comparing J=3 to J=2 (second to first interpolation image).
+            ! We are running J1 from 1 to NIMAGES/NIMAGES to 1 and need to get the right coordinates for the above images.
+            ! For the forward direction J=J1 and J=J1+1 for the two images, for the reverse it is J=J1+2 and J=J1+1.
+            IF (STEP.EQ.1) THEN
+               FIRSTIMAGE = J1     !1
+            ELSE
+               FIRSTIMAGE = J1 + 2 !NIMAGES+2
+            END IF 
+            SECONDIMAGE = J1+1     !2 or NIMAGES+1
+            
+            !coordinates for image 1
+            COORDSB(1:3*NATOMS) = XYZ((3*NATOMS*(FIRSTIMAGE-1)+1):3*NATOMS*FIRSTIMAGE)
+            !coordinates for image 2
+            COORDSA(1:3*NATOMS) = XYZ((3*NATOMS*(SECONDIMAGE-1)+1):3*NATOMS*SECONDIMAGE)            
+            
+            CALL LOPERMDIST(COORDSB,COORDSA,DISTANCE,DIST2,RMATBEST,NMOVEP,PERMP, .TRUE.)      
+            
+
+            !IF (DEBUG.AND.NMOVEP.GT.0)  THEN
+               WRITE(*,*) ' check_perm_band> alignment of images ',SECONDIMAGE,FIRSTIMAGE,' moves=',&
+                          NMOVEP, ' permutations, distance =',DISTANCE 
+            !END IF
+               
+            XYZ((3*NATOMS*(SECONDIMAGE-1)+1):3*NATOMS*SECONDIMAGE) = COORDSA(1:3*NATOMS)
+            END DO
+         !LOCALPERMCUT=SAVELOCALPERMCUT
+         !WRITE(*,*) "Completed perm band check"
+      END SUBROUTINE CHECK_PERM_BAND
+
+      SUBROUTINE UPDATE_ACTIVE_PERMGROUPS()
+         USE INTERPOLATION_KEYS, ONLY: ATOMACTIVE
+         use perm_defs, only: groupactive, npermsize, npermgroup, permgroup
+         IMPLICIT NONE
+         INTEGER :: NDUMMY
+         INTEGER :: J1, J2
+         LOGICAL :: CURRENTGROUP
+
+         NDUMMY = 1
+         DO J1=1,NPERMGROUP
+            IF (.NOT.GROUPACTIVE(J1)) THEN
+               CURRENTGROUP = .TRUE.
+               DO J2=1,NPERMSIZE(J1)
+                  IF (.NOT.ATOMACTIVE(PERMGROUP(NDUMMY+J2-1))) THEN
+                     CURRENTGROUP = .FALSE.
+                     EXIT
+                  END IF
+               END DO
+               IF (CURRENTGROUP) GROUPACTIVE(J1) = .TRUE.
+            END IF
+            NDUMMY = NDUMMY + NPERMSIZE(J1)
+         END DO
+      END SUBROUTINE UPDATE_ACTIVE_PERMGROUPS
 
       subroutine rotate_to_z_axis(nats,x,newx,jmax,dmax,xvec,yvec,zvec)
          implicit none

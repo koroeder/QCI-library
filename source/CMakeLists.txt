@@ -27,9 +27,14 @@ enable_language(CXX)
 find_package(FORTRANCOMPILER)
 
 # Add all the source files
-file(GLOB QCI_SOURCES ${GIT_ROOT}/source/*.F90 ${GIT_ROOT}/source/*.f90 ${GIT_ROOT}/source/utils/*.F90 ${GIT_ROOT}/source/utils/*.f90)
+file(GLOB QCI_SOURCES ${GIT_ROOT}/source/*.F90 ${GIT_ROOT}/source/*.f90 
+    ${GIT_ROOT}/source/utils/*.F90 ${GIT_ROOT}/source/utils/*.f90 
+    ${GIT_ROOT}/source/perm/*.f90 ${GIT_ROOT}/source/perm/*.F90 )
+
+  
 # Remove interface
 file(GLOB QCIINTERFACE ${GIT_ROOT}/source/QCI_interface.F90)
+
 
 list(REMOVE_ITEM QCI_SOURCES ${QCIINTERFACE})
 

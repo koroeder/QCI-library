@@ -78,8 +78,8 @@ MODULE ADDINGATOM
          USE QCI_CONSTRAINT_KEYS, ONLY: NCONSTRAINT, CONI, CONJ
          USE INTERPOLATION_KEYS, ONLY: CONACTIVE, NACTIVE, TURNONORDER, ATOMACTIVE
          USE MOD_INTCOORDS, ONLY: WRITE_ACTIVE_BAND
-         USE CHIRALITY, ONLY: GET_ACTIVE_CHIRAL_CENTRES, NCHIRAL, CHIRALITY_CHECK, CHECK_SINGLE_CHIRAL_CENTRE, ONLY_CHECK_SINGLE_CHIRAL_CENTRE, &
-                              CHIRALITY_CHECK_ONLY
+         USE CHIRALITY, ONLY: GET_ACTIVE_CHIRAL_CENTRES, NCHIRAL, CHIRALITY_CHECK, CHECK_SINGLE_CHIRAL_CENTRE, ONLY_CHECK_SINGLE_CHIRAL_CENTRE !, &
+                              !CHIRALITY_CHECK_ONLY
          USE AMBER_CONSTRAINTS, ONLY: GROUPLOOKUP, CURRENT_GROUP, CURRENTLY_ADDING_GROUP, INGROUP, PLACINGGROUPS, SIZEPLACINGGROUPS
          IMPLICIT NONE
          INTEGER :: NTOADD, NADDED                          !< number to be added and number already added
@@ -135,14 +135,14 @@ MODULE ADDINGATOM
          
          !!!!!!!!!!!!!!! DEBUG !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
          !check chirality accross the band before we start adding atoms
-         WRITE(*,*) "addatom> DEBUG - Check chirality before we start adding atoms. "
-         CALL CHIRALITY_CHECK_ONLY(XYZ, SWAPPED)
-         IF (SWAPPED)  THEN 
-            WRITE(*,*) "addatom> DEBUG - Chirality check found broken chirality"
-            SWAPPED = .FALSE.
-         ELSE 
-            WRITE(*,*) "addatom> DEBUG - chirality ok"
-         END IF 
+         !WRITE(*,*) "addatom> DEBUG - Check chirality before we start adding atoms. "
+         !CALL CHIRALITY_CHECK_ONLY(XYZ, SWAPPED)
+         !IF (SWAPPED)  THEN 
+         !   WRITE(*,*) "addatom> DEBUG - Chirality check found broken chirality"
+         !   SWAPPED = .FALSE.
+         !ELSE 
+         !   WRITE(*,*) "addatom> DEBUG - chirality ok"
+         !END IF 
          !!!!!!!!!!!!!!!!!END DEBUG!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
          !Set variable for tracking whether we completed adding atoms
@@ -194,8 +194,8 @@ MODULE ADDINGATOM
                   END IF
 
                   !check have we changed chirality by adding the atom
-                  WRITE(*,*) " addatom> Call chirality check after adding the atom.... "
-                  CALL CHIRALITY_CHECK_ONLY(XYZ,SWAPPED,NEXTATOM)
+                  !WRITE(*,*) " addatom> Call chirality check after adding the atom.... "
+                  !CALL CHIRALITY_CHECK_ONLY(XYZ,SWAPPED,NEXTATOM)
       
                   !IF (SWAPPED) THEN
                   !   
