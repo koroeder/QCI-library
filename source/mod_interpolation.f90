@@ -149,6 +149,7 @@ MODULE QCIINTERPOLATION
          QCIRMSTOL_SAVE = QCIRMSTOL
          MAXCONE_SAVE = MAXCONE
 
+         NFAIL = 0
          NITERDONE = 0
          NITERUSE = 1
          NPT = 0
@@ -270,7 +271,7 @@ MODULE QCIINTERPOLATION
                      !MAKESTEP updates GTMP
 
                      !  <G,R_k> / (|G|*|R_k|) 
-                     IF ((DOTP(DIMS,G,GTMP)/MAX(1.0-100,SQRT(DOTP(DIMS,G,G))*SQRT(DOTP(DIMS,GTMP,GTMP)))).GT.0.0D0) THEN
+                     IF ((DOTP(DIMS,G,GTMP)/MAX(1.0D-100,SQRT(DOTP(DIMS,G,G))*SQRT(DOTP(DIMS,GTMP,GTMP)))).GT.0.0D0) THEN
                         IF (DEBUG) WRITE(*,*) ' QCIinterp - Search direction has positive projection onto gradient - reversing step'
                         GTMP(1:DIMS)=-GTMP(1:DIMS)
                         SEARCHSTEP(POINT,1:DIMS)=GTMP(1:DIMS)
@@ -370,7 +371,7 @@ MODULE QCIINTERPOLATION
             CALL MAKESTEP(NITERUSE,NPT,POINT,RHO1,ALPHA)          
             
             !  <G,R_k> / (|G|*|R_k|) 
-            IF ((DOTP(DIMS,G,GTMP)/MAX(1.0-100,SQRT(DOTP(DIMS,G,G))*SQRT(DOTP(DIMS,GTMP,GTMP)))).GT.0.0D0) THEN
+            IF ((DOTP(DIMS,G,GTMP)/MAX(1.0D-100,SQRT(DOTP(DIMS,G,G))*SQRT(DOTP(DIMS,GTMP,GTMP)))).GT.0.0D0) THEN
                !IF (DEBUG) 
                WRITE(*,*) ' QCIinterp - Search direction has positive projection onto gradient - reversing step'
                GTMP(1:DIMS)=-GTMP(1:DIMS)

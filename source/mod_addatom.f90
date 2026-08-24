@@ -993,7 +993,7 @@ MODULE ADDINGATOM
          DO J1=2,NIMAGES+1
             IMAGEOFFSET = (J1-1)*3*NATOMS
             ! get linear interpolation in internal coordinates
-            ALPHA = 1.0D0/J1
+            ALPHA = (J1-1)/(NIMAGES+1)
             DNEW = (1-ALPHA)*D1 + ALPHA*D2
             ANGNEW = (1-ALPHA)*ANG1 + ALPHA*ANG2
             DIHNEW = (1-ALPHA)*DIH1 + ALPHA*DIH2
