@@ -4,6 +4,7 @@ module align
 
    contains
 
+      !> Align final image to the start image 
       subroutine align_endpoints()
          use qcikeys, only: natoms, E2E_DIST, qciambert, qcihiret
          use INTERPOLATION_KEYS, only: xstart, xfinal

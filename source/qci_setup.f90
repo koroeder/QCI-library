@@ -4,7 +4,7 @@ MODULE QCISETUP
       SUBROUTINE QCI_INIT(PARAMETERFILE, ALIGNT)
          USE QCIKEYS, ONLY: NATOMS, QCIAMBERT, QCIFREEZET, USEIMAGEDENSITY, QCIPERMT, USEDIHEDRALCONST, QCILINEART, USELINGROUPS, QCIUSEGROUPS
          USE QCICONSTRAINTS, ONLY: CREATE_CONSTRAINTS
-         USE QCIPERMDIST, ONLY: INIT_PERMALLOW
+         !USE QCIPERMDIST, ONLY: INIT_PERMALLOW
          USE MOD_FREEZE, ONLY: GET_FROZEN_ATOMS
          USE CHIRALITY, ONLY: FIND_CHIRAL_CENTRES
          USE REPULSION, ONLY: NREPCURR, ALLOC_REP_VARS
@@ -25,8 +25,8 @@ MODULE QCISETUP
 
          ! starting permutational setup perm.allow
          IF (QCIPERMT) THEN 
-            !CALL INIT_PERMALLOW()
-            call alloc_perm()
+            !CALL INIT_PERMALLOW(NATOMS)
+            !call alloc_perm()
             call setup_perm()
             WRITE(*,*) "qci_init> Reading perm.allow file ..."
          ENDIF
@@ -41,7 +41,7 @@ MODULE QCISETUP
          ! align endpoints
           IF (ALIGNT.OR.USEIMAGEDENSITY) THEN 
             WRITE(*,*) "qci_init> Running ALIGN_ENDOINTS" 
-            !call align_endpoints()
+            call align_endpoints()
             !CALL ALIGN_ENDPOINTS()
             WRITE(*,*) "qci_init> Aligned endpoints"
          ENDIF

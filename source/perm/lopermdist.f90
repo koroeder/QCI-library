@@ -90,10 +90,12 @@ module lpermdist
 
             !Apply permutations to active groups only
             if (active_perm_only) then
-               if (.not.groupactive(j1)) cycle
+               if (.not.groupactive(j1)) then
+                  ndummy = ndummy + npermsize(j1) 
+                  cycle
+               end if
             end if
             
-
             !copy group size to local variable - we need it a lot
             patoms = npermsize(j1)
             !allocate some local variables, including lperm and lpermbest
@@ -298,8 +300,8 @@ module lpermdist
                nats = nother+patoms
                call standard_orient(nats,pdummya(1:3*nats),jmax1a,jmax2a,rota,rotinva)
                call standard_orient(nats,pdummyb(1:3*nats),jmax1b,jmax2b,rotb,rotinvb)
-               write(*,*) " lpermdist> group ", j1, " for A: atom with z alignment is ", jmax1a, " and for xy alignment is ", jmax2a
-               write(*,*) " lpermdist> group ", j1, " for B: atom with z alignment is ", jmax1b, " and for xy alignment is ", jmax2b 
+               !write(*,*) " lpermdist> group ", j1, " for A: atom with z alignment is ", jmax1a, " and for xy alignment is ", jmax2a
+               !write(*,*) " lpermdist> group ", j1, " for B: atom with z alignment is ", jmax1b, " and for xy alignment is ", jmax2b 
 
                ! Optimimise permutational isomer for the standard orientation for the
                ! current choice of atoms from the possible orbits.
@@ -394,7 +396,7 @@ module lpermdist
          call mindist(dummyb,dummya,rmatbest,distance,dworst,xbest)
          dist2 = distance**2
          coordsa(1:3*natoms) = xbest(1:3*natoms)
-         write(*,*) " lopermdist> Distance after alignment is ", distance
+         !write(*,*) " lopermdist> Distance after alignment is ", distance
       end subroutine lopermdist
    
       subroutine standard_orient(nats,coords,jmax1,jmax2,rot,rotinv)
@@ -475,101 +477,110 @@ module lpermdist
          rotinv(1,1:3) = xvec(1:3); rotinv(2,1:3) = yvec(1:3); rotinv(3,1:3) = zvec(1:3)
       end subroutine standard_orient
 
-       SUBROUTINE CHECK_PERM_BAND( REVERSET)
-         USE QCIKEYS, ONLY: DEBUG, NATOMS, NIMAGES, QCIPERMCUT
-         USE MOD_INTCOORDS, ONLY: XYZ
-         
-         IMPLICIT NONE
-
-         LOGICAL, INTENT(IN) :: REVERSET  !<stepping direction through images
-
-         INTEGER :: J1, J2, IDX, FIRSTIMAGE, SECONDIMAGE
-         INTEGER :: STARTIDX, ENDIDX, STEP
-         REAL(KIND = REAL64) :: COORDSA(3*NATOMS), COORDSB(3*NATOMS)
-         INTEGER :: PERMP(NATOMS), NMOVEP
-         REAL(KIND = REAL64) :: RMATBEST(3,3)
-         REAL(KIND=REAL64) :: DISTANCE, DIST2
-
-         !REAL(KIND = REAL64) :: SAVECOORDSA(3*NATOMS)
-        
-         REAL(KIND=REAL64) :: SAVELOCALPERMCUT
-         !SAVELOCALPERMCUT=LOCALPERMCUT
-         !LOCALPERMCUT=QCIPERMCUT !This was coppied from OPTIM 
-
-
-         ! going forward through the images
-         IF (.NOT.REVERSET) THEN
-            STARTIDX = 1
-            ENDIDX = NIMAGES
-            STEP = 1
-         ! going backward through the images
-         ELSE
-            STARTIDX = NIMAGES
-            ENDIDX  = 1
-            STEP = -1
-         END IF
-
-         DO J1=STARTIDX,ENDIDX,STEP !cycling through images
-            ! Test alignment with neighbouring image
-            ! Including endpoints (J): (start) 1 - 2 - 3 - ... -  J-1 -   J  - J+1 - J+2  - ... - NIMAGES+1 - NIMAGES (finish)
-            ! Excluding endpoints (J1):            1 - 2 - ... - J1-2 - J1-1 -  J1 - J1+1 - ... - NIMAGES
-            ! We want to go forward and start from the starting image up to the last interpolation image,
-            ! and reverse from the the finish coordinates up to the first interpolation image
-            ! So for the forward direction we want to start with comparing J=1 to J=2 (start to the first interpolation image)
-            ! up to comparing J=NIMAGES to J=NIMAGES+1 (second-to-last to last interpoaltion image).
-            ! For the reverse direction we want to start with comparing J=NIMAGES+2 to J=NIMASGES+1 (finish to last interpolation image)
-            ! down to comparing J=3 to J=2 (second to first interpolation image).
-            ! We are running J1 from 1 to NIMAGES/NIMAGES to 1 and need to get the right coordinates for the above images.
-            ! For the forward direction J=J1 and J=J1+1 for the two images, for the reverse it is J=J1+2 and J=J1+1.
-            IF (STEP.EQ.1) THEN
-               FIRSTIMAGE = J1     !1
-            ELSE
-               FIRSTIMAGE = J1 + 2 !NIMAGES+2
-            END IF 
-            SECONDIMAGE = J1+1     !2 or NIMAGES+1
+      subroutine check_perm_band(permgroupidx, firstatom, reverset)
+            use qcikeys, only: debug, natoms, nimages, qcipermcut
+            use mod_intcoords, only: xyz
+            use perm_defs, only: groupactive, npermgroup, npermsize, permgroup, localpermcut
             
-            !coordinates for image 1
-            COORDSB(1:3*NATOMS) = XYZ((3*NATOMS*(FIRSTIMAGE-1)+1):3*NATOMS*FIRSTIMAGE)
-            !coordinates for image 2
-            COORDSA(1:3*NATOMS) = XYZ((3*NATOMS*(SECONDIMAGE-1)+1):3*NATOMS*SECONDIMAGE)            
-            
-            CALL LOPERMDIST(COORDSB,COORDSA,DISTANCE,DIST2,RMATBEST,NMOVEP,PERMP, .TRUE.)      
-            
+            implicit none
+            integer, intent(in) :: permgroupidx   !< number of permutational group
+            integer, intent(in) :: firstatom      !< first atom id in permutational group
+            logical, intent(in) :: reverset       !< stepping direction through images
 
-            !IF (DEBUG.AND.NMOVEP.GT.0)  THEN
-               WRITE(*,*) ' check_perm_band> alignment of images ',SECONDIMAGE,FIRSTIMAGE,' moves=',&
-                          NMOVEP, ' permutations, distance =',DISTANCE 
-            !END IF
-               
-            XYZ((3*NATOMS*(SECONDIMAGE-1)+1):3*NATOMS*SECONDIMAGE) = COORDSA(1:3*NATOMS)
-            END DO
-         !LOCALPERMCUT=SAVELOCALPERMCUT
-         !WRITE(*,*) "Completed perm band check"
-      END SUBROUTINE CHECK_PERM_BAND
+            integer :: j1, j2, idx, firstimage, secondimage
+            integer :: startidx, endidx, step
+            real(kind=real64) :: coordsa(3*natoms), coordsb(3*natoms), coordsa_orig(3*natoms)
+            real(kind=real64) :: xbestnop(3*natoms)
+            integer :: permp(natoms), nmovep
+            real(kind=real64) :: rmatbest(3,3), rmatnop(3,3)
+            real(kind=real64) :: distance, dist2, nopdistance, dworst
+            real(kind=real64) :: savelocalpermcut
+            logical :: saveactive(npermgroup)
+            logical :: pbetter
 
-      SUBROUTINE UPDATE_ACTIVE_PERMGROUPS()
-         USE INTERPOLATION_KEYS, ONLY: ATOMACTIVE
+  
+
+            ! --- emulate v1's dogroup by restricting active groups to just this one ---
+            saveactive(1:npermgroup) = groupactive(1:npermgroup)
+            groupactive(1:npermgroup) = .false.
+            !mark group active only if truly active
+            if (saveactive(permgroupidx)) groupactive(permgroupidx) = .true.
+
+            if (.not.reverset) then
+               startidx = 1
+               endidx = nimages
+               step = 1
+            else
+               startidx = nimages
+               endidx = 1
+               step = -1
+            end if
+
+            do j1=startidx,endidx,step
+               if (step.eq.1) then
+                  firstimage = j1
+               else
+                  firstimage = j1 + 2
+               end if
+               secondimage = j1+1
+
+               coordsb(1:3*natoms) = xyz((3*natoms*(firstimage-1)+1):3*natoms*firstimage)
+               coordsa(1:3*natoms) = xyz((3*natoms*(secondimage-1)+1):3*natoms*secondimage)
+               coordsa_orig(1:3*natoms) = coordsa(1:3*natoms)   ! keep the untouched original
+
+               ! v2 call: single group active, coordsa comes back permuted and rotated
+               call lopermdist(coordsb,coordsa,distance,dist2,rmatbest,nmovep,permp,.true.)
+
+               ! --- emulate v1's pbetter: compare against the unpermuted alignment ---
+               call mindist(coordsb,coordsa_orig,rmatnop,nopdistance,dworst,xbestnop)
+               pbetter = distance.lt.nopdistance
+
+               !if (debug.and.nmovep.gt.0) then
+               if (nmovep.gt.0) then
+                  write(*,*) ' check_perm_band> group ',permgroupidx,' alignment of images ',secondimage,firstimage,' moves=',&
+                           nmovep, ' permutations, distance =',distance, ' pbetter=', pbetter
+               end if
+
+               !swap atoms only if we found a genuinely better permutational alignment
+               !if (.not.pbetter) then
+                  
+               !   coordsa(1:3*natoms) = coordsa_orig(1:3*natoms)  ! back to original (un-rotated) coords
+                  
+               !endif
+            end do
+
+            
+            xyz((3*natoms*(secondimage-1)+1):3*natoms*secondimage) = coordsa(1:3*natoms)
+
+            groupactive(1:npermgroup) = saveactive(1:npermgroup)  ! restore caller's active-group state
+           
+
+      end subroutine check_perm_band
+
+
+      subroutine update_active_permgroups()
+         use interpolation_keys, only: atomactive
          use perm_defs, only: groupactive, npermsize, npermgroup, permgroup
-         IMPLICIT NONE
-         INTEGER :: NDUMMY
-         INTEGER :: J1, J2
-         LOGICAL :: CURRENTGROUP
+         implicit none
+         integer :: ndummy
+         integer :: j1, j2
+         logical :: currentgroup
 
-         NDUMMY = 1
-         DO J1=1,NPERMGROUP
-            IF (.NOT.GROUPACTIVE(J1)) THEN
-               CURRENTGROUP = .TRUE.
-               DO J2=1,NPERMSIZE(J1)
-                  IF (.NOT.ATOMACTIVE(PERMGROUP(NDUMMY+J2-1))) THEN
-                     CURRENTGROUP = .FALSE.
-                     EXIT
-                  END IF
-               END DO
-               IF (CURRENTGROUP) GROUPACTIVE(J1) = .TRUE.
-            END IF
-            NDUMMY = NDUMMY + NPERMSIZE(J1)
-         END DO
-      END SUBROUTINE UPDATE_ACTIVE_PERMGROUPS
+         ndummy = 1
+         do j1=1,npermgroup
+            if (.not.groupactive(j1)) then
+               currentgroup = .true.
+               do j2=1,npermsize(j1)
+                  if (.not.atomactive(permgroup(ndummy+j2-1))) then
+                     currentgroup = .false.
+                     exit
+                  end if
+               end do
+               if (currentgroup) groupactive(j1) = .true.
+            end if
+            ndummy = ndummy + npermsize(j1)
+         end do
+      end subroutine update_active_permgroups
 
       subroutine rotate_to_z_axis(nats,x,newx,jmax,dmax,xvec,yvec,zvec)
          implicit none
@@ -756,7 +767,7 @@ module lpermdist
             write(*,*) " mindist> Distance before rotation: ", distbefore, " | Distance after rotation: ", distance
             write(*,*) "          Largest distance for single atom: ", dworst
          end if
-      end subroutine
+      end subroutine mindist
 
       !assumes centred coordinates
       subroutine apply_rot(x,rmat,newx)
@@ -787,7 +798,7 @@ module lpermdist
       !> New analytic method based on quaterions from Kearsley, Acta Cryst. A, 45, 208-210, 1989.
       subroutine get_rot_matrix(xa,xb,rmat,distance)
          use qcikeys, only: natoms
-         !use logger, only: log_message
+      
          implicit none
          real(kind=real64), intent(in) :: xa(3*natoms), xb(3*natoms)
          real(kind=real64), intent(out) :: rmat(3,3)
@@ -829,7 +840,6 @@ module lpermdist
 
          call dsyev('V','U',4,qmat,4,diag,tempa,9*natoms,info)
          if (info.ne.0) then
-            !call log_message(2, "get_rot_matrix> non-zero exit status in DSYEV")
             write(*,*) "get_rot_matrix> non-zero exit status in DSYEV"
          end if
 
@@ -847,7 +857,6 @@ module lpermdist
                minv = 0.0d0
             else
                minv = -minv
-               !call log_message(2, " get_rot_matrix> minv is negative, change to absolute value")
                write(*,*) " get_rot_matrix> minv is negative, change to absolute value"
             end if
          end if

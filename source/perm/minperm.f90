@@ -33,7 +33,6 @@ module minperm_mod
          !>     Input
          !!       n  : System size
          !!       p,q: Coordinate vectors (n particles)
-         !!       pbc: Periodic boundary conditions?
          integer, intent(in) :: n
          real(kind=real64) :: p(3*n), q(3*n), worstdist, worstradius
          !remove--> sx, sy,sz, s

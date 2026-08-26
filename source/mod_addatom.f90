@@ -175,7 +175,7 @@ MODULE ADDINGATOM
                IF (USEINTERNALST) THEN
                   !build internal coordinates for interpolation
                   CALL PLACE_INTERNALS(NEXTATOM,NLOCAL,LOCALIDX)
-                ELSE IF (QCITRILATERATION) THEN
+               ELSE IF (QCITRILATERATION) THEN
                   !trilaterate atoms, if this fails use fall back option. 
                   CALL TRILATERATE_ATOMS(NEXTATOM,LOCALIDX,LOCALDIST, FAILED)
                   IF (FAILED) THEN
