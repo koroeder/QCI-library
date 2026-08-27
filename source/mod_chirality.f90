@@ -814,8 +814,8 @@ MODULE CHIRALITY
          !we now have a  list of double bonds
          !let's add the ghost atoms accordingly (element like bonded atom, atom id set to 0)
          DO J1=1,NDOUBLE
-            ATOM1 = DOUBLEB(NDOUBLE,1)
-            ATOM2 = DOUBLEB(NDOUBLE,2)
+            ATOM1 = DOUBLEB(J1,1)
+            ATOM2 = DOUBLEB(J1,2)
             ELEMENT1 = ELEMENT(ATOM1)
             ELEMENT2 = ELEMENT(ATOM2)
             DO J2=1,6

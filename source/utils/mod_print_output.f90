@@ -117,7 +117,7 @@ MODULE OUT_PRINT
 
         !Hire
         IF (QCIHIRET) THEN
-            WRITE(IU,FMT_BOOL) 'TOPOLOGY', 'HIRE'
+            WRITE(IU,FMT_CHAR) 'TOPOLOGY', 'HIRE'
         END IF
 
         !SBM

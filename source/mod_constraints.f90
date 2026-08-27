@@ -54,7 +54,7 @@ MODULE QCICONSTRAINTS
             CONJ(1:NCONSTRAINT) = SBM_CONJ(1:SBM_NCONST)
             CONDISTREF(1:NCONSTRAINT) = SBM_CONDISTREF(1:SBM_NCONST)
             CONCUT(1:NCONSTRAINT) = SBM_CONCUT(1:SBM_NCONST)
-            CALL DEALLOC_HIRE_CONSTR()
+            CALL DEALLOC_SBM_CONST()
          ELSE
             ! geometries and endpoints and potential additional constraints
             CALL GET_GEOMCONSTRAINTS()

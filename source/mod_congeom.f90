@@ -172,8 +172,8 @@ MODULE CONGEOM
                END DO
                IF (ACCEPTCONST) THEN
                   NDUMMY = NDUMMY + 1
-                  DCONI(NDUMMY)=J2
-                  DCONJ(NDUMMY)=J3
+                  DCONI(NDUMMY)=J1
+                  DCONJ(NDUMMY)=J2
                   DCONDISTREF(NDUMMY)=(DSMAX+DSMIN)/2.0D0 
                   DCONCUT(NDUMMY)=(DSMAX-DSMIN)/2.0D0
                END IF
