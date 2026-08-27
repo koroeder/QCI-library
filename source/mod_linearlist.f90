@@ -417,7 +417,8 @@ MODULE QCI_LINEAR
    SUBROUTINE GET_LIN_ROT_TRANSLATION(GROUP, GROUPSIZE, CXS, CXF, QSTART, QFINAL)
       USE QCIKEYS, ONLY: NATOMS
       USE MOD_INTCOORDS, ONLY: XSTART, XFINAL
-      USE QCIMINDIST, ONLY: FIND_ORIGIN, MOVE_COORDS, FIND_ALIGNMENT
+      USE align, ONLY: move_to_origin
+      use lpermdist, only: get_rot_matrix
       USE QUATERNIONS
 
       INTEGER, INTENT(IN) :: GROUP !< group id
@@ -436,15 +437,14 @@ MODULE QCI_LINEAR
       END DO
       
       !centre RA
-      CALL FIND_ORIGIN(GROUPSIZE,RS,CXS)
-      CALL MOVE_COORDS(GROUPSIZE,RS,CXS)
+      call move_to_origin(GROUPSIZE,RS,CXS)
       !centre RB around origin
-      CALL FIND_ORIGIN(GROUPSIZE,RF,CXF)
-      CALL MOVE_COORDS(GROUPSIZE,RF,CXF)
+      CALL move_to_origin(GROUPSIZE,RF,CXF)
+
 
       !WRITE(*,*) "get_lin_rot_translation> GROUPSIZE ", GROUPSIZE, "RS ", RS, " RF ", RF
       !align coordinates
-      CALL FIND_ALIGNMENT(GROUPSIZE, RS, RF, DIST, RMAT)
+      call get_rot_matrix(GROUPSIZE, RF, RS, RMAT, DIST)
 
       QSTART = [1.0D0, 0.0D0, 0.0D0, 0.0D0]
 

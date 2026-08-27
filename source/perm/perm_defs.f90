@@ -1,16 +1,11 @@
 module perm_defs
    use qciprec
    implicit none
-   !> #permutational checks
+  
    !> perm file
    character(len=80) :: permfile = "perm.allow"
    
-   !> energy tolerance for alignment
-   !real(kind=real64) :: edifftol = 1.0D-6
-   !> orbital cutoff for atoms
-   !real(kind=real64) :: orbittol = 0.3D0
-   !> LPERMDIST alignment threshold
-   
+     
    real(kind=real64) :: localpermcut = 0.5D0
    !> alignment cutoff
    real(kind=real64) :: localpermcut2 = 5.0D0

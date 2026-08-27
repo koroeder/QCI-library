@@ -17,7 +17,7 @@ MODULE MOD_TERMINATE
          USE ADDINGATOM, ONLY: DEALLOC_ADDATOM
          USE MOD_INTCOORDS, ONLY: XSTART, XFINAL
          USE QCIKEYS, ONLY: DEALLOC_QCIKEYS
-         USE QCIPERMDIST, ONLY: DEALLOC_QCIPERM
+         use perm_setup, only: dealloc_perm
 
          IMPLICIT NONE
          CALL DEALLOC_INTERPOLATION_VARS()
@@ -34,7 +34,7 @@ MODULE MOD_TERMINATE
          CALL DEALLOC_REP_VARS()
          CALL DEALLOC_ADDATOM()
          CALL DEALLOC_QCIKEYS()
-         CALL DEALLOC_QCIPERM()
+         call dealloc_perm()
 
          ! XSTART and XFINAL are special cases, and are allocated outside of a specific ALLOC routine
          ! Hence they need to be deallocated here

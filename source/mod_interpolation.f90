@@ -18,10 +18,9 @@ MODULE QCIINTERPOLATION
          USE MOD_FREEZE, ONLY: ADD_CONSTR_AND_REP_NBEST
          USE CONSTR_E_GRAD, ONLY: CONGRAD, CONVERGECONTEST, CONVERGEREPTEST, &
                                   FCONMAX, FREPMAX, GET_SPRING_CONSTANTS
-         !USE QCIPERMDIST, ONLY: CHECK_COMMON_CONSTR !,NPERMGROUP,  GROUPACTIVE, &
-        !                        NPERMSIZE
+        
 
-         use perm_defs, only: npermgroup, npermsize , groupactive
+         
          USE QCI_CONSTRAINT_KEYS
          USE CHIRALITY, ONLY: ASSIGNMENT_SR, CHIRALITY_CHECK
          USE ADDINGATOM, ONLY: ADDATOM, UPDATE_CONSTRAINTS, UPDATE_REPULSIONS
@@ -31,8 +30,10 @@ MODULE QCIINTERPOLATION
          USE MOD_CHECK_GRAD, ONLY: CHECK_GRAD
          USE OUT_PRINT, ONLY: WRITE_CONGRADOUT, WRITE_IMAGE_DIST, WRITE_IMAGE_E
          USE BOND_CROSSING_DETECTION, ONLY: DETECT_BOND_CROSSINGS
+         
          use lpermdist, only: check_perm_band, UPDATE_ACTIVE_PERMGROUPS
-         !use QCIPERMDIST, only: CHECK_PERM_BAND, UPDATE_ACTIVE_PERMGROUPS
+         use perm_defs, only: npermgroup, npermsize , groupactive
+        
          
          IMPLICIT NONE
          INTEGER :: NBEST !< Constraint with smallest DMIN

@@ -745,8 +745,8 @@ module lpermdist
             cxb(j+1:j+3) = xb(J+1:j+3) - cmxb(1:3)
          end do
 
-         call get_rot_matrix(cxa,cxb,rmat,distbefore)
-         call apply_rot(cxb,rmat,rotxb) 
+         call get_rot_matrix(natoms, cxa,cxb,rmat,distbefore)
+         call apply_rot(natoms, cxb,rmat,rotxb) 
 
          do idx=1,natoms
             j=3*(idx-1)
@@ -770,18 +770,19 @@ module lpermdist
       end subroutine mindist
 
       !assumes centred coordinates
-      subroutine apply_rot(x,rmat,newx)
-         use qcikeys, only: natoms
+      subroutine apply_rot(nsize, x,rmat,newx)
+
          implicit none
-         real(kind=real64), intent(in) :: x(3*natoms)
-         real(kind=real64), intent(out) :: newx(3*natoms)        
+         integer, intent(in) :: nsize
+         real(kind=real64), intent(in) :: x(3*nsize)
+         real(kind=real64), intent(out) :: newx(3*nsize)        
          real(kind=real64), intent(in) :: rmat(3,3)
          real(kind=real64) :: r0(3), r1
          integer :: i, j, k
 
-         newx(1:3*natoms) = 0.0d0
+         newx(1:3*nsize) = 0.0d0
 
-         do i=1,natoms
+         do i=1,nsize
             r0(1:3) = x(3*i-2:3*i)
             do j=1,3
                r1 = 0.0d0
@@ -796,23 +797,23 @@ module lpermdist
       !> Find rotational matrix between xa and xb using quaternions
       !> assumes xa and xb are both centred at the origin
       !> New analytic method based on quaterions from Kearsley, Acta Cryst. A, 45, 208-210, 1989.
-      subroutine get_rot_matrix(xa,xb,rmat,distance)
-         use qcikeys, only: natoms
-      
+      subroutine get_rot_matrix(nsize, xa,xb,rmat,distance)
+            
          implicit none
-         real(kind=real64), intent(in) :: xa(3*natoms), xb(3*natoms)
+         integer, intent(in) :: nsize
+         real(kind=real64), intent(in) :: xa(3*nsize), xb(3*nsize)
          real(kind=real64), intent(out) :: rmat(3,3)
          real(kind=real64), intent(out) :: distance
          real(kind=real64) :: qmat(4,4)
          real(kind=real64) :: xm, ym, zm, xp, yp, zp
          integer :: idx, j, info
-         real(kind=real64) :: tempa(9*natoms), diag(4)
+         real(kind=real64) :: tempa(9*nsize), diag(4)
          integer :: jmin
          real(kind=real64) :: minv, q1, q2, q3, q4
          real(kind=real64), parameter :: zerothresh = 1.0d-6
 
          qmat(1:4,1:4) = 0.0d0
-         do idx = 1,natoms
+         do idx = 1,nsize
             j=3*(idx-1)
             xm = xa(j+1) - xb(j+1)
             ym = xa(j+2) - xb(j+2)
@@ -838,7 +839,7 @@ module lpermdist
          qmat(4,2)=qmat(2,4)
          qmat(4,3)=qmat(3,4)
 
-         call dsyev('V','U',4,qmat,4,diag,tempa,9*natoms,info)
+         call dsyev('V','U',4,qmat,4,diag,tempa,9*nsize,info)
          if (info.ne.0) then
             write(*,*) "get_rot_matrix> non-zero exit status in DSYEV"
          end if
