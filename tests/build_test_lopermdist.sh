@@ -21,19 +21,19 @@
 set -euo pipefail
 
 # --- EDIT THIS: point at your project's real dependency modules -----------
-PROJECT_SRC="/home/magda/Desktop/QCI-library"
+PROJECT_SRC="../QCI-library"
 
 MODULES=(
    "$PROJECT_SRC/source/utils/qciprec.f90"
    "$PROJECT_SRC/source/qci_keys.f90"
-   "$PROJECT_SRC/new_perm/perm_defs.f90"
-   "$PROJECT_SRC/new_perm/minperm.f90"
+   "$PROJECT_SRC/source/perm/perm_defs.f90"
+   "$PROJECT_SRC/source/perm/minperm.f90"
 
 )
 
 LOCAL_SRC=(
-   "$PROJECT_SRC/new_perm/lopermdist.f90"
-   "$PROJECT_SRC/new_perm/Test_lopermdist.F90"
+   "$PROJECT_SRC/source/perm/lopermdist.f90"
+   "$PROJECT_SRC/tests/Test_lopermdist.F90"
 )
 
 

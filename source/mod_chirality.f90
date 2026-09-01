@@ -189,7 +189,7 @@ MODULE CHIRALITY
          INTEGER :: ATOMS1(NSWAPCUT), ATOMS2(NSWAPCUT)
          REAL(KIND = REAL64) :: C(3), AT1(3), AT2(3), VEC1(3), VEC2(3)
          REAL(KIND = REAL64) :: N1(3), N2(3), LEN1, LEN2, ROTAX(3)
-         REAL(KIND = REAL64) :: COSTH, SINTH, ANGLE, RX, RY, RZ, DP
+         REAL(KIND = REAL64) :: COSTH, SINTH, ANGLE, RX, RY, RZ, DP, AXLEN
          REAL(KIND = REAL64) :: ATOMX(3)
          INTEGER :: ATID, J1
 
@@ -205,6 +205,7 @@ MODULE CHIRALITY
          AT1(1) = XYZ(3*NATOMS*(IMAGE-1)+3*ATOMS1(1)-2)
          AT1(2) = XYZ(3*NATOMS*(IMAGE-1)+3*ATOMS1(1)-1)
          AT1(3) = XYZ(3*NATOMS*(IMAGE-1)+3*ATOMS1(1))
+        
          AT2(1) = XYZ(3*NATOMS*(IMAGE-1)+3*ATOMS2(1)-2)
          AT2(2) = XYZ(3*NATOMS*(IMAGE-1)+3*ATOMS2(1)-1)
          AT2(3) = XYZ(3*NATOMS*(IMAGE-1)+3*ATOMS2(1))
@@ -219,10 +220,13 @@ MODULE CHIRALITY
 
          !get perpendicular axis for rotation
          ROTAX = CROSS_PROD(N1,N2)
+         
+         AXLEN = EUC_NORM(ROTAX)
+         ROTAX = ROTAX/AXLEN
          RX = ROTAX(1); RY = ROTAX(2); RZ = ROTAX(3)
          !get the rotation angle N1->N2
          COSTH = DOTP(3,N1,N2)
-         SINTH = EUC_NORM(ROTAX)
+         SINTH = AXLEN !EUC_NORM(ROTAX)
          ANGLE = ATAN2(SINTH,COSTH)
 
          DO J1=1,NSWAPCUT
@@ -468,11 +472,7 @@ MODULE CHIRALITY
                   IF ((.NOT.TRIPLE).AND.(.NOT.QUADRUPLE)) THEN
                      IF (EQ12) CALL COMPARE_2LISTS(LIST1,LIST2,4,ID12T,GT12T)                   
                      IF (EQ23) CALL COMPARE_2LISTS(LIST2,LIST3,4,ID23T,GT23T)                 
-                     IF (EQ34) CALL COMPARE_2LISTS(LIST3,LIST4,4,ID34T,GT34T)                 
-                  ELSE IF (TRIPLE) THEN
-                     CALL COMPARE_3LISTS(LIST1,LIST2,LIST3,4,PRIO3)               
-                  ELSE IF (QUADRUPLE) THEN
-                     CALL COMPARE_4LISTS(LIST1,LIST2,LIST3,LIST4,4,PRIO4)
+                     IF (EQ34) CALL COMPARE_2LISTS(LIST3,LIST4,4,ID34T,GT34T)                                      
                   ENDIF
                   ! we now have the priority information based on the bound atoms 
                   ! of the directly attached atoms
@@ -481,18 +481,22 @@ MODULE CHIRALITY
                   ! now create a priority list for all four
                   ! for four identical atoms, just copy the result
                   IF (QUADRUPLE) THEN
+                     CALL COMPARE_4LISTS(LIST1,LIST2,LIST3,LIST4,4,PRIO4)
                      FINALPRIO(1:4) = PRIO4(1:4)
                   ! for a triple assign priorities based on 
                   ELSE IF (TRIPLE) THEN
-                     FINALPRIO(1:3) = PRIO3(1:3)             
-                     IF (EQ12.AND.EQ23) THEN
+                     IF (EQ12.AND.EQ23) THEN !(S,S,S,Diff) 
+                        CALL COMPARE_3LISTS(LIST1,LIST2,LIST3,4,PRIO3) 
+                        FINALPRIO(1:3) = PRIO3(1:3)             
                         FINALPRIO(4) = 4
-                     ELSE
+                     ELSE !(diff,S,S,S)
+                        CALL COMPARE_3LISTS(LIST2,LIST3,LIST4,4,PRIO3)
                         FINALPRIO(4) = 0
-                        DO J2=1,4
-                          FINALPRIO(J2) = FINALPRIO(J2) + 1
-                        ENDDO                  
-                     ENDIF
+                        FINALPRIO(1)   = 1
+                        FINALPRIO(2:4) = PRIO3(1:3) + 1
+
+                     END IF
+                  !end of triple
                   ELSE IF (EQ12.AND.EQ34) THEN
                      IF (ID12T) THEN
                         FINALPRIO(1:2) = (/1,1/)
