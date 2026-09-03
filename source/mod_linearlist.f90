@@ -22,6 +22,7 @@ MODULE QCI_LINEAR
    REAL(KIND=REAL64), PARAMETER :: TOLERANCE = 0.1D0               !< bond length change tol between start and finish 
    REAL(KIND=REAL64), PARAMETER :: ANGLE_TOLERANCE = 0.08726646259971647     !< 5.0D0 degrees  
    REAL(KIND=REAL64), PARAMETER :: DIHEDRAL_TOLERANCE = 0.17453292519943295  !< 10.0D0 degrees
+   INTEGER, PARAMETER :: MIN_LINEAR_GROUP_SIZE = 5
    
    CONTAINS
 
@@ -165,6 +166,7 @@ MODULE QCI_LINEAR
          LOGICAL :: IS_VALID_GROUP
          INTEGER :: TEMP_EXTERNAL_COUNT
          INTEGER :: NEIGHBOR_ATOM
+         INTEGER :: N_NEW_GROUPS
       
          ! ========== Compare Amber groups with Linear groups ==========
          INTEGER :: AMBER_ATOM, AMBER_GROUP
@@ -254,163 +256,18 @@ MODULE QCI_LINEAR
 
          END DO
 
-      ! ========== PART 3: Validate attachment points and filter groups ==========
-      
-      ! First pass: identify single-atom groups and unmark them
-      DO J1 = 1, NGROUPS
-         IF (NINGROUP_TEMP(J1).LE.1) THEN
-            DO J2 = 1, NINGROUP_TEMP(J1)
-               ATOM = GROUPS(J1, J2)
-               LINATOM(ATOM) = .FALSE.
-               !IF (DEBUG_MODE) PRINT *, "Unmarking atom ", ATOM, " (single-atom group)"
-            END DO
-         END IF
-      END DO
-
-      ! Allocate output arrays
-      MAXGROUPSIZE = MAXVAL(NINGROUP_TEMP)
-      
-      !Should this be done later?
-      CALL ALLOC_LINEAR_GROUP(NGROUPS, MAXGROUPSIZE)
-
-      ! Initialize output arrays
-      ATOM2LINGROUP(:) = -1
-      LINEAR_GROUPS(:,:) = -1
-      NINGROUP(:) = 0
-     
-      NQCILINEAR = 0
-      NLINGROUPS = 0
-
-  
-      ! ========== PART 3A: Identify distinct external anchor atoms ==========
+         !Part 3 - Validate groups
 
       GROUPID = 0
-
       DO J1 = 1, NGROUPS
-
-         ! Skip trivial groups - shouldn't happen.
          IF (NINGROUP_TEMP(J1) <= 1) CYCLE
-
-         ! Reset external anchor tracking
-         EXTERNAL_ANCHORS(:) = -1
-         N_EXTERNAL_ANCHORS  = 0
-         HINGE_ATOM          = -1
-         IS_VALID_GROUP      = .FALSE.
-
-         ! Loop over atoms in this group
-         DO J2 = 1, NINGROUP_TEMP(J1)
-            ATOM = GROUPS(J1, J2)
-
-            ! Loop over bonded neighbors
-            DO J3 = 1, N_BONDS_PER_ATOM(ATOM)
-
-               NEIGHBOR_ATOM = BONDS_PER_ATOM_LIST(ATOM, J3)
-
-               ! Validate neighbor index
-               IF ( (NEIGHBOR_ATOM.LT.1).OR. (NEIGHBOR_ATOM.GT.NATOMS) ) THEN
-                  PRINT *, "ERROR: Invalid neighbor index ", NEIGHBOR_ATOM
-                  CYCLE
-               END IF
-
-               ! Bond crosses the group boundary
-               ! If neighbor is not in the same groupp, it's an external anchor
-               IF (CURRENTGROUP(NEIGHBOR_ATOM).NE.CURRENTGROUP(ATOM)) THEN
-
-                  ! Record only DISTINCT external atoms
-                  IF (.NOT. IS_IN_LIST(NEIGHBOR_ATOM, EXTERNAL_ANCHORS, N_EXTERNAL_ANCHORS)) THEN
-
-                     N_EXTERNAL_ANCHORS = N_EXTERNAL_ANCHORS + 1
-                     EXTERNAL_ANCHORS(N_EXTERNAL_ANCHORS) = NEIGHBOR_ATOM
-
-                     ! First external anchor becomes the hinge
-                     IF (N_EXTERNAL_ANCHORS == 1) THEN
-                        HINGE_ATOM = NEIGHBOR_ATOM   
-                     END IF
-                  END IF
-
-               END IF
-
-            END DO   ! J3
-         END DO      ! J2
-
-         ! ========== PART 3B: Validate group ==========
-         ! A valid group interacts with the rest of the molecule
-         ! through exactly ONE distinct external atom (hinge)
-    
-
-         IF (N_EXTERNAL_ANCHORS == 1) THEN
-            IS_VALID_GROUP = .TRUE.
-            IF (DEBUG_MODE) THEN
-               PRINT *, "Accepting group ", J1
-               PRINT *, "  Number of distinct external anchors: ", &
-                        N_EXTERNAL_ANCHORS
-               PRINT *, "  External anchor (hinge): ", HINGE_ATOM
-               PRINT *, "  Group atoms: ", &
-                        (GROUPS(J1,K), K=1,NINGROUP_TEMP(J1))
-            END IF
-         ELSE
-            IF(DEBUG_MODE) THEN
-               PRINT *, "Group ", J1, " has ", N_EXTERNAL_ANCHORS, " external anchors. Attempting to reduce group..."
-               PRINT *, "  External anchors: ", &
-                        (EXTERNAL_ANCHORS(K), K=1,N_EXTERNAL_ANCHORS)
-               PRINT *, "  Group atoms before reduction: ", &
-                        (GROUPS(J1,K), K=1,NINGROUP_TEMP(J1))
-            END IF
-            
-            
-            !Try to create a valid group by reducing the curent group
-            !CALL REDUCE_MULTI_HINGE_GROUP(LINATOM, GROUPS(J1,:), NINGROUP_TEMP(J1), IS_VALID_GROUP, CURRENTGROUP)        
-
-         END IF
-
-         
-         ! ========== PART 3C: Copy valid groups to output arrays ==========
- 
-
-         IF (IS_VALID_GROUP) THEN
-            GROUPID = GROUPID + 1
-            NINGROUP(GROUPID) = NINGROUP_TEMP(J1)
-           
-            !Copy atoms from temporary storage to final arrays
-            DO J2 = 1, NINGROUP_TEMP(J1)
-               ATOM = GROUPS(J1, J2)
-               LINEAR_GROUPS(GROUPID, J2) = ATOM
-               ATOM2LINGROUP(ATOM) = GROUPID
-               NQCILINEAR = NQCILINEAR + 1
+            CALL REDUCE_MULTI_HINGE_GROUP(LINATOM, GROUPS(J1,1:NINGROUP_TEMP(J1)), NINGROUP_TEMP(J1), &
+                                          GROUPID, N_NEW_GROUPS, DEBUG_MODE)
             END DO
-            
-            !Print group information
-            !PRINT *, "Valid Linear Group - mew group id: ", GROUPID, ": ", NINGROUP(GROUPID), " atoms"
-            !PRINT *, "  Hinge atom (attachment point): ", HINGE_ATOM
-            !PRINT *, "  Group atoms: ", (LINEAR_GROUPS(GROUPID, J2), J2=1, NINGROUP(GROUPID))
-            
-         ELSE
-            ! Unmark atoms in invalid groups
-            DO J2 = 1, NINGROUP_TEMP(J1)
-               ATOM = GROUPS(J1, J2)
-               LINATOM(ATOM) = .FALSE.
-            END DO
-         END IF
-      END DO
-
-      ! Store final count of valid groups
       NLINGROUPS = GROUPID
-
-      !PRINT *, "========================================================"
-      ! ========== Validation ==========
-      PRINT *, ""
-      PRINT *, "========== LINEAR GROUP DETECTION SUMMARY =========="
-      PRINT *, "Total linear groups found: ", NLINGROUPS
-      PRINT *, "Total linear atoms: ", NQCILINEAR
-      PRINT *, "Linear atoms remaining: ", COUNT(LINATOM(:))
-
-      IF (COUNT(LINATOM(:)) /= NQCILINEAR) THEN
-         PRINT *, "WARNING: Mismatch between LINATOM count and NQCILINEAR"
-         PRINT *, "LINATOM count: ", COUNT(LINATOM(:))
-         PRINT *, "NQCILINEAR: ", NQCILINEAR
-      END IF
+         NQCILINEAR = SUM(NINGROUP(1:NLINGROUPS))
       
-      PRINT *, "====================================================="
+
    END SUBROUTINE GET_LINEAR_GROUPS
 
    
@@ -719,223 +576,492 @@ MODULE QCI_LINEAR
    END SUBROUTINE DEALLOC_BONDS
 
 
-   SUBROUTINE REDUCE_MULTI_HINGE_GROUP(LINEARATOMS, GROUP_ATOMS, N_GROUP_ATOMS, SUCCESS, CURRENT_GROUP,DEBUG_MODE)
+  
 
+   
+
+   !====================================================================
+   ! Resolves a connected group of linear atoms that touches more than
+   ! one external anchor into one or more valid sub-groups, by
+   ! repeatedly CONSTRUCTING the largest possible single-anchor group
+   ! from the current pool (growing outward from each candidate anchor
+   ! and keeping the best), committing it, and recursing on whatever
+   ! atoms are left. Atoms that end up in no group of at least
+   ! MIN_LINEAR_GROUP_SIZE atoms are dropped (LINATOM_MASK cleared).
+   !====================================================================
+   SUBROUTINE REDUCE_MULTI_HINGE_GROUP(LINATOM_MASK, GROUP_ATOMS_IN, N_GROUP_ATOMS_IN, &
+                                        GROUPID, N_NEW_GROUPS, DEBUG_MODE)
       USE QCIKEYS, ONLY: NATOMS 
-      USE QCI_CONSTRAINT_KEYS, ONLY: BOND_LIST, NBONDS, MAX_BONDS_PER_ATOM, &
-                                       BONDS_PER_ATOM_LIST, N_BONDS_PER_ATOM
-      USE QCICONSTRAINTS, ONLY: GET_NBONDS_PER_ATOM
-
       IMPLICIT NONE
 
-      ! Input/Output
-      LOGICAL, INTENT(INOUT) :: LINEARATOMS(:)
-      INTEGER, INTENT(INOUT) :: GROUP_ATOMS(:)
-      INTEGER, INTENT(INOUT) :: N_GROUP_ATOMS
-      INTEGER, INTENT(INOUT) :: CURRENT_GROUP(:)
-      LOGICAL, INTENT(OUT)   :: SUCCESS
+      LOGICAL, INTENT(INOUT) :: LINATOM_MASK(:)
+      INTEGER, INTENT(IN)    :: GROUP_ATOMS_IN(:)
+      INTEGER, INTENT(IN)    :: N_GROUP_ATOMS_IN
+      INTEGER, INTENT(INOUT) :: GROUPID
+      INTEGER, INTENT(OUT)   :: N_NEW_GROUPS
       LOGICAL, INTENT(IN), OPTIONAL :: DEBUG_MODE
 
+      ! explicit work-list of pending pools (stack); worst case one
+      ! pool per input atom, e.g. a star graph shattering into singles
+      INTEGER :: POOL_STACK(N_GROUP_ATOMS_IN, N_GROUP_ATOMS_IN)
+      INTEGER :: POOL_STACK_SIZE(N_GROUP_ATOMS_IN)
+      INTEGER :: NSTACK
 
-      ! Local variables
-      INTEGER :: WORKING_ATOMS(NATOMS)
-      INTEGER :: N_WORKING
-      INTEGER :: EXTERNAL_ANCHORS(NATOMS)
-      INTEGER :: N_EXTERNAL_ANCHORS
-      INTEGER :: INTERNAL_DEGREE(NATOMS)
-      INTEGER :: ATOM, NEIGHBOR, J1, J2, J3
-      INTEGER :: ATOM_TO_REMOVE
-      INTEGER :: MIN_INTERNAL
-      INTEGER :: MIN_SIZE
-      LOGICAL :: IS_VALID
-      LOGICAL :: LOCAL_DEBUG
+      INTEGER :: CUR_ATOMS(N_GROUP_ATOMS_IN), CUR_SIZE
+      LOGICAL :: IN_SET(NATOMS)
+      INTEGER :: ANCHORS(N_GROUP_ATOMS_IN), N_ANCHORS
+      INTEGER :: TRY_ATOMS(N_GROUP_ATOMS_IN), TRY_SIZE
+      INTEGER :: BEST_ATOMS(N_GROUP_ATOMS_IN), BEST_SIZE
+      INTEGER :: REMAINDER(N_GROUP_ATOMS_IN), REM_SIZE
+      INTEGER :: COMP_ATOMS(N_GROUP_ATOMS_IN, N_GROUP_ATOMS_IN)
+      INTEGER :: COMP_SIZES(N_GROUP_ATOMS_IN)
+      INTEGER :: NCOMP
+      LOGICAL :: SUCCESS, LOCAL_DEBUG
+      INTEGER :: J1
 
-      ! Parameters
-      INTEGER, PARAMETER :: MIN_GROUP_SIZE = 3  ! Don't reduce below this
-
-      ! Check debug mode
-      LOCAL_DEBUG = .TRUE.
+      LOCAL_DEBUG = .FALSE.
       IF (PRESENT(DEBUG_MODE)) LOCAL_DEBUG = DEBUG_MODE
 
-      ! Initialize
-      SUCCESS = .FALSE.
-      
-      ! Copy initial group to working array
-      WORKING_ATOMS(1:N_GROUP_ATOMS) = GROUP_ATOMS(1:N_GROUP_ATOMS)
-      N_WORKING = N_GROUP_ATOMS
+      N_NEW_GROUPS = 0
+      NSTACK = 1
+      POOL_STACK_SIZE(1) = N_GROUP_ATOMS_IN
+      POOL_STACK(1, 1:N_GROUP_ATOMS_IN) = GROUP_ATOMS_IN(1:N_GROUP_ATOMS_IN)
 
-      IF (LOCAL_DEBUG) THEN
-         PRINT *, ""
-         PRINT *, "=== Starting reduction for group with ", N_WORKING, " atoms ==="
-         PRINT *, "Initial atoms: ", (WORKING_ATOMS(J1), J1=1,N_WORKING)
+      IF (LOCAL_DEBUG) PRINT *, "reduce_multi_hinge_group> starting with ", N_GROUP_ATOMS_IN, " atoms"
+
+      DO WHILE (NSTACK > 0)
+
+         CUR_SIZE = POOL_STACK_SIZE(NSTACK)
+         CUR_ATOMS(1:CUR_SIZE) = POOL_STACK(NSTACK, 1:CUR_SIZE)
+         NSTACK = NSTACK - 1
+
+         IF (CUR_SIZE < MIN_LINEAR_GROUP_SIZE) THEN
+            IF (LOCAL_DEBUG) PRINT *, "reduce_multi_hinge_group> pool of ", CUR_SIZE, " too small, dropping"
+            CALL RMH_DROP_ATOMS(LINATOM_MASK, CUR_ATOMS, CUR_SIZE)
+            CYCLE
       END IF
 
-      ! ==========================================================================
-      ! Main reduction loop
-      ! ==========================================================================
-      REDUCTION_LOOP: DO WHILE (N_WORKING.GT.MIN_GROUP_SIZE)
+         CALL RMH_MEMBERSHIP(CUR_ATOMS, CUR_SIZE, IN_SET)
+         CALL RMH_COMPUTE_ANCHORS(CUR_ATOMS, CUR_SIZE, IN_SET, ANCHORS, N_ANCHORS)
 
-         ! Step 1: Find external anchors for current working group
-         CALL FIND_EXTERNAL_ANCHORS(WORKING_ATOMS, N_WORKING, &
-                                    EXTERNAL_ANCHORS, N_EXTERNAL_ANCHORS, CURRENT_GROUP)
-
-         IF (LOCAL_DEBUG) THEN
-            PRINT *, ""
-            PRINT *, "Current working group size: ", N_WORKING
-            PRINT *, "Number of external anchors: ", N_EXTERNAL_ANCHORS
-            PRINT *, "External anchors: ", (EXTERNAL_ANCHORS(J1), J1=1,N_EXTERNAL_ANCHORS)
+         IF (N_ANCHORS == 1) THEN
+            CALL RMH_COMMIT_GROUP(CUR_ATOMS, CUR_SIZE, LINATOM_MASK, GROUPID)
+            N_NEW_GROUPS = N_NEW_GROUPS + 1
+            IF (LOCAL_DEBUG) PRINT *, "reduce_multi_hinge_group> committed group of size ", &
+                                        CUR_SIZE, ", hinge atom ", ANCHORS(1)
+            CYCLE
          END IF
 
-         ! Step 2: Check if we have valid single-hinge group
-         IF (N_EXTERNAL_ANCHORS.EQ.1) THEN
-            SUCCESS = .TRUE.
-            
-            N_GROUP_ATOMS = N_WORKING
-            GROUP_ATOMS(1:N_WORKING) = WORKING_ATOMS(1:N_WORKING)
-            
-            IF (LOCAL_DEBUG) THEN
-               PRINT *, ""
-               PRINT *, "*** SUCCESS: Reduced to single-hinge group ***"
-               PRINT *, "Final reduced atoms: ", (GROUP_ATOMS(J1), J1=1,N_GROUP_ATOMS)
-               PRINT *, "Hinge atom: ", EXTERNAL_ANCHORS(1)
+         IF (N_ANCHORS == 0) THEN
+            IF (LOCAL_DEBUG) PRINT *, "reduce_multi_hinge_group> dropping isolated fragment of size ", CUR_SIZE
+            CALL RMH_DROP_ATOMS(LINATOM_MASK, CUR_ATOMS, CUR_SIZE)
+            CYCLE
+         END IF
+
+         ! N_ANCHORS >= 2: construct the largest single-anchor group by
+         ! growing from each candidate anchor and keeping the best
+         BEST_SIZE = 0
+         DO J1 = 1, N_ANCHORS
+            CALL RMH_GROW_FROM_ANCHOR(CUR_ATOMS, CUR_SIZE, IN_SET, ANCHORS(J1), TRY_ATOMS, TRY_SIZE)
+            IF (LOCAL_DEBUG) PRINT *, "reduce_multi_hinge_group> anchor ", ANCHORS(J1), &
+                                        " grows to ", TRY_SIZE, " atoms"
+            IF (TRY_SIZE > BEST_SIZE) THEN
+               BEST_SIZE = TRY_SIZE
+               BEST_ATOMS(1:TRY_SIZE) = TRY_ATOMS(1:TRY_SIZE)
             END IF
-            
-            RETURN
-         END IF
-
-         ! Step 3: Check if we've hit minimum size
-         IF (N_WORKING.LE.MIN_GROUP_SIZE) THEN
-            IF (LOCAL_DEBUG) THEN
-               PRINT *, ""
-               PRINT *, "*** FAILED: Reached minimum group size ", MIN_GROUP_SIZE, " ***"
-            END IF
-            EXIT REDUCTION_LOOP
-         END IF
-
-         ! Step 4: Calculate internal degree for each atom in working group
-         INTERNAL_DEGREE(:) = 0
-         
-         DO J1 = 1, N_WORKING
-            ATOM = WORKING_ATOMS(J1)
-            
-            ! Count connections to other atoms in the working group
-            DO J2 = 1, N_BONDS_PER_ATOM(ATOM)
-               NEIGHBOR = BONDS_PER_ATOM_LIST(ATOM, J2)
-               
-               ! Check if neighbor is also in the working group
-               IF (IS_IN_LIST(NEIGHBOR, WORKING_ATOMS, N_WORKING)) THEN
-                  INTERNAL_DEGREE(J1) = INTERNAL_DEGREE(J1) + 1
-               END IF
-            END DO
          END DO
 
-         IF (LOCAL_DEBUG) THEN
-            PRINT *, "Internal degrees:"
-            DO J1 = 1, N_WORKING
-               ATOM = WORKING_ATOMS(J1)
-               PRINT *, "  Atom ", ATOM, ": ", INTERNAL_DEGREE(J1), " internal connections"
-            END DO
+         IF (BEST_SIZE >= MIN_LINEAR_GROUP_SIZE) THEN
+
+            CALL RMH_COMMIT_GROUP(BEST_ATOMS, BEST_SIZE, LINATOM_MASK, GROUPID)
+            N_NEW_GROUPS = N_NEW_GROUPS + 1
+            IF (LOCAL_DEBUG) PRINT *, "reduce_multi_hinge_group> constructed group of size ", BEST_SIZE
+
+            ! what's left may fall apart into several disconnected
+            ! pieces once BEST_ATOMS is removed -- resolve each
+            ! independently
+            CALL RMH_REMOVE_ATOMS(CUR_ATOMS, CUR_SIZE, BEST_ATOMS, BEST_SIZE, REMAINDER, REM_SIZE)
+
+            IF (REM_SIZE > 0) THEN
+               CALL RMH_CONNECTED_COMPONENTS(REMAINDER, REM_SIZE, COMP_ATOMS, COMP_SIZES, NCOMP)
+               DO J1 = 1, NCOMP
+                  NSTACK = NSTACK + 1
+                  POOL_STACK_SIZE(NSTACK) = COMP_SIZES(J1)
+                  POOL_STACK(NSTACK, 1:COMP_SIZES(J1)) = COMP_ATOMS(J1, 1:COMP_SIZES(J1))
+               END DO
          END IF
 
-         ! Step 5: Find atom with minimum internal degree to remove
-         MIN_INTERNAL = 100
-         ATOM_TO_REMOVE = -1
-         
-
-         DO J1 = 1, N_WORKING
-            
-            !If we find an atom with zero internal connections, remove it immediately (can't disconnect the group)
-            IF (INTERNAL_DEGREE(J1).EQ.0) THEN
-               ATOM_TO_REMOVE = J1
-               MIN_INTERNAL = INTERNAL_DEGREE(J1)
-               EXIT
+         ELSE
+            ! construction couldn't reach the minimum from any single
+            ! anchor -- last-resort atom-by-atom trim before giving up
+            CALL RMH_GREEDY_TRIM(CUR_ATOMS, CUR_SIZE, MIN_LINEAR_GROUP_SIZE, SUCCESS, LOCAL_DEBUG)
+            IF (SUCCESS) THEN
+               CALL RMH_COMMIT_GROUP(CUR_ATOMS, CUR_SIZE, LINATOM_MASK, GROUPID)
+               N_NEW_GROUPS = N_NEW_GROUPS + 1
+               IF (LOCAL_DEBUG) PRINT *, "reduce_multi_hinge_group> fallback trim salvaged group of size ", CUR_SIZE
+            ELSE
+               IF (LOCAL_DEBUG) PRINT *, "reduce_multi_hinge_group> pool unsalvageable, dropping ", CUR_SIZE, " atoms"
+               CALL RMH_DROP_ATOMS(LINATOM_MASK, CUR_ATOMS, CUR_SIZE)
             END IF
-            !If the atom has minimum number of internal connections, it is candidate for removal. 
-            ATOM = WORKING_ATOMS(J1)
-            
-            DO J2 = 1, N_EXTERNAL_ANCHORS
-            ! If atom is connected to external anchor, it is candidate for removal
-               
-               IF(IS_IN_LIST(EXTERNAL_ANCHORS(J2), BONDS_PER_ATOM_LIST(ATOM,:), N_BONDS_PER_ATOM(ATOM))) THEN
-                  WRITE(*,*) "reduce_multi_hinge_group> Atom ", WORKING_ATOMS(J1), " is connected to external anchor ", EXTERNAL_ANCHORS(J2), &
-                                 " with internal degree ", INTERNAL_DEGREE(J1)
-                  WRITE(*,*) "J1: ", ATOM, "BONDS_PER_ATOM_LIST(J1): ", BONDS_PER_ATOM_LIST(ATOM,:)
-                  IF (INTERNAL_DEGREE(J1).LT.MIN_INTERNAL) THEN
-                     ATOM_TO_REMOVE = J1
-                     MIN_INTERNAL = INTERNAL_DEGREE(J1) !INTERNAL_DEGREE(ATOM)
-                  END iF
-               END IF
-            END DO
-           
-         END DO
-
-         IF (LOCAL_DEBUG) THEN
-            PRINT *, "Removing atom ",WORKING_ATOMS(ATOM_TO_REMOVE), &
-                     " with ", MIN_INTERNAL, " internal connections"
          END IF
 
-         LINEARATOMS(WORKING_ATOMS(ATOM_TO_REMOVE)) = .FALSE.
-         CURRENT_GROUP(WORKING_ATOMS(ATOM_TO_REMOVE)) = -1
-         ! Step 6: Remove atom from working group (shift remaining atoms)
-         DO J1 = ATOM_TO_REMOVE, N_WORKING - 1
-            WORKING_ATOMS(J1) = WORKING_ATOMS(J1 + 1)
-         END DO
-         N_WORKING = N_WORKING - 1
-         
+      END DO
 
-      END DO REDUCTION_LOOP
-
-      ! ==========================================================================
-      ! Reduction failed - return what we have and mark as invalid)
-      ! ==========================================================================
-      N_GROUP_ATOMS = N_WORKING
-      GROUP_ATOMS(1:N_WORKING) = WORKING_ATOMS(1:N_WORKING)
-      SUCCESS = .FALSE.
-
-      IF (LOCAL_DEBUG) THEN
-         PRINT *, ""
-         PRINT *, "=== Reduction complete - FAILED ==="
-         PRINT *, "Final atoms: ", (GROUP_ATOMS(J1), J1=1,N_GROUP_ATOMS)
-      END IF
+      IF (LOCAL_DEBUG) PRINT *, "reduce_multi_hinge_group> input of ", N_GROUP_ATOMS_IN, &
+                                  " atoms resolved into ", N_NEW_GROUPS, " valid sub-group(s)"
 
    END SUBROUTINE REDUCE_MULTI_HINGE_GROUP
 
 
-   SUBROUTINE FIND_EXTERNAL_ANCHORS(GROUP_ATOMS, N_GROUP_ATOMS, EXTERNAL_ANCHORS, N_EXTERNAL_ANCHORS, CURRENT_GROUP)
-      
-      USE QCI_CONSTRAINT_KEYS, ONLY: BOND_LIST, NBONDS, MAX_BONDS_PER_ATOM, &
-                                          BONDS_PER_ATOM_LIST, N_BONDS_PER_ATOM
+   !--------------------------------------------------------------------
+   ! Private helpers (prefixed RMH_)
+   !--------------------------------------------------------------------
 
-      IMPLICIT NONE
-      
-      INTEGER, INTENT(IN)  :: GROUP_ATOMS(:)
-      INTEGER, INTENT(IN)  :: N_GROUP_ATOMS
-      INTEGER, INTENT(OUT) :: EXTERNAL_ANCHORS(:)
-      INTEGER, INTENT(OUT) :: N_EXTERNAL_ANCHORS
-      INTEGER, INTENT(IN)  :: CURRENT_GROUP(:)
-      INTEGER :: ATOM, NEIGHBOR, J1, J2
+   !> IN_SET(atom) = .TRUE. iff atom appears in ATOMS(1:NAT)
+   SUBROUTINE RMH_MEMBERSHIP(ATOMS, NAT, IN_SET)
+      USE QCIKEYS, ONLY: NATOMS
+      INTEGER, INTENT(IN)  :: ATOMS(:), NAT
+      LOGICAL, INTENT(OUT) :: IN_SET(NATOMS)
+      INTEGER :: J1
+      IN_SET(:) = .FALSE.
+      DO J1 = 1, NAT
+         IN_SET(ATOMS(J1)) = .TRUE.
+      END DO
+   END SUBROUTINE RMH_MEMBERSHIP
 
-      EXTERNAL_ANCHORS(:) = -1
-      N_EXTERNAL_ANCHORS  = 0
+   !> Distinct atoms bonded into ATOMS(1:NAT) from outside the set
+   !! (checked against the full bond graph).
+   SUBROUTINE RMH_COMPUTE_ANCHORS(ATOMS, NAT, IN_SET, ANCHORS, N_ANCHORS)
+      USE QCI_CONSTRAINT_KEYS, ONLY: BONDS_PER_ATOM_LIST, N_BONDS_PER_ATOM
+      INTEGER, INTENT(IN)  :: ATOMS(:), NAT
+      LOGICAL, INTENT(IN)  :: IN_SET(:)
+      INTEGER, INTENT(OUT) :: ANCHORS(:)
+      INTEGER, INTENT(OUT) :: N_ANCHORS
+      INTEGER :: J1, J2, ATOM, NB
 
-      DO J1 = 1, N_GROUP_ATOMS
-         ATOM = GROUP_ATOMS(J1)
-
+      N_ANCHORS = 0
+      DO J1 = 1, NAT
+         ATOM = ATOMS(J1)
          DO J2 = 1, N_BONDS_PER_ATOM(ATOM)
-            NEIGHBOR = BONDS_PER_ATOM_LIST(ATOM, J2)
-
-            ! Check if neighbor belongs to a different group
-            IF (CURRENT_GROUP(NEIGHBOR).NE.CURRENT_GROUP(ATOM)) THEN
-               ! This is an external anchor candidate
-               IF (.NOT. IS_IN_LIST(NEIGHBOR, EXTERNAL_ANCHORS, N_EXTERNAL_ANCHORS)) THEN
-                  N_EXTERNAL_ANCHORS = N_EXTERNAL_ANCHORS + 1
-                  EXTERNAL_ANCHORS(N_EXTERNAL_ANCHORS) = NEIGHBOR
+            NB = BONDS_PER_ATOM_LIST(ATOM, J2)
+            IF (IN_SET(NB)) CYCLE
+            IF (.NOT. IS_IN_LIST(NB, ANCHORS, N_ANCHORS)) THEN
+               N_ANCHORS = N_ANCHORS + 1
+               ANCHORS(N_ANCHORS) = NB
                END IF
-            END IF
-         END DO !J2
-      END DO !J1
+            END DO
+         END DO
+   END SUBROUTINE RMH_COMPUTE_ANCHORS
 
-   END SUBROUTINE FIND_EXTERNAL_ANCHORS
+   !> Grows the maximal connected subset of POOL_ATOMS reachable from
+   !! atoms bonded to TARGET_ANCHOR, refusing to cross any pool atom
+   !! that itself has an external bond to a DIFFERENT anchor (such an
+   !! atom would give the resulting group a second anchor, so it and
+   !! everything only reachable through it are excluded).
+   SUBROUTINE RMH_GROW_FROM_ANCHOR(POOL_ATOMS, POOL_SIZE, IN_SET, TARGET_ANCHOR, OUT_ATOMS, OUT_SIZE)
+      USE QCIKEYS, ONLY: NATOMS
+      USE QCI_CONSTRAINT_KEYS, ONLY: BONDS_PER_ATOM_LIST, N_BONDS_PER_ATOM
+      INTEGER, INTENT(IN)  :: POOL_ATOMS(:), POOL_SIZE
+      LOGICAL, INTENT(IN)  :: IN_SET(:)
+      INTEGER, INTENT(IN)  :: TARGET_ANCHOR
+      INTEGER, INTENT(OUT) :: OUT_ATOMS(:)
+      INTEGER, INTENT(OUT) :: OUT_SIZE
+
+      LOGICAL :: BLOCKED(POOL_SIZE), VISITED(POOL_SIZE)
+      INTEGER :: ATOM_TO_LOCAL(NATOMS)
+      INTEGER :: QUEUE(POOL_SIZE), QHEAD, QTAIL, CUR, CUR_ATOM
+      INTEGER :: J1, J2, NB, NB_LOCAL, ATOM
+
+      ATOM_TO_LOCAL(:) = 0
+      DO J1 = 1, POOL_SIZE
+         ATOM_TO_LOCAL(POOL_ATOMS(J1)) = J1
+      END DO
+
+      ! an atom is blocked if it has an external bond to any anchor
+      ! OTHER than the one we're growing towards
+      BLOCKED(:) = .FALSE.
+      DO J1 = 1, POOL_SIZE
+         ATOM = POOL_ATOMS(J1)
+         DO J2 = 1, N_BONDS_PER_ATOM(ATOM)
+            NB = BONDS_PER_ATOM_LIST(ATOM, J2)
+            IF (IN_SET(NB)) CYCLE
+            IF (NB /= TARGET_ANCHOR) THEN
+               BLOCKED(J1) = .TRUE.
+               EXIT
+            END IF
+         END DO
+      END DO
+
+      VISITED(:) = .FALSE.
+      QHEAD = 1; QTAIL = 0
+      OUT_SIZE = 0
+
+      ! seed: unblocked pool atoms directly bonded to TARGET_ANCHOR
+      DO J1 = 1, POOL_SIZE
+         IF (BLOCKED(J1)) CYCLE
+         ATOM = POOL_ATOMS(J1)
+         DO J2 = 1, N_BONDS_PER_ATOM(ATOM)
+            IF (BONDS_PER_ATOM_LIST(ATOM,J2) == TARGET_ANCHOR) THEN
+               VISITED(J1) = .TRUE.
+               QTAIL = QTAIL + 1
+               QUEUE(QTAIL) = J1
+               EXIT
+               END IF
+            END DO
+      END DO
+
+      DO WHILE (QHEAD <= QTAIL)
+         CUR = QUEUE(QHEAD); QHEAD = QHEAD + 1
+         CUR_ATOM = POOL_ATOMS(CUR)
+         OUT_SIZE = OUT_SIZE + 1
+         OUT_ATOMS(OUT_SIZE) = CUR_ATOM
+
+         DO J2 = 1, N_BONDS_PER_ATOM(CUR_ATOM)
+            NB = BONDS_PER_ATOM_LIST(CUR_ATOM, J2)
+            NB_LOCAL = ATOM_TO_LOCAL(NB)
+            IF (NB_LOCAL == 0) CYCLE       ! not in pool
+            IF (BLOCKED(NB_LOCAL)) CYCLE
+            IF (VISITED(NB_LOCAL)) CYCLE
+            VISITED(NB_LOCAL) = .TRUE.
+            QTAIL = QTAIL + 1
+            QUEUE(QTAIL) = NB_LOCAL
+         END DO
+         END DO
+
+   END SUBROUTINE RMH_GROW_FROM_ANCHOR
+
+   !> OUT_ATOMS = ATOMS(1:NAT) with every atom in TO_REMOVE(1:N_REMOVE) removed.
+   SUBROUTINE RMH_REMOVE_ATOMS(ATOMS, NAT, TO_REMOVE, N_REMOVE, OUT_ATOMS, N_OUT)
+      USE QCIKEYS, ONLY: NATOMS
+      INTEGER, INTENT(IN)  :: ATOMS(:), NAT
+      INTEGER, INTENT(IN)  :: TO_REMOVE(:), N_REMOVE
+      INTEGER, INTENT(OUT) :: OUT_ATOMS(:)
+      INTEGER, INTENT(OUT) :: N_OUT
+      LOGICAL :: REMOVE_MASK(NATOMS)
+      INTEGER :: J1
+
+      CALL RMH_MEMBERSHIP(TO_REMOVE, N_REMOVE, REMOVE_MASK)
+      N_OUT = 0
+      DO J1 = 1, NAT
+         IF (.NOT. REMOVE_MASK(ATOMS(J1))) THEN
+            N_OUT = N_OUT + 1
+            OUT_ATOMS(N_OUT) = ATOMS(J1)
+         END IF
+      END DO
+   END SUBROUTINE RMH_REMOVE_ATOMS
+
+   !> Splits ATOMS(1:NAT) into its connected components using only
+   !! internal bonds (both endpoints within ATOMS). COMP_ATOMS(k,:) /
+   !! COMP_SIZES(k) hold component k.
+   SUBROUTINE RMH_CONNECTED_COMPONENTS(ATOMS, NAT, COMP_ATOMS, COMP_SIZES, NCOMP)
+      USE QCIKEYS, ONLY: NATOMS
+      USE QCI_CONSTRAINT_KEYS, ONLY: BONDS_PER_ATOM_LIST, N_BONDS_PER_ATOM
+      INTEGER, INTENT(IN)  :: ATOMS(:), NAT
+      INTEGER, INTENT(OUT) :: COMP_ATOMS(:,:)
+      INTEGER, INTENT(OUT) :: COMP_SIZES(:)
+      INTEGER, INTENT(OUT) :: NCOMP
+
+      LOGICAL :: IN_SET(NATOMS), VISITED(NAT)
+      INTEGER :: ATOM_TO_LOCAL(NATOMS)
+      INTEGER :: QUEUE(NAT), QHEAD, QTAIL, CUR, NB, NB_LOCAL
+      INTEGER :: J1, J2
+
+      CALL RMH_MEMBERSHIP(ATOMS, NAT, IN_SET)
+      ATOM_TO_LOCAL(:) = 0
+      DO J1 = 1, NAT
+         ATOM_TO_LOCAL(ATOMS(J1)) = J1
+         END DO
+
+      VISITED(:) = .FALSE.
+      NCOMP = 0
+
+      DO J1 = 1, NAT
+         IF (VISITED(J1)) CYCLE
+         NCOMP = NCOMP + 1
+         COMP_SIZES(NCOMP) = 0
+
+         VISITED(J1) = .TRUE.
+         QHEAD = 1; QTAIL = 1
+         QUEUE(1) = J1
+
+         DO WHILE (QHEAD <= QTAIL)
+            CUR = QUEUE(QHEAD); QHEAD = QHEAD + 1
+            COMP_SIZES(NCOMP) = COMP_SIZES(NCOMP) + 1
+            COMP_ATOMS(NCOMP, COMP_SIZES(NCOMP)) = ATOMS(CUR)
+
+            DO J2 = 1, N_BONDS_PER_ATOM(ATOMS(CUR))
+               NB = BONDS_PER_ATOM_LIST(ATOMS(CUR), J2)
+               IF (.NOT. IN_SET(NB)) CYCLE
+               NB_LOCAL = ATOM_TO_LOCAL(NB)
+               IF (NB_LOCAL == 0) CYCLE
+               IF (VISITED(NB_LOCAL)) CYCLE
+               VISITED(NB_LOCAL) = .TRUE.
+               QTAIL = QTAIL + 1
+               QUEUE(QTAIL) = NB_LOCAL
+            END DO
+         END DO
+      END DO
+   END SUBROUTINE RMH_CONNECTED_COMPONENTS
+
+   !> Rare-case safety net for pools where no single-anchor group of
+   !! sufficient size could be grown directly (e.g. every contact point
+   !! with every anchor is itself a multi-anchor junction atom): trims
+   !! one atom at a time -- preferring the lowest-internal-degree atom
+   !! that touches an anchor -- re-splitting to the largest remaining
+   !! component after each removal, until a single anchor remains or
+   !! the pool drops below MIN_SIZE.
+   SUBROUTINE RMH_GREEDY_TRIM(ATOMS, NAT, MIN_SIZE, SUCCESS, DEBUG_MODE)
+      USE QCIKEYS, ONLY: NATOMS
+      USE QCI_CONSTRAINT_KEYS, ONLY: BONDS_PER_ATOM_LIST, N_BONDS_PER_ATOM
+      INTEGER, INTENT(INOUT) :: ATOMS(:)
+      INTEGER, INTENT(INOUT) :: NAT
+      INTEGER, INTENT(IN)    :: MIN_SIZE
+      LOGICAL, INTENT(OUT)   :: SUCCESS
+      LOGICAL, INTENT(IN)    :: DEBUG_MODE
+
+      LOGICAL :: IN_SET(NATOMS), TOUCHES_ANCHOR
+      INTEGER :: ANCHORS(NAT), N_ANCHORS
+      INTEGER :: INTERNAL_DEGREE(NAT)
+      INTEGER :: COMP_ATOMS(NAT, NAT), COMP_SIZES(NAT), NCOMP, BEST_COMP
+      INTEGER :: ATOM, NEIGHBOR, J1, J2, J3
+      INTEGER :: REMOVE_IDX, BEST_DEGREE
+
+      SUCCESS = .FALSE.
+
+      DO WHILE (NAT >= MIN_SIZE)
+
+         CALL RMH_MEMBERSHIP(ATOMS, NAT, IN_SET)
+         CALL RMH_COMPUTE_ANCHORS(ATOMS, NAT, IN_SET, ANCHORS, N_ANCHORS)
+
+         IF (N_ANCHORS == 1) THEN
+            SUCCESS = .TRUE.
+            RETURN
+         END IF
+         IF (N_ANCHORS == 0 .OR. NAT == MIN_SIZE) THEN
+            SUCCESS = .FALSE.
+            RETURN
+      END IF
+
+         DO J1 = 1, NAT
+            ATOM = ATOMS(J1)
+            INTERNAL_DEGREE(J1) = 0
+            DO J2 = 1, N_BONDS_PER_ATOM(ATOM)
+               IF (IN_SET(BONDS_PER_ATOM_LIST(ATOM,J2))) INTERNAL_DEGREE(J1) = INTERNAL_DEGREE(J1) + 1
+            END DO
+         END DO
+
+         REMOVE_IDX = -1
+         BEST_DEGREE = HUGE(1)
+         DO J1 = 1, NAT
+            ATOM = ATOMS(J1)
+            TOUCHES_ANCHOR = .FALSE.
+            DO J3 = 1, N_BONDS_PER_ATOM(ATOM)
+               NEIGHBOR = BONDS_PER_ATOM_LIST(ATOM, J3)
+               IF (.NOT. IN_SET(NEIGHBOR)) THEN
+                  TOUCHES_ANCHOR = .TRUE.
+                  EXIT
+               END IF
+            END DO
+            IF (TOUCHES_ANCHOR .AND. INTERNAL_DEGREE(J1) < BEST_DEGREE) THEN
+               REMOVE_IDX = J1
+               BEST_DEGREE = INTERNAL_DEGREE(J1)
+            END IF
+         END DO
+
+         IF (REMOVE_IDX == -1) THEN
+            SUCCESS = .FALSE.
+            RETURN
+         END IF
+
+         IF (DEBUG_MODE) PRINT *, "rmh_greedy_trim> removing atom ", ATOMS(REMOVE_IDX)
+
+         DO J1 = REMOVE_IDX, NAT - 1
+            ATOMS(J1) = ATOMS(J1 + 1)
+         END DO
+         NAT = NAT - 1
+
+         CALL RMH_CONNECTED_COMPONENTS(ATOMS, NAT, COMP_ATOMS, COMP_SIZES, NCOMP)
+         BEST_COMP = 1
+         DO J1 = 2, NCOMP
+            IF (COMP_SIZES(J1) > COMP_SIZES(BEST_COMP)) BEST_COMP = J1
+         END DO
+         NAT = COMP_SIZES(BEST_COMP)
+         ATOMS(1:NAT) = COMP_ATOMS(BEST_COMP, 1:NAT)
+
+      END DO
+
+      SUCCESS = .FALSE.
+
+   END SUBROUTINE RMH_GREEDY_TRIM
+
+   !> Commits ATOMS(1:NAT) as a finished group, growing LINEAR_GROUPS /
+   !! NINGROUP on demand so a single input group splitting into several
+   !! output groups is never limited by the caller's original sizing.
+   SUBROUTINE RMH_COMMIT_GROUP(ATOMS, NAT, LINATOM_MASK, GROUPID)
+      INTEGER, INTENT(IN)    :: ATOMS(:), NAT
+      LOGICAL, INTENT(INOUT) :: LINATOM_MASK(:)
+      INTEGER, INTENT(INOUT) :: GROUPID
+      INTEGER :: J1
+
+      GROUPID = GROUPID + 1
+      CALL RMH_ENSURE_GROUP_CAPACITY(GROUPID, NAT)
+
+      NINGROUP(GROUPID) = NAT
+      DO J1 = 1, NAT
+         LINEAR_GROUPS(GROUPID, J1) = ATOMS(J1)
+         ATOM2LINGROUP(ATOMS(J1)) = GROUPID
+         LINATOM_MASK(ATOMS(J1)) = .TRUE.
+      END DO
+   END SUBROUTINE RMH_COMMIT_GROUP
+
+   SUBROUTINE RMH_DROP_ATOMS(LINATOM_MASK, ATOMS, NAT)
+      LOGICAL, INTENT(INOUT) :: LINATOM_MASK(:)
+      INTEGER, INTENT(IN)    :: ATOMS(:), NAT
+      INTEGER :: J1
+      DO J1 = 1, NAT
+         LINATOM_MASK(ATOMS(J1)) = .FALSE.
+      END DO
+   END SUBROUTINE RMH_DROP_ATOMS
+
+   !> Grows module-level LINEAR_GROUPS / NINGROUP (doubling) if GROUPID
+   !! or GROUPSIZE_NEEDED exceeds the current allocation.
+   SUBROUTINE RMH_ENSURE_GROUP_CAPACITY(GROUPID, GROUPSIZE_NEEDED)
+      USE QCIKEYS, ONLY:NATOMS
+      INTEGER, INTENT(IN) :: GROUPID, GROUPSIZE_NEEDED
+      INTEGER, ALLOCATABLE :: TMP_GROUPS(:,:)
+      INTEGER, ALLOCATABLE :: TMP_NINGROUP(:)
+      INTEGER :: OLD_NGROUPS, OLD_MAXSIZE, NEW_NGROUPS, NEW_MAXSIZE
+
+
+      IF (.NOT. ALLOCATED(ATOM2LINGROUP)) THEN
+         ALLOCATE(ATOM2LINGROUP(NATOMS))
+         ATOM2LINGROUP(:) = -1
+               END IF
+
+      OLD_NGROUPS = 0; OLD_MAXSIZE = 0
+      IF (ALLOCATED(LINEAR_GROUPS)) THEN
+         OLD_NGROUPS = SIZE(LINEAR_GROUPS, 1)
+         OLD_MAXSIZE = SIZE(LINEAR_GROUPS, 2)
+            END IF
+
+      IF (GROUPID <= OLD_NGROUPS .AND. GROUPSIZE_NEEDED <= OLD_MAXSIZE) RETURN
+
+      NEW_NGROUPS = MAX(GROUPID, OLD_NGROUPS * 2, 1)
+      NEW_MAXSIZE = MAX(GROUPSIZE_NEEDED, OLD_MAXSIZE)
+
+      ALLOCATE(TMP_GROUPS(NEW_NGROUPS, NEW_MAXSIZE)); TMP_GROUPS(:,:) = -1
+      ALLOCATE(TMP_NINGROUP(NEW_NGROUPS));            TMP_NINGROUP(:) = 0
+
+      IF (OLD_NGROUPS > 0) THEN
+         TMP_GROUPS(1:OLD_NGROUPS, 1:OLD_MAXSIZE) = LINEAR_GROUPS(1:OLD_NGROUPS, 1:OLD_MAXSIZE)
+         TMP_NINGROUP(1:OLD_NGROUPS) = NINGROUP(1:OLD_NGROUPS)
+         DEALLOCATE(LINEAR_GROUPS)
+         DEALLOCATE(NINGROUP)
+      END IF
+
+      CALL MOVE_ALLOC(TMP_GROUPS, LINEAR_GROUPS)
+      CALL MOVE_ALLOC(TMP_NINGROUP, NINGROUP)
+   END SUBROUTINE RMH_ENSURE_GROUP_CAPACITY
 
    !> helper function to check if a value (integer) is in a list of length N
    LOGICAL FUNCTION IS_IN_LIST(VALUE, LIST, N)
