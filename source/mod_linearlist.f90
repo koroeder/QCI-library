@@ -9,7 +9,7 @@ MODULE QCI_LINEAR
    INTEGER :: NQCILINEAR = 0 !< number of atoms for QCIlinear 
    INTEGER, ALLOCATABLE :: LINEARATOMS(:) !< list of linear atoms
    CHARACTER(25) :: LINEARFILE = "QCIlinear" !< file name linear atoms
-    REAL(KIND=REAL64) :: LINEARCUT = 0.05D0 !< user defined value, cutoff for linear atoms 
+   REAL(KIND=REAL64) :: LINEARCUT = 0.05D0 !< user defined value, cutoff for linear atoms 
    !------------------------------------------------------------------!
 
 
@@ -23,7 +23,7 @@ MODULE QCI_LINEAR
    REAL(KIND=REAL64), PARAMETER :: ANGLE_TOLERANCE = 0.08726646259971647     !< 5.0D0 degrees  
    REAL(KIND=REAL64), PARAMETER :: DIHEDRAL_TOLERANCE = 0.17453292519943295  !< 10.0D0 degrees
    INTEGER, PARAMETER :: MIN_LINEAR_GROUP_SIZE = 5
-   
+
    CONTAINS
 
       !> Get linear atoms from a file. 
@@ -111,7 +111,7 @@ MODULE QCI_LINEAR
       END SUBROUTINE ALLOC_LINEAR_GROUP
 
       SUBROUTINE DEALLOC_LINEAR_GROUP()
-         USE QCI_CONSTRAINT_KEYS, ONLY: NBONDS, BOND_LIST, BONDS_PER_ATOM_LIST ,N_BONDS_PER_ATOM
+         USE QCI_CONSTRAINT_KEYS, ONLY: BOND_LIST, BONDS_PER_ATOM_LIST ,N_BONDS_PER_ATOM
          IF (ALLOCATED(LINEAR_GROUPS)) DEALLOCATE(LINEAR_GROUPS)
          IF (ALLOCATED(ATOM2LINGROUP)) DEALLOCATE(ATOM2LINGROUP)
          IF (ALLOCATED(NINGROUP)) DEALLOCATE(NINGROUP) 
@@ -125,21 +125,18 @@ MODULE QCI_LINEAR
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       
       SUBROUTINE GET_LINEAR_GROUPS()   
-         USE QCIKEYS, ONLY: NATOMS, INLINLIST, LINEARBBT, ISBBATOM, QCIAMBERT, QCIHIRET       
-         USE MOD_INTCOORDS, ONLY: XSTART, XFINAL
+         USE QCIKEYS, ONLY: NATOMS  
          USE HELPER_FNCTS, ONLY: DISTANCE_TWOATOMS, ANGLE, DIHEDRAL, DIHEDRAL_DIFF
          USE QCI_CONSTRAINT_KEYS, ONLY: NCONSTRAINT, CONI, CONJ, CONDISTREFLOCAL, NCONPERATOM, &
                                        CONLIST, BOND_LIST, NBONDS, MAX_BONDS_PER_ATOM, &
                                         BONDS_PER_ATOM_LIST, N_BONDS_PER_ATOM
          USE QCICONSTRAINTS, ONLY: GET_NBONDS_PER_ATOM
-         USE AMBER_CONSTRAINTS, ONLY: INGROUP, GROUPLOOKUP, NPLACINGGROUPS, SIZEPLACINGGROUPS
+         
          IMPLICIT NONE
-
-         REAL(KIND=REAL64), PARAMETER :: TOLERANCE = 0.01D0
-         REAL(KIND=REAL64) :: DS, DF
+         
          LOGICAL :: LINATOM(NATOMS) 
-         INTEGER :: NLINHERE
-         INTEGER :: A, B, C, D, J1, J2, J3, J4, K
+          
+         INTEGER :: J1, J2
 
          INTEGER :: CURRENTGROUP(NATOMS)      !< Group ID for each linear atom, -1 if not assigned
          INTEGER :: GROUPS(NATOMS, NATOMS)    !< List of atoms in each group
@@ -149,46 +146,20 @@ MODULE QCI_LINEAR
          INTEGER :: STACKPTR
          INTEGER :: ATOM, NEIGHBOR
          INTEGER :: NINGROUP_TEMP(3*NATOMS)
-         INTEGER :: MAXGROUPSIZE
+ 
          INTEGER :: NGROUPS                     !< number of linear groups
-                
-        
-         INTEGER :: EXTERNAL_ANCHORS(NATOMS)  !< distinct external atoms bonded to this group 
-         INTEGER :: N_EXTERNAL_ANCHORS        !< number of distinct external anchor atoms
-         INTEGER :: HINGE_ATOM                !< unique external anchor (if exists)
-
-  
          LOGICAL :: DEBUG_MODE = .FALSE.       !< Set to .TRUE. for verbose output
-         
-         INTEGER :: EXTERNAL_PER_ATOM(NATOMS)
-         INTEGER :: N_BACKBONE_ATOMS
-         INTEGER :: BACKBONE_ATOM
-         LOGICAL :: IS_VALID_GROUP
-         INTEGER :: TEMP_EXTERNAL_COUNT
-         INTEGER :: NEIGHBOR_ATOM
          INTEGER :: N_NEW_GROUPS
       
-         ! ========== Compare Amber groups with Linear groups ==========
-         INTEGER :: AMBER_ATOM, AMBER_GROUP
-         INTEGER :: NATOMS_THIS_GROUP
-         INTEGER :: ATOMS_IN_BOTH(NATOMS)
-         INTEGER :: ATOMS_ONLY_IN_AMBER(NATOMS)
-         INTEGER :: N_IN_BOTH, N_ONLY_AMBER
-
-         
-
-        
+         !initially we have no linear atoms
          LINATOM(:) = .FALSE.
-         
-
+        
          !Get bonds arrays we need - cannot use contrainsts here
          CALL GET_NBONDS_PER_ATOM()
          
-
          !Part 1: Find linear atoms based on bonds, angles, and dihedrals constraints
          CALL FIND_LINEAR_ATOMS(LINATOM)  
 
-     
          !Part 2: Group LINEAR atoms by bond connectivity 
          
          CURRENTGROUP(:)   = -1
@@ -258,88 +229,78 @@ MODULE QCI_LINEAR
 
          !Part 3 - Validate groups
 
-      GROUPID = 0
-      DO J1 = 1, NGROUPS
-         IF (NINGROUP_TEMP(J1) <= 1) CYCLE
+         GROUPID = 0
+         DO J1 = 1, NGROUPS
+            IF (NINGROUP_TEMP(J1) <= 1) CYCLE
             CALL REDUCE_MULTI_HINGE_GROUP(LINATOM, GROUPS(J1,1:NINGROUP_TEMP(J1)), NINGROUP_TEMP(J1), &
                                           GROUPID, N_NEW_GROUPS, DEBUG_MODE)
-            END DO
-      NLINGROUPS = GROUPID
+         END DO
+         NLINGROUPS = GROUPID
          NQCILINEAR = SUM(NINGROUP(1:NLINGROUPS))
-      
+         
+         WRITE(*,*) "lingroup> Detected ", NLINGROUPS, " linear groups, with total ", NQCILINEAR, " atoms."
 
-   END SUBROUTINE GET_LINEAR_GROUPS
+      END SUBROUTINE GET_LINEAR_GROUPS
 
    
-   SUBROUTINE GET_LIN_ROT_TRANSLATION(GROUP, GROUPSIZE, CXS, CXF, QSTART, QFINAL)
-      USE QCIKEYS, ONLY: NATOMS
-      USE MOD_INTCOORDS, ONLY: XSTART, XFINAL
-      USE align, ONLY: move_to_origin
-      use lpermdist, only: get_rot_matrix
-      USE QUATERNIONS
+      SUBROUTINE GET_LIN_ROT_TRANSLATION(GROUP, GROUPSIZE, CXS, CXF, QSTART, QFINAL)
 
-      INTEGER, INTENT(IN) :: GROUP !< group id
-      INTEGER, INTENT(IN) :: GROUPSIZE 
-      REAL(KIND=REAL64), INTENT(OUT) :: CXS(3), CXF(3) !< centre of coordinates 
-      REAL(KIND=REAL64), INTENT(OUT) :: QSTART(4), QFINAL(4) !< unit quaternions for SLERP
-      REAL(KIND=REAL64) :: RS(3*GROUPSIZE), RF(3*GROUPSIZE) !group coordinates
-      REAL(KIND=REAL64), DIMENSION(3,3) :: RMAT !rotational matrix 
-      REAL(KIND=REAL64) :: DIST
-      INTEGER :: J1, ATOMID
+         USE MOD_INTCOORDS, ONLY: XSTART, XFINAL
+         USE align, ONLY: move_to_origin
+         use lpermdist, only: get_rot_matrix
+         USE QUATERNIONS
 
-      DO J1=1, GROUPSIZE
-         ATOMID = LINEAR_GROUPS(GROUP,J1)
-         RS(3*(J1-1)+1:3*(J1-1)+3) = XSTART(3*(ATOMID-1)+1:3*(ATOMID-1)+3)
-         RF(3*(J1-1)+1:3*(J1-1)+3) = XFINAL(3*(ATOMID-1)+1:3*(ATOMID-1)+3)
-      END DO
-      
-      !centre RA
-      call move_to_origin(GROUPSIZE,RS,CXS)
-      !centre RB around origin
-      CALL move_to_origin(GROUPSIZE,RF,CXF)
+         INTEGER, INTENT(IN) :: GROUP !< group id
+         INTEGER, INTENT(IN) :: GROUPSIZE 
+         REAL(KIND=REAL64), INTENT(OUT) :: CXS(3), CXF(3) !< centre of coordinates 
+         REAL(KIND=REAL64), INTENT(OUT) :: QSTART(4), QFINAL(4) !< unit quaternions for SLERP
+         REAL(KIND=REAL64) :: RS(3*GROUPSIZE), RF(3*GROUPSIZE) !group coordinates
+         REAL(KIND=REAL64), DIMENSION(3,3) :: RMAT !rotational matrix 
+         REAL(KIND=REAL64) :: DIST
+         INTEGER :: J1, ATOMID
+
+         DO J1=1, GROUPSIZE
+            ATOMID = LINEAR_GROUPS(GROUP,J1)
+            RS(3*(J1-1)+1:3*(J1-1)+3) = XSTART(3*(ATOMID-1)+1:3*(ATOMID-1)+3)
+            RF(3*(J1-1)+1:3*(J1-1)+3) = XFINAL(3*(ATOMID-1)+1:3*(ATOMID-1)+3)
+         END DO
+         
+         !centre RA
+         call move_to_origin(GROUPSIZE,RS,CXS)
+         !centre RB around origin
+         CALL move_to_origin(GROUPSIZE,RF,CXF)
 
 
-      !WRITE(*,*) "get_lin_rot_translation> GROUPSIZE ", GROUPSIZE, "RS ", RS, " RF ", RF
-      !align coordinates
-      call get_rot_matrix(GROUPSIZE, RF, RS, RMAT, DIST)
+         !WRITE(*,*) "get_lin_rot_translation> GROUPSIZE ", GROUPSIZE, "RS ", RS, " RF ", RF
+         !align coordinates
+         call get_rot_matrix(GROUPSIZE, RF, RS, RMAT, DIST)
 
-      QSTART = [1.0D0, 0.0D0, 0.0D0, 0.0D0]
+         QSTART = [1.0D0, 0.0D0, 0.0D0, 0.0D0]
 
-      CALL MATRIX_TO_QUATERNION(RMAT,QFINAL)
-      
-   END SUBROUTINE GET_LIN_ROT_TRANSLATION
+         CALL MATRIX_TO_QUATERNION(RMAT,QFINAL)
+         
+      END SUBROUTINE GET_LIN_ROT_TRANSLATION
 
-   !> Linear atoms here are defined as atoms whose bonds, angles and dihedrals change less than 
-   !! the tolarence between start & finish.  
-   SUBROUTINE FIND_LINEAR_ATOMS(LINATOM)
-       USE QCIKEYS, ONLY: NATOMS, INLINLIST, LINEARBBT, ISBBATOM, QCIAMBERT, QCIHIRET       
+      !> Linear atoms here are defined as atoms whose bonds, angles and dihedrals change less than 
+      !! the tolarence between start & finish.  
+      SUBROUTINE FIND_LINEAR_ATOMS(LINATOM)
+         USE QCIKEYS, ONLY: NATOMS  
          USE MOD_INTCOORDS, ONLY: XSTART, XFINAL
          USE HELPER_FNCTS, ONLY: DISTANCE_TWOATOMS, ANGLE, DIHEDRAL, DIHEDRAL_DIFF
-         USE QCI_CONSTRAINT_KEYS, ONLY: NCONSTRAINT, CONI, CONJ, CONDISTREFLOCAL, NCONPERATOM, &
-                                       CONLIST, BOND_LIST, NBONDS, MAX_BONDS_PER_ATOM, &
-                                        BONDS_PER_ATOM_LIST, N_BONDS_PER_ATOM
+         USE QCI_CONSTRAINT_KEYS, ONLY: BOND_LIST, NBONDS, MAX_BONDS_PER_ATOM, &
+                                          BONDS_PER_ATOM_LIST, N_BONDS_PER_ATOM
          USE QCICONSTRAINTS, ONLY: GET_NBONDS_PER_ATOM
          IMPLICIT NONE
 
          LOGICAL, INTENT(OUT) :: LINATOM(NATOMS) 
 
-         
+            
          REAL(KIND=REAL64) :: DS, DF
          
          INTEGER :: NLINHERE
          INTEGER :: A, B, C, D, J1, J2, J3, J4, K
-    
-          ! Grouping variables
-         INTEGER :: CURRENTGROUP(NATOMS)      ! Group ID for each linear atom
-         INTEGER :: GROUPID
-         INTEGER :: VISITED(NATOMS)           ! For DFS traversal
-         INTEGER :: STACK(NATOMS)             ! Stack for DFS
-         INTEGER :: STACKPTR
-         INTEGER :: ATOM, NEIGHBOR
-         INTEGER :: NINGROUP_TEMP(3*NATOMS)
-         INTEGER :: MAXGROUPSIZE 
-         INTEGER :: NGROUPS   !number of linear groups
-         
+   
+        
          LOGICAL :: IS_RIGID_BODY(NATOMS)
          REAL(KIND=REAL64) :: ANGLE_COORDS(9)
          REAL(KIND=REAL64) :: ANGLE_DEVIATION, DIHEDRAL_DEVIATION
@@ -351,7 +312,7 @@ MODULE QCI_LINEAR
          LINATOM(:) = .FALSE.
          IS_RIGID_BODY(:) = .TRUE.
       
-          ! ========== PART 1: Detect linear atoms ==========
+         ! ========== PART 1: Detect linear atoms ==========
          DO J1 = 1, NATOMS
             NLINHERE = 0
          
@@ -368,17 +329,15 @@ MODULE QCI_LINEAR
             ! Mark atom as linear if all constraints have unchanged distances
             IF(NLINHERE == N_BONDS_PER_ATOM(J1)) LINATOM(J1) = .TRUE.
             
-          END DO
-    
-          
-         ! Check if atoms in a group maintain angles
+         END DO
+            
          DO J1 = 1, NATOMS
             IF (.NOT. LINATOM(J1)) CYCLE
             
             ! For each atom, check angles to neighbors
             DO J2 = 1, N_BONDS_PER_ATOM(J1) 
                DO J3 = J2+1, N_BONDS_PER_ATOM(J1) 
-                    
+                  
                      A = BONDS_PER_ATOM_LIST(J1, J2)
                      B = J1
                      C = BONDS_PER_ATOM_LIST(J1, J3)
@@ -462,136 +421,142 @@ MODULE QCI_LINEAR
          ! Update LINATOM to only include truly rigid atoms
          LINATOM(:) = LINATOM(:) .AND. IS_RIGID_BODY(:)
 
-   END SUBROUTINE FIND_LINEAR_ATOMS
-   
-   
-   SUBROUTINE COMPARE_AMBER_LINEAR_GROUPS()
-      USE QCIKEYS, ONLY: NATOMS, INLINLIST, LINEARBBT, ISBBATOM, QCIAMBERT, QCIHIRET       
-      USE MOD_INTCOORDS, ONLY: XSTART, XFINAL
-      USE HELPER_FNCTS, ONLY: DISTANCE_TWOATOMS, ANGLE, DIHEDRAL, DIHEDRAL_DIFF
-      USE QCI_CONSTRAINT_KEYS, ONLY: NCONSTRAINT, CONI, CONJ, CONDISTREFLOCAL, NCONPERATOM, &
-                                    CONLIST, BOND_LIST, NBONDS, MAX_BONDS_PER_ATOM, &
-                                    BONDS_PER_ATOM_LIST, N_BONDS_PER_ATOM
-      USE QCICONSTRAINTS, ONLY: GET_NBONDS_PER_ATOM
-      USE AMBER_CONSTRAINTS, ONLY: INGROUP, GROUPLOOKUP, NPLACINGGROUPS, SIZEPLACINGGROUPS
-      IMPLICIT NONE
+      END SUBROUTINE FIND_LINEAR_ATOMS
+      
+      
+      SUBROUTINE COMPARE_AMBER_LINEAR_GROUPS()
+         USE QCIKEYS, ONLY: NATOMS      
+         USE HELPER_FNCTS, ONLY: DISTANCE_TWOATOMS, ANGLE, DIHEDRAL, DIHEDRAL_DIFF
+         USE QCI_CONSTRAINT_KEYS, ONLY: NCONSTRAINT, CONI, CONJ, CONDISTREFLOCAL, NCONPERATOM, &
+                                       CONLIST, BOND_LIST, NBONDS, MAX_BONDS_PER_ATOM
+         USE QCICONSTRAINTS, ONLY: GET_NBONDS_PER_ATOM
+         USE AMBER_CONSTRAINTS, ONLY: GROUPLOOKUP, NPLACINGGROUPS, SIZEPLACINGGROUPS
+         IMPLICIT NONE
 
-      INTEGER :: AMBER_ATOM, AMBER_GROUP
-      INTEGER :: NATOMS_THIS_GROUP
-      INTEGER :: ATOMS_IN_BOTH(NATOMS)
-      INTEGER :: ATOMS_ONLY_IN_AMBER(NATOMS)
-      INTEGER :: N_IN_BOTH, N_ONLY_AMBER
-      INTEGER :: J1, K
+         INTEGER :: AMBER_ATOM, AMBER_GROUP
+         INTEGER :: NATOMS_THIS_GROUP
+         INTEGER :: ATOMS_IN_BOTH(NATOMS)
+         INTEGER :: ATOMS_ONLY_IN_AMBER(NATOMS)
+         INTEGER :: N_IN_BOTH, N_ONLY_AMBER
+         INTEGER :: J1, K
 
-      PRINT *, ""
-      PRINT *, "========== AMBER vs LINEAR GROUP COMPARISON =========="
-
-      ! Handle case with no linear groups
-      IF (NLINGROUPS.EQ.0) THEN
-         PRINT *, "No linear groups detected."
-         DO AMBER_GROUP = 1, NPLACINGGROUPS
-               NATOMS_THIS_GROUP = SIZEPLACINGGROUPS(AMBER_GROUP)
-               PRINT *, ""
-               PRINT *, "Amber Group ", AMBER_GROUP, " (", NATOMS_THIS_GROUP, " atoms)"
-               PRINT *, "  Atoms ALSO in linear groups: NONE (no linear groups exist)"
-               PRINT *, "  Atoms ONLY in Amber (not in linear groups): ALL"
-               PRINT *, "  -> NO OVERLAP: No linear groups to compare"
-         END DO
-         PRINT *, "========================================================"
-         RETURN
-      END IF
-
-      ! Handle case with no Amber groups
-      IF (NPLACINGGROUPS.EQ.0) THEN
-         PRINT *, "No Amber placing groups defined."
-         PRINT *, "========================================================"
-         RETURN
-      END IF
-
-      ! Loop over each Amber placing group
-      DO AMBER_GROUP = 1, NPLACINGGROUPS
-         
-         NATOMS_THIS_GROUP = SIZEPLACINGGROUPS(AMBER_GROUP)
-         N_IN_BOTH = 0
-         N_ONLY_AMBER = 0
-         ATOMS_IN_BOTH(:) = 0
-         ATOMS_ONLY_IN_AMBER(:) = 0
-         
-         ! Scan all atoms to find those belonging to this Amber group
-         DO J1 = 1, NATOMS
-               IF (GROUPLOOKUP(J1).EQ.AMBER_GROUP) THEN
-                  AMBER_ATOM = J1
-                  ! Check if this atom is in a linear group
-                  IF (ATOM2LINGROUP(AMBER_ATOM).GT.0) THEN
-                     N_IN_BOTH = N_IN_BOTH + 1
-                     ATOMS_IN_BOTH(N_IN_BOTH) = AMBER_ATOM
-                  ELSE
-                     N_ONLY_AMBER = N_ONLY_AMBER + 1
-                     ATOMS_ONLY_IN_AMBER(N_ONLY_AMBER) = AMBER_ATOM
-                  END IF
-               END IF
-         END DO
-         
-         ! Print comparison for this Amber group
          PRINT *, ""
-         PRINT *, "Amber Group ", AMBER_GROUP, " (", NATOMS_THIS_GROUP, " atoms)"
-         
-         IF (N_IN_BOTH.GT.0) THEN
-               PRINT *, "  Atoms ALSO in linear groups (", N_IN_BOTH, "): ", &
-                        (ATOMS_IN_BOTH(K), K=1,N_IN_BOTH)
-         ELSE
-               PRINT *, "  Atoms ALSO in linear groups: NONE"
-         END IF
-         
-         IF (N_ONLY_AMBER.GT.0) THEN
-               PRINT *, "  Atoms ONLY in Amber (not in linear groups) (", N_ONLY_AMBER, "): ", &
-                        (ATOMS_ONLY_IN_AMBER(K), K=1,N_ONLY_AMBER)
-         ELSE
-               PRINT *, "  Atoms ONLY in Amber: NONE"
-         END IF
-         
-         ! Summary
-         IF ( (N_ONLY_AMBER.GT.0) .AND. (N_IN_BOTH.GT.0) ) THEN
-               PRINT *, "  -> MIXED: Some atoms in linear groups, some not"
-         ELSE IF ( (N_ONLY_AMBER.EQ.0) .AND. (N_IN_BOTH.EQ.NATOMS_THIS_GROUP)) THEN
-               PRINT *, "  -> FULL OVERLAP: All Amber atoms in linear groups"
-         ELSE IF (N_ONLY_AMBER == NATOMS_THIS_GROUP) THEN
-               PRINT *, "  -> NO OVERLAP: No Amber atoms in linear groups"
+         PRINT *, "========== AMBER vs LINEAR GROUP COMPARISON =========="
+
+         ! Handle case with no linear groups
+         IF (NLINGROUPS.EQ.0) THEN
+            PRINT *, "No linear groups detected."
+            DO AMBER_GROUP = 1, NPLACINGGROUPS
+                  NATOMS_THIS_GROUP = SIZEPLACINGGROUPS(AMBER_GROUP)
+                  PRINT *, ""
+                  PRINT *, "Amber Group ", AMBER_GROUP, " (", NATOMS_THIS_GROUP, " atoms)"
+                  PRINT *, "  Atoms ALSO in linear groups: NONE (no linear groups exist)"
+                  PRINT *, "  Atoms ONLY in Amber (not in linear groups): ALL"
+                  PRINT *, "  -> NO OVERLAP: No linear groups to compare"
+            END DO
+            PRINT *, "========================================================"
+            RETURN
          END IF
 
-      END DO
+         ! Handle case with no Amber groups
+         IF (NPLACINGGROUPS.EQ.0) THEN
+            PRINT *, "No Amber placing groups defined."
+            PRINT *, "========================================================"
+            RETURN
+         END IF
 
-      PRINT *, "========================================================"
+         ! Loop over each Amber placing group
+         DO AMBER_GROUP = 1, NPLACINGGROUPS
+            
+            NATOMS_THIS_GROUP = SIZEPLACINGGROUPS(AMBER_GROUP)
+            N_IN_BOTH = 0
+            N_ONLY_AMBER = 0
+            ATOMS_IN_BOTH(:) = 0
+            ATOMS_ONLY_IN_AMBER(:) = 0
+            
+            ! Scan all atoms to find those belonging to this Amber group
+            DO J1 = 1, NATOMS
+                  IF (GROUPLOOKUP(J1).EQ.AMBER_GROUP) THEN
+                     AMBER_ATOM = J1
+                     ! Check if this atom is in a linear group
+                     IF (ATOM2LINGROUP(AMBER_ATOM).GT.0) THEN
+                        N_IN_BOTH = N_IN_BOTH + 1
+                        ATOMS_IN_BOTH(N_IN_BOTH) = AMBER_ATOM
+                     ELSE
+                        N_ONLY_AMBER = N_ONLY_AMBER + 1
+                        ATOMS_ONLY_IN_AMBER(N_ONLY_AMBER) = AMBER_ATOM
+                     END IF
+                  END IF
+            END DO
+            
+            ! Print comparison for this Amber group
+            PRINT *, ""
+            PRINT *, "Amber Group ", AMBER_GROUP, " (", NATOMS_THIS_GROUP, " atoms)"
+            
+            IF (N_IN_BOTH.GT.0) THEN
+                  PRINT *, "  Atoms ALSO in linear groups (", N_IN_BOTH, "): ", &
+                           (ATOMS_IN_BOTH(K), K=1,N_IN_BOTH)
+            ELSE
+                  PRINT *, "  Atoms ALSO in linear groups: NONE"
+            END IF
+            
+            IF (N_ONLY_AMBER.GT.0) THEN
+                  PRINT *, "  Atoms ONLY in Amber (not in linear groups) (", N_ONLY_AMBER, "): ", &
+                           (ATOMS_ONLY_IN_AMBER(K), K=1,N_ONLY_AMBER)
+            ELSE
+                  PRINT *, "  Atoms ONLY in Amber: NONE"
+            END IF
+            
+            ! Summary
+            IF ( (N_ONLY_AMBER.GT.0) .AND. (N_IN_BOTH.GT.0) ) THEN
+                  PRINT *, "  -> MIXED: Some atoms in linear groups, some not"
+            ELSE IF ( (N_ONLY_AMBER.EQ.0) .AND. (N_IN_BOTH.EQ.NATOMS_THIS_GROUP)) THEN
+                  PRINT *, "  -> FULL OVERLAP: All Amber atoms in linear groups"
+            ELSE IF (N_ONLY_AMBER == NATOMS_THIS_GROUP) THEN
+                  PRINT *, "  -> NO OVERLAP: No Amber atoms in linear groups"
+            END IF
 
-   END SUBROUTINE COMPARE_AMBER_LINEAR_GROUPS
+         END DO
+
+         PRINT *, "========================================================"
+
+      END SUBROUTINE COMPARE_AMBER_LINEAR_GROUPS
 
 
 
   
 
-   !> Currently deallocation done in DEALLOC_LINEAR_GROUP, so this doesn't need to be called
-   SUBROUTINE DEALLOC_BONDS()
-      USE QCI_CONSTRAINT_KEYS, ONLY: NBONDS, BOND_LIST
-      IF(ALLOCATED(BOND_LIST)) DEALLOCATE(BOND_LIST)
-   END SUBROUTINE DEALLOC_BONDS
+      !> Currently deallocation done in DEALLOC_LINEAR_GROUP, so this doesn't need to be called
+      SUBROUTINE DEALLOC_BONDS()
+         USE QCI_CONSTRAINT_KEYS, ONLY: BOND_LIST
+         IF(ALLOCATED(BOND_LIST)) DEALLOCATE(BOND_LIST)
+      END SUBROUTINE DEALLOC_BONDS
 
 
   
 
-   
-
-   !====================================================================
+    !====================================================================
    ! Resolves a connected group of linear atoms that touches more than
-   ! one external anchor into one or more valid sub-groups, by
-   ! repeatedly CONSTRUCTING the largest possible single-anchor group
-   ! from the current pool (growing outward from each candidate anchor
-   ! and keeping the best), committing it, and recursing on whatever
-   ! atoms are left. Atoms that end up in no group of at least
-   ! MIN_LINEAR_GROUP_SIZE atoms are dropped (LINATOM_MASK cleared).
+   ! one external anchor into one or more valid sub-groups.
+   !
+   ! Method: for the current atom set, search every edge of a spanning
+   ! tree for the cut that peels off the LARGEST piece -- subtree(v) or
+   ! its complement -- that has EXACTLY ONE external anchor once
+   ! re-checked against the FULL bond graph (not just tree edges), and
+   ! is at least MIN_LINEAR_GROUP_SIZE. Commit that piece, split what's
+   ! left into connected components, and repeat on each. The full-graph
+   ! recheck is what guarantees every committed group is genuinely
+   ! single-hinge: a candidate that only *looks* right locally (e.g. a
+   ! plain anchor-rooted flood-fill that stops at a blocked atom but
+   ! leaves it still bonded to the kept piece) is rejected rather than
+   ! silently accepted.
+   !
+   ! Atoms that cannot be placed in such a sub-group are dropped
+   ! (LINATOM_MASK cleared).
    !====================================================================
    SUBROUTINE REDUCE_MULTI_HINGE_GROUP(LINATOM_MASK, GROUP_ATOMS_IN, N_GROUP_ATOMS_IN, &
                                         GROUPID, N_NEW_GROUPS, DEBUG_MODE)
-      USE QCIKEYS, ONLY: NATOMS 
+      USE QCIKEYS, ONLY: NATOMS
       IMPLICIT NONE
 
       LOGICAL, INTENT(INOUT) :: LINATOM_MASK(:)
@@ -610,8 +575,8 @@ MODULE QCI_LINEAR
       INTEGER :: CUR_ATOMS(N_GROUP_ATOMS_IN), CUR_SIZE
       LOGICAL :: IN_SET(NATOMS)
       INTEGER :: ANCHORS(N_GROUP_ATOMS_IN), N_ANCHORS
-      INTEGER :: TRY_ATOMS(N_GROUP_ATOMS_IN), TRY_SIZE
       INTEGER :: BEST_ATOMS(N_GROUP_ATOMS_IN), BEST_SIZE
+      INTEGER :: TRIM_ATOMS(N_GROUP_ATOMS_IN), TRIM_SIZE
       INTEGER :: REMAINDER(N_GROUP_ATOMS_IN), REM_SIZE
       INTEGER :: COMP_ATOMS(N_GROUP_ATOMS_IN, N_GROUP_ATOMS_IN)
       INTEGER :: COMP_SIZES(N_GROUP_ATOMS_IN)
@@ -639,7 +604,7 @@ MODULE QCI_LINEAR
             IF (LOCAL_DEBUG) PRINT *, "reduce_multi_hinge_group> pool of ", CUR_SIZE, " too small, dropping"
             CALL RMH_DROP_ATOMS(LINATOM_MASK, CUR_ATOMS, CUR_SIZE)
             CYCLE
-      END IF
+         END IF
 
          CALL RMH_MEMBERSHIP(CUR_ATOMS, CUR_SIZE, IN_SET)
          CALL RMH_COMPUTE_ANCHORS(CUR_ATOMS, CUR_SIZE, IN_SET, ANCHORS, N_ANCHORS)
@@ -658,24 +623,15 @@ MODULE QCI_LINEAR
             CYCLE
          END IF
 
-         ! N_ANCHORS >= 2: construct the largest single-anchor group by
-         ! growing from each candidate anchor and keeping the best
-         BEST_SIZE = 0
-         DO J1 = 1, N_ANCHORS
-            CALL RMH_GROW_FROM_ANCHOR(CUR_ATOMS, CUR_SIZE, IN_SET, ANCHORS(J1), TRY_ATOMS, TRY_SIZE)
-            IF (LOCAL_DEBUG) PRINT *, "reduce_multi_hinge_group> anchor ", ANCHORS(J1), &
-                                        " grows to ", TRY_SIZE, " atoms"
-            IF (TRY_SIZE > BEST_SIZE) THEN
-               BEST_SIZE = TRY_SIZE
-               BEST_ATOMS(1:TRY_SIZE) = TRY_ATOMS(1:TRY_SIZE)
-            END IF
-         END DO
+         ! N_ANCHORS >= 2: search every tree-edge cut for the largest
+         ! piece that is genuinely single-hinge against the FULL graph
+         CALL RMH_TRY_SPLIT(CUR_ATOMS, CUR_SIZE, MIN_LINEAR_GROUP_SIZE, SUCCESS, BEST_ATOMS, BEST_SIZE)
 
-         IF (BEST_SIZE >= MIN_LINEAR_GROUP_SIZE) THEN
+         IF (SUCCESS) THEN
 
             CALL RMH_COMMIT_GROUP(BEST_ATOMS, BEST_SIZE, LINATOM_MASK, GROUPID)
             N_NEW_GROUPS = N_NEW_GROUPS + 1
-            IF (LOCAL_DEBUG) PRINT *, "reduce_multi_hinge_group> constructed group of size ", BEST_SIZE
+            IF (LOCAL_DEBUG) PRINT *, "reduce_multi_hinge_group> peeled off group of size ", BEST_SIZE
 
             ! what's left may fall apart into several disconnected
             ! pieces once BEST_ATOMS is removed -- resolve each
@@ -689,16 +645,23 @@ MODULE QCI_LINEAR
                   POOL_STACK_SIZE(NSTACK) = COMP_SIZES(J1)
                   POOL_STACK(NSTACK, 1:COMP_SIZES(J1)) = COMP_ATOMS(J1, 1:COMP_SIZES(J1))
                END DO
-         END IF
+            END IF
 
          ELSE
-            ! construction couldn't reach the minimum from any single
-            ! anchor -- last-resort atom-by-atom trim before giving up
-            CALL RMH_GREEDY_TRIM(CUR_ATOMS, CUR_SIZE, MIN_LINEAR_GROUP_SIZE, SUCCESS, LOCAL_DEBUG)
+            ! no clean tree-edge cut exists -- fall back to atom-by-atom
+            ! trimming. Trim a SCRATCH COPY, not CUR_ATOMS/CUR_SIZE
+            ! directly: RMH_GREEDY_TRIM shrinks its arguments in place as
+            ! it works, so on failure the untouched CUR_ATOMS/CUR_SIZE are
+            ! what must be dropped -- using the (already-shrunk) trimmed
+            ! copy here would leave whichever atoms it discarded along the
+            ! way stuck at LINATOM_MASK=.TRUE. forever.
+            TRIM_ATOMS(1:CUR_SIZE) = CUR_ATOMS(1:CUR_SIZE)
+            TRIM_SIZE = CUR_SIZE
+            CALL RMH_GREEDY_TRIM(TRIM_ATOMS, TRIM_SIZE, MIN_LINEAR_GROUP_SIZE, SUCCESS, LOCAL_DEBUG)
             IF (SUCCESS) THEN
-               CALL RMH_COMMIT_GROUP(CUR_ATOMS, CUR_SIZE, LINATOM_MASK, GROUPID)
+               CALL RMH_COMMIT_GROUP(TRIM_ATOMS, TRIM_SIZE, LINATOM_MASK, GROUPID)
                N_NEW_GROUPS = N_NEW_GROUPS + 1
-               IF (LOCAL_DEBUG) PRINT *, "reduce_multi_hinge_group> fallback trim salvaged group of size ", CUR_SIZE
+               IF (LOCAL_DEBUG) PRINT *, "reduce_multi_hinge_group> fallback trim salvaged group of size ", TRIM_SIZE
             ELSE
                IF (LOCAL_DEBUG) PRINT *, "reduce_multi_hinge_group> pool unsalvageable, dropping ", CUR_SIZE, " atoms"
                CALL RMH_DROP_ATOMS(LINATOM_MASK, CUR_ATOMS, CUR_SIZE)
@@ -712,8 +675,7 @@ MODULE QCI_LINEAR
 
    END SUBROUTINE REDUCE_MULTI_HINGE_GROUP
 
-
-   !--------------------------------------------------------------------
+ !--------------------------------------------------------------------
    ! Private helpers (prefixed RMH_)
    !--------------------------------------------------------------------
 
@@ -748,87 +710,156 @@ MODULE QCI_LINEAR
             IF (.NOT. IS_IN_LIST(NB, ANCHORS, N_ANCHORS)) THEN
                N_ANCHORS = N_ANCHORS + 1
                ANCHORS(N_ANCHORS) = NB
-               END IF
-            END DO
-         END DO
-   END SUBROUTINE RMH_COMPUTE_ANCHORS
-
-   !> Grows the maximal connected subset of POOL_ATOMS reachable from
-   !! atoms bonded to TARGET_ANCHOR, refusing to cross any pool atom
-   !! that itself has an external bond to a DIFFERENT anchor (such an
-   !! atom would give the resulting group a second anchor, so it and
-   !! everything only reachable through it are excluded).
-   SUBROUTINE RMH_GROW_FROM_ANCHOR(POOL_ATOMS, POOL_SIZE, IN_SET, TARGET_ANCHOR, OUT_ATOMS, OUT_SIZE)
-      USE QCIKEYS, ONLY: NATOMS
-      USE QCI_CONSTRAINT_KEYS, ONLY: BONDS_PER_ATOM_LIST, N_BONDS_PER_ATOM
-      INTEGER, INTENT(IN)  :: POOL_ATOMS(:), POOL_SIZE
-      LOGICAL, INTENT(IN)  :: IN_SET(:)
-      INTEGER, INTENT(IN)  :: TARGET_ANCHOR
-      INTEGER, INTENT(OUT) :: OUT_ATOMS(:)
-      INTEGER, INTENT(OUT) :: OUT_SIZE
-
-      LOGICAL :: BLOCKED(POOL_SIZE), VISITED(POOL_SIZE)
-      INTEGER :: ATOM_TO_LOCAL(NATOMS)
-      INTEGER :: QUEUE(POOL_SIZE), QHEAD, QTAIL, CUR, CUR_ATOM
-      INTEGER :: J1, J2, NB, NB_LOCAL, ATOM
-
-      ATOM_TO_LOCAL(:) = 0
-      DO J1 = 1, POOL_SIZE
-         ATOM_TO_LOCAL(POOL_ATOMS(J1)) = J1
-      END DO
-
-      ! an atom is blocked if it has an external bond to any anchor
-      ! OTHER than the one we're growing towards
-      BLOCKED(:) = .FALSE.
-      DO J1 = 1, POOL_SIZE
-         ATOM = POOL_ATOMS(J1)
-         DO J2 = 1, N_BONDS_PER_ATOM(ATOM)
-            NB = BONDS_PER_ATOM_LIST(ATOM, J2)
-            IF (IN_SET(NB)) CYCLE
-            IF (NB /= TARGET_ANCHOR) THEN
-               BLOCKED(J1) = .TRUE.
-               EXIT
             END IF
          END DO
       END DO
+   END SUBROUTINE RMH_COMPUTE_ANCHORS
+
+   !> Searches every edge of a spanning tree of ATOMS(1:NAT) (built from
+   !! pool-internal bonds only) for the cut that peels off the LARGEST
+   !! piece -- subtree(v) or its complement -- that has EXACTLY ONE
+   !! external anchor once re-checked against the FULL bond graph, and
+   !! is at least MIN_SIZE. Every candidate is independently validated
+   !! via RMH_COMPUTE_ANCHORS before being accepted: this is what
+   !! guarantees the result is genuinely single-hinge. Works correctly
+   !! even if the atom set contains a ring: a tree-edge cut that isn't a
+   !! true bridge simply fails validation (shows up as extra anchors on
+   !! one side) and is rejected rather than assumed correct.
+   SUBROUTINE RMH_TRY_SPLIT(ATOMS, NAT, MIN_SIZE, FOUND, BEST_PIECE, BEST_SIZE)
+      USE QCIKEYS, ONLY: NATOMS
+      INTEGER, INTENT(IN)  :: ATOMS(:), NAT
+      INTEGER, INTENT(IN)  :: MIN_SIZE
+      LOGICAL, INTENT(OUT) :: FOUND
+      INTEGER, INTENT(OUT) :: BEST_PIECE(:)
+      INTEGER, INTENT(OUT) :: BEST_SIZE
+
+      INTEGER :: PARENT(NAT), CHILD_HEAD(NAT), CHILD_NEXT(NAT)
+      INTEGER :: SUBSET_LOCAL(NAT), N_SUBSET
+      LOGICAL :: SUB_IN_SET(NATOMS)
+      INTEGER :: SUB_ATOMS(NAT), REST_ATOMS(NAT), N_REST
+      INTEGER :: SUB_ANCHORS(NAT), N_SUB_ANCHORS
+      INTEGER :: REST_ANCHORS(NAT), N_REST_ANCHORS
+      INTEGER :: J1, K
+
+      FOUND = .FALSE.
+      BEST_SIZE = 0
+
+      CALL RMH_BUILD_TREE(ATOMS, NAT, PARENT)
+
+      CHILD_HEAD(:) = 0
+      CHILD_NEXT(:) = 0
+      DO J1 = 1, NAT
+         IF (PARENT(J1) /= 0) THEN
+            CHILD_NEXT(J1) = CHILD_HEAD(PARENT(J1))
+            CHILD_HEAD(PARENT(J1)) = J1
+         END IF
+      END DO
+
+      DO J1 = 1, NAT
+         IF (PARENT(J1) == 0) CYCLE   ! no edge above a tree root
+
+         CALL RMH_SUBTREE(NAT, CHILD_HEAD, CHILD_NEXT, J1, SUBSET_LOCAL, N_SUBSET)
+         DO K = 1, N_SUBSET
+            SUB_ATOMS(K) = ATOMS(SUBSET_LOCAL(K))
+         END DO
+
+         ! candidate 1: the subtree itself
+         CALL RMH_MEMBERSHIP(SUB_ATOMS, N_SUBSET, SUB_IN_SET)
+         CALL RMH_COMPUTE_ANCHORS(SUB_ATOMS, N_SUBSET, SUB_IN_SET, SUB_ANCHORS, N_SUB_ANCHORS)
+         IF (N_SUB_ANCHORS == 1 .AND. N_SUBSET >= MIN_SIZE .AND. N_SUBSET > BEST_SIZE) THEN
+            FOUND = .TRUE.
+            BEST_SIZE = N_SUBSET
+            BEST_PIECE(1:N_SUBSET) = SUB_ATOMS(1:N_SUBSET)
+         END IF
+
+         ! candidate 2: everything else in the pool
+         N_REST = NAT - N_SUBSET
+         IF (N_REST >= MIN_SIZE) THEN
+            CALL RMH_REMOVE_ATOMS(ATOMS, NAT, SUB_ATOMS, N_SUBSET, REST_ATOMS, N_REST)
+            CALL RMH_MEMBERSHIP(REST_ATOMS, N_REST, SUB_IN_SET)
+            CALL RMH_COMPUTE_ANCHORS(REST_ATOMS, N_REST, SUB_IN_SET, REST_ANCHORS, N_REST_ANCHORS)
+            IF (N_REST_ANCHORS == 1 .AND. N_REST > BEST_SIZE) THEN
+               FOUND = .TRUE.
+               BEST_SIZE = N_REST
+               BEST_PIECE(1:N_REST) = REST_ATOMS(1:N_REST)
+            END IF
+         END IF
+      END DO
+
+   END SUBROUTINE RMH_TRY_SPLIT
+
+   !> BFS spanning tree of ATOMS(1:NAT) using pool-internal bonds only.
+   !! PARENT(k) is a LOCAL index into ATOMS (0 = root). ATOMS is assumed
+   !! connected -- it always descends from a single DFS component or a
+   !! previously validated split.
+   SUBROUTINE RMH_BUILD_TREE(ATOMS, NAT, PARENT)
+      USE QCIKEYS, ONLY: NATOMS
+      USE QCI_CONSTRAINT_KEYS, ONLY: BONDS_PER_ATOM_LIST, N_BONDS_PER_ATOM
+      INTEGER, INTENT(IN)  :: ATOMS(:), NAT
+      INTEGER, INTENT(OUT) :: PARENT(:)
+
+      LOGICAL :: IN_SET(NATOMS), VISITED(NAT)
+      INTEGER :: ATOM_TO_LOCAL(NATOMS)
+      INTEGER :: QUEUE(NAT), QHEAD, QTAIL, CUR, CUR_ATOM
+      INTEGER :: J1, J2, NB, NB_LOCAL
+
+      CALL RMH_MEMBERSHIP(ATOMS, NAT, IN_SET)
+      ATOM_TO_LOCAL(:) = 0
+      DO J1 = 1, NAT
+         ATOM_TO_LOCAL(ATOMS(J1)) = J1
+      END DO
 
       VISITED(:) = .FALSE.
-      QHEAD = 1; QTAIL = 0
-      OUT_SIZE = 0
-
-      ! seed: unblocked pool atoms directly bonded to TARGET_ANCHOR
-      DO J1 = 1, POOL_SIZE
-         IF (BLOCKED(J1)) CYCLE
-         ATOM = POOL_ATOMS(J1)
-         DO J2 = 1, N_BONDS_PER_ATOM(ATOM)
-            IF (BONDS_PER_ATOM_LIST(ATOM,J2) == TARGET_ANCHOR) THEN
-               VISITED(J1) = .TRUE.
-               QTAIL = QTAIL + 1
-               QUEUE(QTAIL) = J1
-               EXIT
-               END IF
-            END DO
-      END DO
+      PARENT(:)  = 0
+      VISITED(1) = .TRUE.
+      QHEAD = 1; QTAIL = 1
+      QUEUE(1) = 1
 
       DO WHILE (QHEAD <= QTAIL)
          CUR = QUEUE(QHEAD); QHEAD = QHEAD + 1
-         CUR_ATOM = POOL_ATOMS(CUR)
-         OUT_SIZE = OUT_SIZE + 1
-         OUT_ATOMS(OUT_SIZE) = CUR_ATOM
-
+         CUR_ATOM = ATOMS(CUR)
          DO J2 = 1, N_BONDS_PER_ATOM(CUR_ATOM)
             NB = BONDS_PER_ATOM_LIST(CUR_ATOM, J2)
+            IF (.NOT. IN_SET(NB)) CYCLE
             NB_LOCAL = ATOM_TO_LOCAL(NB)
-            IF (NB_LOCAL == 0) CYCLE       ! not in pool
-            IF (BLOCKED(NB_LOCAL)) CYCLE
+            IF (NB_LOCAL == 0) CYCLE
             IF (VISITED(NB_LOCAL)) CYCLE
             VISITED(NB_LOCAL) = .TRUE.
+            PARENT(NB_LOCAL) = CUR
             QTAIL = QTAIL + 1
             QUEUE(QTAIL) = NB_LOCAL
          END DO
-         END DO
+      END DO
+   END SUBROUTINE RMH_BUILD_TREE
 
-   END SUBROUTINE RMH_GROW_FROM_ANCHOR
+   !> All local indices in the tree-subtree rooted at ROOT_LOCAL, using
+   !! precomputed children adjacency (CHILD_HEAD/CHILD_NEXT, singly
+   !! linked lists over local indices, 0 = end of list / no children).
+   SUBROUTINE RMH_SUBTREE(NAT, CHILD_HEAD, CHILD_NEXT, ROOT_LOCAL, SUBSET_LOCAL, N_SUBSET)
+      INTEGER, INTENT(IN)  :: NAT
+      INTEGER, INTENT(IN)  :: CHILD_HEAD(:), CHILD_NEXT(:)
+      INTEGER, INTENT(IN)  :: ROOT_LOCAL
+      INTEGER, INTENT(OUT) :: SUBSET_LOCAL(:)
+      INTEGER, INTENT(OUT) :: N_SUBSET
+      INTEGER :: QUEUE(NAT), QHEAD, QTAIL, CUR, CH
+
+      N_SUBSET = 1
+      SUBSET_LOCAL(1) = ROOT_LOCAL
+      QHEAD = 1; QTAIL = 1
+      QUEUE(1) = ROOT_LOCAL
+
+      DO WHILE (QHEAD <= QTAIL)
+         CUR = QUEUE(QHEAD); QHEAD = QHEAD + 1
+         CH = CHILD_HEAD(CUR)
+         DO WHILE (CH /= 0)
+            N_SUBSET = N_SUBSET + 1
+            SUBSET_LOCAL(N_SUBSET) = CH
+            QTAIL = QTAIL + 1
+            QUEUE(QTAIL) = CH
+            CH = CHILD_NEXT(CH)
+         END DO
+      END DO
+   END SUBROUTINE RMH_SUBTREE
 
    !> OUT_ATOMS = ATOMS(1:NAT) with every atom in TO_REMOVE(1:N_REMOVE) removed.
    SUBROUTINE RMH_REMOVE_ATOMS(ATOMS, NAT, TO_REMOVE, N_REMOVE, OUT_ATOMS, N_OUT)
@@ -870,7 +901,7 @@ MODULE QCI_LINEAR
       ATOM_TO_LOCAL(:) = 0
       DO J1 = 1, NAT
          ATOM_TO_LOCAL(ATOMS(J1)) = J1
-         END DO
+      END DO
 
       VISITED(:) = .FALSE.
       NCOMP = 0
@@ -903,13 +934,11 @@ MODULE QCI_LINEAR
       END DO
    END SUBROUTINE RMH_CONNECTED_COMPONENTS
 
-   !> Rare-case safety net for pools where no single-anchor group of
-   !! sufficient size could be grown directly (e.g. every contact point
-   !! with every anchor is itself a multi-anchor junction atom): trims
-   !! one atom at a time -- preferring the lowest-internal-degree atom
-   !! that touches an anchor -- re-splitting to the largest remaining
-   !! component after each removal, until a single anchor remains or
-   !! the pool drops below MIN_SIZE.
+   !> Rare-case safety net for pools where no clean tree-edge cut
+   !! exists: trims one atom at a time -- preferring the lowest-
+   !! internal-degree atom that touches an anchor -- re-splitting to
+   !! the largest remaining component after each removal, until a
+   !! single anchor remains or the pool drops below MIN_SIZE.
    SUBROUTINE RMH_GREEDY_TRIM(ATOMS, NAT, MIN_SIZE, SUCCESS, DEBUG_MODE)
       USE QCIKEYS, ONLY: NATOMS
       USE QCI_CONSTRAINT_KEYS, ONLY: BONDS_PER_ATOM_LIST, N_BONDS_PER_ATOM
@@ -940,7 +969,7 @@ MODULE QCI_LINEAR
          IF (N_ANCHORS == 0 .OR. NAT == MIN_SIZE) THEN
             SUCCESS = .FALSE.
             RETURN
-      END IF
+         END IF
 
          DO J1 = 1, NAT
             ATOM = ATOMS(J1)
@@ -1036,13 +1065,13 @@ MODULE QCI_LINEAR
       IF (.NOT. ALLOCATED(ATOM2LINGROUP)) THEN
          ALLOCATE(ATOM2LINGROUP(NATOMS))
          ATOM2LINGROUP(:) = -1
-               END IF
+      END IF
 
       OLD_NGROUPS = 0; OLD_MAXSIZE = 0
       IF (ALLOCATED(LINEAR_GROUPS)) THEN
          OLD_NGROUPS = SIZE(LINEAR_GROUPS, 1)
          OLD_MAXSIZE = SIZE(LINEAR_GROUPS, 2)
-            END IF
+      END IF
 
       IF (GROUPID <= OLD_NGROUPS .AND. GROUPSIZE_NEEDED <= OLD_MAXSIZE) RETURN
 
