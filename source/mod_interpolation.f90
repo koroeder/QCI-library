@@ -17,7 +17,7 @@ MODULE QCIINTERPOLATION
                             NMINAFTERADD, OPTIMISEAFTERADDITION, DETECTBBCROSSING, CHECKCROSSFREQ
          USE MOD_FREEZE, ONLY: ADD_CONSTR_AND_REP_NBEST
          USE CONSTR_E_GRAD, ONLY: CONGRAD, CONVERGECONTEST, CONVERGEREPTEST, &
-                                  FCONMAX, FREPMAX, GET_SPRING_CONSTANTS
+                                  FCONMAX, FREPMAX, GET_SPRING_CONSTANTS, CALC_BOND_E
         
 
          
@@ -65,6 +65,7 @@ MODULE QCIINTERPOLATION
          INTEGER :: UNITCONSTR
 
          
+         
          ETOTAL = 0.0D0
          !initiate variables for the interpolation, including image density set nimage
          CALL ALLOC_INTERPOLATION_VARS()
@@ -79,10 +80,12 @@ MODULE QCIINTERPOLATION
 
          ! are we reading in a guess?
          IF (QCIREADGUESS) THEN
-            !CALL READGUESS()
+            
+            CALC_BOND_E = .TRUE.
             !improved version of readguess 
             WRITE(*,*) "Initiating interpolation from a guess ..."
             CALL READ_BAND()
+
             
             !Need to activate all constraints and atoms, so we are not adding atoms again
                         
@@ -565,7 +568,8 @@ MODULE QCIINTERPOLATION
 
 
       SUBROUTINE SET_EXIT_STATUS(NITERDONE,EXITSTATUS)
-         USE CONSTR_E_GRAD, ONLY: CONVERGECONTEST, CONVERGEREPTEST, CONVERGENCEDIHTEST, FCONMAX, FREPMAX, FDIHMAX, FSPRINGMAX, FMAX_GLOBAL, MAX_E_PER_IMAGE
+         USE CONSTR_E_GRAD, ONLY: CONVERGECONTEST, CONVERGEREPTEST, CONVERGENCEDIHTEST, FCONMAX, &
+                                    FREPMAX, FDIHMAX, FSPRINGMAX, FMAX_GLOBAL, MAX_E_PER_IMAGE, CALC_BOND_E
          USE INTERPOLATION_KEYS, ONLY: RMS 
          USE QCIKEYS, ONLY: MAXCONE, QCIRMSTOL, SPRING_GRAD_CONV
          USE QCI_CONSTRAINT_KEYS, ONLY: CONCUTABS
@@ -586,7 +590,8 @@ MODULE QCIINTERPOLATION
             .AND.(CONVERGECONTEST.LT.MAXCONE).AND.(CONVERGEREPTEST.LT.MAXCONE).AND.(CONVERGENCEDIHTEST.LT.MAXCONE) &
             .AND.(FSPRINGMAX.LT.SPRING_GRAD_CONV)) THEN
             EXITSTATUS = 1
-               !EXITSTATUS = 2
+            !EXITSTATUS = 2
+      
             !IF ( (DABS(MAXCONE_SAVE-MAXCONE).LE.EPS6).AND.(DABS(QCIRMSTOL_SAVE-QCIRMSTOL).LE.EPS6) ) THEN
             !   EXITSTATUS = 1
             !END IF

@@ -23,6 +23,7 @@ MODULE CONSTR_E_GRAD
    REAL(KIND=REAL64) :: FCONMAX, FREPMAX, FDIHMAX, FSPRINGMAX                !< maximum gradient 
    REAL(KIND=REAL64) :: FMAX_GLOBAL                                          !< Maximum force on an atom
    REAL(KIND=REAL64) :: MAX_E_PER_IMAGE
+   LOGICAL :: CALC_BOND_E
 
    INTEGER :: CALLN = 0
    
@@ -72,11 +73,12 @@ MODULE CONSTR_E_GRAD
          REAL(KIND = REAL64), INTENT(OUT) :: ETOTAL                    !< overall energy
          REAL(KIND = REAL64), INTENT(OUT) :: RMS                       !< total force
         
-         REAL(KIND = REAL64) :: ECON, EREP, ESPR, EDIH      ! QUERY: should these be globals in keys?
+         REAL(KIND = REAL64) :: ECON, EREP, ESPR, EDIH, EBOND     ! QUERY: should these be globals in keys?
          REAL(KIND = REAL64) :: EEEC(NIMAGES+2), GGGC(3*NATOMS*(NIMAGES+2))
          REAL(KIND = REAL64) :: EEER(NIMAGES+2), GGGR(3*NATOMS*(NIMAGES+2))
          REAL(KIND = REAL64) :: EEES(NIMAGES+2), GGGS(3*NATOMS*(NIMAGES+2))
          REAL(KIND = REAL64) :: EEED(NIMAGES+2), GGGD(3*NATOMS*(NIMAGES+2))
+         REAL(KIND = REAL64) :: EEEB(NIMAGES+2), GGGB(3*NATOMS*(NIMAGES+2))
          INTEGER :: J1, J2
 
          REAL(KIND = REAL64) :: GGG_SUM(NATOMS*(NIMAGES+2))
@@ -89,12 +91,14 @@ MODULE CONSTR_E_GRAD
          EEER(1:NIMAGES+2)=0.0D0
          EEES(1:NIMAGES+2)=0.0D0
          EEED(1:NIMAGES+2)=0.0D0
+         EEEB(1:NIMAGES+2)=0.0D0
          GGG(1:(3*NATOMS)*(NIMAGES+2))=0.0D0
          GGGC(1:(3*NATOMS)*(NIMAGES+2))=0.0D0
          GGGR(1:(3*NATOMS)*(NIMAGES+2))=0.0D0
          GGGS(1:(3*NATOMS)*(NIMAGES+2))=0.0D0
          GGGD(1:(3*NATOMS)*(NIMAGES+2))=0.0D0
-         ECON = 0.0D0; EREP = 0.0D0; ESPR = 0.0D0; EDIH = 0.0D0
+         GGGB(1:(3*NATOMS)*(NIMAGES+2))=0.0D0
+         ECON = 0.0D0; EREP = 0.0D0; ESPR = 0.0D0; EDIH = 0.0D0; EBOND = 0.0D0
 
          
          IF (.NOT.(K_CONST.EQ.0.0D0)) THEN
@@ -123,9 +127,13 @@ MODULE CONSTR_E_GRAD
             FDIHMAX = 0.0D0
          END IF
 
+         IF (CALC_BOND_E) THEN
+            CALL GET_BOND_E(XYZ, GGGB, EEEB, EBOND)
+         END IF
+         
          ! add all contributions
-         EEE = EEEC + EEER + EEES + EEED
-         GGG = GGGC + GGGR + GGGS + GGGD
+         EEE = EEEC + EEER + EEES + EEED + EBOND
+         GGG = GGGC + GGGR + GGGS + GGGD + GGGB
       
          
          ! Set gradients to zero for start and finish images.
@@ -160,6 +168,9 @@ MODULE CONSTR_E_GRAD
          !Save outputs, so we can choose when to print
          CALL SAVE_OUT(ETOTAL, RMS, EREP, ECON, ESPR, EDIH, FCONMAX, FREPMAX, FDIHMAX, CONVERGECONTEST, CONVERGEREPTEST, CONVERGENCEDIHTEST, FSPRINGMAX)
 
+         IF (CALC_BOND_E) THEN
+            WRITE(*,*) "congrad> Bond energy: ", EBOND
+         END IF
          !   WRITE(*,*) " congrad1> E total: ", ETOTAL, "RMS: ", RMS, " E rep: ", SUM(EEER), " E constr: ", SUM(EEEC)
          !   WRITE(*,*) "                                              E spring: ", SUM(EEES), " E dih: ", SUM(EEED)
          !   WRITE(*,*) " congrad1> FCONMAX: ", FCONMAX, " FREPMAX: ", FREPMAX
@@ -252,8 +263,8 @@ MODULE CONSTR_E_GRAD
          !   WRITE(*,*) " congrad2> FCONMAX: ", FCONMAX, " FREPMAX: ", FREPMAX
          !   WRITE(*,*) " congrad2> CONVERGECONTEST: ", CONVERGECONTEST, " CONVERGEREPTEST: ", CONVERGEREPTEST
         
-
          END SUBROUTINE CONGRAD2    
+
 
       SUBROUTINE GET_CONSTRAINT_E_NOINTERNAL(XYZ,GGG,EEE,ECON)
          USE QCIKEYS, ONLY: NIMAGES, NATOMS, K_CONST, INTMINFAC, CHECKCONINT, &
@@ -1129,6 +1140,88 @@ MODULE CONSTR_E_GRAD
          MAXCONSTR = IMAX
       END SUBROUTINE GET_REPULSION_E2
 
+   SUBROUTINE GET_BOND_E(XYZ,GGG,EEE,EBOND)
+         USE QCIKEYS, ONLY: NIMAGES, NATOMS, K_CONST
+         USE QCI_CONSTRAINT_KEYS, ONLY: BOND_LIST, NBONDS
+         USE INTERPOLATION_KEYS, ONLY: ATOMACTIVE
+         USE HELPER_FNCTS, ONLY: DISTANCE_SIMPLE
+         IMPLICIT NONE
+         REAL(KIND = REAL64), INTENT(IN) :: XYZ(3*NATOMS*(NIMAGES+2))   !< input coordinates
+         REAL(KIND = REAL64), INTENT(OUT) :: GGG(3*NATOMS*(NIMAGES+2))  !< gradient for each atom in each image
+         REAL(KIND = REAL64), INTENT(OUT) :: EEE(NIMAGES+2)             !< energy for constraints in each image
+         REAL(KIND = REAL64), INTENT(OUT) :: EBOND                      !< energy for constraints
+         INTEGER :: J1, J2
+         INTEGER :: NI1, NJ1                         !< indices for atoms A and B in XYZ and GGG
+         REAL(KIND=REAL64) :: AVE_BL(NBONDS)          !< average bond legth between (start+finish)/2
+         REAL(KIND=REAL64) :: XA(3), XB(3)           !< coordinates for atoms A and B 
+         REAL(KIND=REAL64) :: E
+         REAL(KIND=REAL64) :: DIST, DUMMY, DUMMY2    !< distance and related measure
+         REAL(KIND=REAL64) :: G2(3), GRADAB(3)
+         REAL(KIND=REAL64) :: EMAX, FMIN, FMAX
+         REAL(KIND=REAL64) :: LOCALCONFACTOR, DIST_MAXE
+         INTEGER :: IMAX, JMAX
+
+         EMAX = -(HUGE(1.0D0))
+         FMAX = -(HUGE(1.0D0))
+         FMIN = HUGE(1.0D0)
+         IMAX = -1
+         JMAX = -1
+         EEE(1:NIMAGES+2)=0.0D0
+         GGG(1:(3*NATOMS)*(NIMAGES+2))=0.0D0
+         EBOND = 0.0D0
+         
+         CALL GET_AVE_BOND_LENGTH(AVE_BL)
+         
+         DO J2=1,NBONDS
+            
+            !All atoms should be active when using bond potential
+            IF (.NOT.(ATOMACTIVE(BOND_LIST(1,J2)).OR.ATOMACTIVE(BOND_LIST(2,J2)))) EXIT
+                  
+
+            ! go through all images
+            DO J1=2,NIMAGES+2
+               NI1=(3*NATOMS)*(J1-1)+3*(BOND_LIST(1,J2)-1)
+               NJ1=(3*NATOMS)*(J1-1)+3*(BOND_LIST(2,J2)-1)
+               ! get coordinates for atoms involved in constraint
+               
+               XA(1:3) = XYZ(NI1+1:NI1+3) 
+               XB(1:3) = XYZ(NJ1+1:NJ1+3)            
+            
+               ! get distance and various related measures
+               CALL DISTANCE_SIMPLE(XA, XB, DIST)
+               
+
+               !Simple harmonic potential (keep k=k_const for now)
+               
+               E = K_CONST * (DIST - AVE_BL(J2))**2
+               
+               GRADAB(1:3) = 2.0D0*K_CONST*(DIST-AVE_BL(J2))*(XB-XA)/DIST
+               ! calculate gradient and energy
+                                                
+                                 
+               EEE(J1) = EEE(J1) + E
+               EBOND = EBOND + E
+               
+               ! save largest contribution to EMAX
+               IF (DUMMY.GT.EMAX) THEN
+                  IMAX = J1
+                  JMAX = J2
+                  EMAX = DUMMY
+                  DIST_MAXE = DIST
+               END IF
+               
+               GGG(NI1+1:NI1+3)=GGG(NI1+1:NI1+3)+GRADAB(1:3)
+               GGG(NJ1+1:NJ1+3)=GGG(NJ1+1:NJ1+3)-GRADAB(1:3)
+               
+               DUMMY2=MINVAL(GRADAB)
+               IF (DUMMY2.LT.FMIN) FMIN=DUMMY2
+               DUMMY2=MAXVAL(GRADAB)
+               IF (DUMMY2.GT.FMAX) FMAX=DUMMY2
+               
+            END DO
+         END DO
+
+      END SUBROUTINE GET_BOND_E
 
 
       SUBROUTINE GET_SPRING_E(XYZ, GGG, EEE, ESPR)
@@ -1427,5 +1520,27 @@ MODULE CONSTR_E_GRAD
       
       END SUBROUTINE GET_SPRING_CONSTANTS
 
+      SUBROUTINE GET_AVE_BOND_LENGTH(AVE_BL)
+         USE QCIKEYS, ONLY: NATOMS
+         USE qci_constraint_keys, only: BOND_LIST, NBONDS
+         USE HELPER_FNCTS, ONLY: DISTANCE_TWOATOMS
+         USE INTERPOLATION_KEYS, ONLY: XSTART, XFINAL
+
+         IMPLICIT NONE
+
+         REAL(KIND = REAL64), INTENT(OUT) :: AVE_BL(NBONDS)
+         REAL(KIND = REAL64) :: S, F 
+         INTEGER :: J1
+
+         DO J1 = 1, NBONDS
+            
+            CALL DISTANCE_TWOATOMS(NATOMS, XSTART, BOND_LIST(1,J1), BOND_LIST(2,J1), S)
+            CALL DISTANCE_TWOATOMS(NATOMS, XFINAL, BOND_LIST(1,J1), BOND_LIST(2,J1), F)
+            AVE_BL(J1) = (S + F) / 2
+
+         END DO
+
+
+      END SUBROUTINE GET_AVE_BOND_LENGTH
      
 END MODULE CONSTR_E_GRAD
