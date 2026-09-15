@@ -72,10 +72,16 @@ MODULE QCIKEYS
    LOGICAL :: USECONACTINACT = .FALSE. 
    !> conactinact settings - scale active-inactive atom interaction
    REAL(KIND = REAL64) :: CONACTINACT = 0.2D0
-   
-   !--------------------- Dihedrals ----------------------------------!
 
-   !> use dihedral cosntraints for chiral atoms and planarity
+   !--------------------- Bonds ---------------------------------------!
+
+   !> Calculate bond energy, use for refining QCI
+   LOGICAL :: CALC_BOND_E = .FALSE.
+   !> strenght of the bond potential
+   REAl(KIND = REAL64) :: K_BOND = 2.5D0
+
+   !--------------------- Dihedrals ----------------------------------!
+   !> use dihedral cosnstraints for chiral atoms and planarity
    LOGICAL :: USEDIHEDRALCONST = .FALSE.
    !> tolerance for dihedral angle difference between start and final images. Preset 10 deg
    REAL(KIND=REAL64) :: DIHDIFTOL = 0.17453292519943295

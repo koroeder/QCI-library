@@ -23,8 +23,6 @@ MODULE CONSTR_E_GRAD
    REAL(KIND=REAL64) :: FCONMAX, FREPMAX, FDIHMAX, FSPRINGMAX                !< maximum gradient 
    REAL(KIND=REAL64) :: FMAX_GLOBAL                                          !< Maximum force on an atom
    REAL(KIND=REAL64) :: MAX_E_PER_IMAGE
-   LOGICAL :: CALC_BOND_E
-
    INTEGER :: CALLN = 0
    
      
@@ -64,7 +62,7 @@ MODULE CONSTR_E_GRAD
 
       SUBROUTINE CONGRAD1(ETOTAL, XYZ, GGG, EEE, RMS)
          USE QCIKEYS, ONLY: NIMAGES, NATOMS, KINT, QCIFREEZET, &
-                            USEDIHEDRALCONST, K_CONST, K_REP
+                            USEDIHEDRALCONST, K_CONST, K_REP, CALC_BOND_E
          USE OUT_PRINT, ONLY: SAVE_OUT
          IMPLICIT NONE
          REAL(KIND = REAL64), INTENT(IN) :: XYZ(3*NATOMS*(NIMAGES+2))   !< input coordinates
@@ -1141,7 +1139,7 @@ MODULE CONSTR_E_GRAD
       END SUBROUTINE GET_REPULSION_E2
 
    SUBROUTINE GET_BOND_E(XYZ,GGG,EEE,EBOND)
-         USE QCIKEYS, ONLY: NIMAGES, NATOMS, K_CONST
+         USE QCIKEYS, ONLY: NIMAGES, NATOMS, K_BOND
          USE QCI_CONSTRAINT_KEYS, ONLY: BOND_LIST, NBONDS
          USE INTERPOLATION_KEYS, ONLY: ATOMACTIVE
          USE HELPER_FNCTS, ONLY: DISTANCE_SIMPLE
@@ -1193,9 +1191,9 @@ MODULE CONSTR_E_GRAD
 
                !Simple harmonic potential (keep k=k_const for now)
                
-               E = K_CONST * (DIST - AVE_BL(J2))**2
+               E = K_BOND * (DIST - AVE_BL(J2))**2
                
-               GRADAB(1:3) = 2.0D0*K_CONST*(DIST-AVE_BL(J2))*(XB-XA)/DIST
+               GRADAB(1:3) = 2.0D0*K_BOND*(DIST-AVE_BL(J2))*(XB-XA)/DIST
                ! calculate gradient and energy
                                                 
                                  
@@ -1210,8 +1208,8 @@ MODULE CONSTR_E_GRAD
                   DIST_MAXE = DIST
                END IF
                
-               GGG(NI1+1:NI1+3)=GGG(NI1+1:NI1+3)+GRADAB(1:3)
-               GGG(NJ1+1:NJ1+3)=GGG(NJ1+1:NJ1+3)-GRADAB(1:3)
+               GGG(NI1+1:NI1+3)=GGG(NI1+1:NI1+3)-GRADAB(1:3)
+               GGG(NJ1+1:NJ1+3)=GGG(NJ1+1:NJ1+3)+GRADAB(1:3)
                
                DUMMY2=MINVAL(GRADAB)
                IF (DUMMY2.LT.FMIN) FMIN=DUMMY2

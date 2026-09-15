@@ -14,6 +14,14 @@ PROGRAM QCI_STANDALONE
    REAL(KIND = REAL64), ALLOCATABLE :: XYZ(:), XS(:), XF(:)
    LOGICAL :: COMPLETED
    INTEGER :: I
+   
+   !Output header definitions 
+   CHARACTER(LEN=8)  :: cdate
+   CHARACTER(LEN=10) :: ctime
+   CHARACTER(LEN=*), PARAMETER :: SEP   = REPEAT('=', 62)
+   CHARACTER(LEN=*), PARAMETER :: TITLE = "QCI - Standalone Quasi-Continuous Interpolation"
+
+   CALL DATE_AND_TIME(DATE=cdate, TIME=ctime)
 
    ! check number of arguments
    NARGS = COMMAND_ARGUMENT_COUNT()
@@ -27,10 +35,10 @@ PROGRAM QCI_STANDALONE
       READ(NATSDUMMY,*) NATOMS
       CALL GET_COMMAND_ARGUMENT(2, PARAMFILE) 
    ELSE IF (NARGS.EQ.0) THEN
-      WRITE(*,'(A)')   " QCI - Standalone Quasi-Continuous Interpolation"
+      WRITE(*,'(A, A)') " ", TITLE
       WRITE(*,'(A)')   " Usage: ./QCI <params_file> > output"
-      WRITE(*,'(A,A,A,A)') ' Built on:    ', __DATE__, ' ', __TIME__
-      WRITE(*,'(A,A)')   ' Compiler:    ', TRIM(COMPILER_VERSION())
+      WRITE(*,'(A,A,A,A)') ' Built on:  ', __DATE__, ' ', __TIME__
+      WRITE(*,'(A,A)')   ' Compiler:  ', TRIM(COMPILER_VERSION())
       STOP
    ELSE
       WRITE(STDOUT,'(A,I4)') "Expecting two arguments, but got ", NARGS
@@ -64,7 +72,15 @@ PROGRAM QCI_STANDALONE
    READ(XUNIT, *) (XF(I), I=1,3*NATOMS)
    CLOSE(XUNIT)   
 
-   WRITE(STDOUT,'(A)') "QCI - Standalone Quasi-Continious Interpolation"
+   WRITE(STDOUT,'(A)') SEP
+   WRITE(STDOUT,'(A)') REPEAT(' ', (LEN(SEP)-LEN_TRIM(TITLE))/2)//TRIM(TITLE)
+   WRITE(STDOUT,'(A)') SEP
+   WRITE(STDOUT,'(A,A,A,A)') ' Built on:  ', __DATE__, ' ', __TIME__
+   WRITE(STDOUT,'(A,A)')   ' Compiler:  ', TRIM(COMPILER_VERSION())
+   WRITE(STDOUT,'(A,A2,".",A2,".",A4," ",A2,":",A2,":",A2)') &
+               ' Started:  ', cdate(7:8), cdate(5:6), cdate(1:4), &
+               ctime(1:2), ctime(3:4), ctime(5:6)
+   WRITE(STDOUT,'(A)') SEP
    
    WRITE(STDOUT,'(A)') "Read coordinates for endpoints"
    CALL PASS_DATA(NATOMS, XS, XF)
