@@ -175,7 +175,7 @@
   * `DIHEDRALCONSTR 10.0`
 * `DIHEDRALS <int>`
   * Type of dihedral potential. 
-  * `1` = chiral centres only *(default)*, `2`= all dihedrals *(experimental)*
+  * `1` = chiral centres only *(default)*, `2`= all dihedrals 
   * Example: `DIHEDRALS 1`
 
 ## Spring  
@@ -290,7 +290,7 @@
   * Units: Energy / Angstrom  
   * Example: `SPRING_GRAD_CONV 2.5`
 * `QCIRESET <int>`
-  *  How often do we check the interpolation progress and adjust convergence criteria. See [Developer Notes](/doc/developer-notes-6jEfGsENqZ#h-interpolation-and-resetting-the-convergence) for more details. 
+  *  How often do we check the interpolation progress and adjust convergence criteria.
   * Units: None  
   * Example:  `QCIRESET 500  `
 

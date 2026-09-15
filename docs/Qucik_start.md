@@ -45,8 +45,8 @@
   * `./QCI QCI_params.dat > output` 
 * Output files:
   * `output` -  logfile
-  * `int.xyz`  - interpolated images in trajectory format
-  * `int.EofS` - energy band 
+  * `int.xyz`  - Interpolated images in trajectory format
+  * `int.EofS` - Energy band (dimentionless units) 
 
 ## File prep
 
@@ -55,25 +55,9 @@
 * Script  `QCI-library/scripts/inpcrd2start.py` can be used to convert Amber coordinate file to `start` type file
 * Use: `python3 inprcd2start.py coords.inpcrd start`
 
-<<<<<<< HEAD
-### perm.allow
-
-* Script used to create perm.allow files is available with OPTIM code: <https://www-wales.ch.cam.ac.uk/OPTIM/>
-  * relative path in OPTIM source code:  `wales/SCRIPTS/make_perm.allow`
-  * Use: `python2 perm-pdb.py conf.pdb AMBER`
-
-### Symmetrise  topology file:
-
-* Script is available with OPTIM code: <https://www-wales.ch.cam.ac.uk/OPTIM/>
-  * Relative path: `wales/SCRIPTS/AMBER/symmetrise_prmtop`
-  * Use: `python2 perm-prmtop.ff19.py coords.prmtop.old coords.prmtop wales/AMBERTOOLS/dat/leap/lib` 
-    * *Note: change path to Amber to absolute path* 
-=======
 ### `perm.allow`
 
 * Script used to create `perm.allow` file is available in the `scripts` dir. 
->>>>>>> dev/m
-
 
 ## Visualising output 
 
