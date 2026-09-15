@@ -1,5 +1,10 @@
 # Standalone Quasi-Continious Interpolation (QCI) code
 
+### 15.09.2026
+- Implement new permutations modules
+- Add harmonic bond potential which can be used for refining QCI interpolation reusl
+    - Use:  `K_BOND` <double>
+
 ### 14.08.2026
 - Change use from: ./QCI <natoms> <params_file> to ./QCI <params_file>
 - Add NaN checks and check input files for correct format

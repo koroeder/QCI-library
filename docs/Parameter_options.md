@@ -143,6 +143,12 @@
   * Units: None
   * Example: `CONACTINACT 0.1`
 
+### Bonds potential - Experimental 
+  * `K_BOND <double>`
+    * Strength of the harmonic bond potential. Use for QCI refinement 
+    * Units: Energy/Angstrom^2
+    * Example: `K_BOND 2.5`
+
 #### **Congeom ONLY settings** 
 
 * `QCICONSTRAINTTOL <double>` 
