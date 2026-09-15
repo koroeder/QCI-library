@@ -1,13 +1,16 @@
 MODULE COMPARELIST
    IMPLICIT NONE
    CONTAINS
-      !comparing two sorted lists of atoms
+      !>comparing two sorted lists of atoms
+      !! outcomes: lists are identical(IDENTICALT = .TRUE., HIGH1T = .FALSE.)
+      !!                     list1 has higher priority (IDENTICALT = .FALSE., HIGH1T = .TRUE.)
+      !!                     list2 has higher priority (IDENTICALT = .FALSE., HIGH1T = .FALSE.)
       SUBROUTINE COMPARE_2LISTS(LIST1,LIST2,LENGTH,IDENTICALT,HIGH1T)
          IMPLICIT NONE
-         INTEGER, INTENT(IN) :: LENGTH                           !length of lists
-         INTEGER, INTENT(IN) :: LIST1(LENGTH), LIST2(LENGTH)     !list of priorities
-         LOGICAL, INTENT(OUT) :: IDENTICALT                      !are the lists identical
-         LOGICAL, INTENT(OUT) :: HIGH1T                          !higher priority for list 1
+         INTEGER, INTENT(IN) :: LENGTH                           !< length of lists
+         INTEGER, INTENT(IN) :: LIST1(LENGTH), LIST2(LENGTH)     !< list of priorities
+         LOGICAL, INTENT(OUT) :: IDENTICALT                      !< are the lists identical
+         LOGICAL, INTENT(OUT) :: HIGH1T                          !< higher priority for list 1
          INTEGER :: J1
          
          IDENTICALT = .FALSE.
@@ -25,12 +28,14 @@ MODULE COMPARELIST
          RETURN
       END SUBROUTINE COMPARE_2LISTS
 
-      !comparing three sorted lists of atoms
+      !> comparing three sorted lists of atoms
+      !! return for priorities. 0 means can't assign (i.e. identical lists),
+      !! otherwise we assign 1 to 3 for highest to lowest priority
       SUBROUTINE COMPARE_3LISTS(LIST1,LIST2,LIST3,LENGTH,PRIORITY)
          IMPLICIT NONE
-         INTEGER, INTENT(IN) :: LENGTH                           !length of lists
-         INTEGER, INTENT(IN) :: LIST1(LENGTH), LIST2(LENGTH), LIST3(LENGTH)     !list of elements
-         INTEGER, INTENT(OUT) :: PRIORITY(3)                     !priorities of list (1 to 3)
+         INTEGER, INTENT(IN) :: LENGTH                           !<length of lists
+         INTEGER, INTENT(IN) :: LIST1(LENGTH), LIST2(LENGTH), LIST3(LENGTH)     !<list of elements
+         INTEGER, INTENT(OUT) :: PRIORITY(3)                     ! <priorities of list (1 to 3)
          LOGICAL :: ID12T, ID13T, ID23T, GT12T, GT13T, GT23T
          
          !return for priorities. 0 means can't assign (i.e. identical lists),
@@ -68,7 +73,7 @@ MODULE COMPARELIST
                PRIORITY(1:3) = (/2,1,2/)
                RETURN
             ENDIF
-         !if list 1 and 3 are identical, we don't need to check for all three identical
+         !if list 2 and 3 are identical, we don't need to check for all three identical
          !this would have been caught before        
          ELSE IF (ID23T) THEN
             ! if 1 has a higher priority we know 1 has the highest priority           
@@ -82,25 +87,34 @@ MODULE COMPARELIST
          !none are identical
          ELSE
             !there are six possible orderings
-            !1>2>3
+            ! (1>2) & (2>3) =>  (1>2>3)
             IF (GT12T.AND.GT23T) THEN
                PRIORITY(:) = (/1,2,3/)
+            
+            ! (1>2) & (3>2) => two options
             ELSE IF (GT12T.AND.(.NOT.GT23T)) THEN
-               !1>3>2
+               
+               ! (1>2) & (3>2) & (1>3) =>  (1>3>2)
                IF (GT13T) THEN
                   PRIORITY(:) = (/1,3,2/)
-               !3>1>2
+               
+               ! (1>2) & (3>2) & (3>1) =>  (3>1>2)
                ELSE
-                  PRIORITY(:) = (/3,1,2/)
+                  PRIORITY(:) = (/3,1,2/) 
                ENDIF
-            !2>1>3
+            
+            !(2>1) & (3>1) =>  (2>1>3)
             ELSE IF (.NOT.GT12T.AND.GT13T) THEN
                PRIORITY(:) = (/2,1,3/)
+            
+               !(2>1) & (3>1) => two options
             ELSE IF (.NOT.GT12T.AND.(.NOT.GT13T)) THEN
-               !2>3>1
+               
+               !(2>1) & (3>1) & (2>3) => (2>3>1)
                IF (GT23T) THEN
                   PRIORITY(:) = (/2,3,1/)
-               !3>2>1
+               
+               !(2>1) & (3>1) & (3>2) => (3>2>1)
                ELSE
                   PRIORITY(:) = (/3,2,1/)
                ENDIF
@@ -112,10 +126,10 @@ MODULE COMPARELIST
      !comparing four sorted lists of atoms
       SUBROUTINE COMPARE_4LISTS(LIST1,LIST2,LIST3,LIST4,LENGTH,PRIORITY)
          IMPLICIT NONE
-         INTEGER, INTENT(IN) :: LENGTH                           !length of lists
-         INTEGER, INTENT(IN) :: LIST1(LENGTH), LIST2(LENGTH)     !list of elements
-         INTEGER, INTENT(IN) :: LIST3(LENGTH), LIST4(LENGTH)     !list of elements     
-         INTEGER, INTENT(OUT) :: PRIORITY(4)                     !priorities of list (1 to 3)
+         INTEGER, INTENT(IN) :: LENGTH                           !<length of lists
+         INTEGER, INTENT(IN) :: LIST1(LENGTH), LIST2(LENGTH)     !<list of elements
+         INTEGER, INTENT(IN) :: LIST3(LENGTH), LIST4(LENGTH)     !<list of elements     
+         INTEGER, INTENT(OUT) :: PRIORITY(4)                     !<priorities of list (1 to 3)
          INTEGER :: P123(3), COMP4(3), J1, J2
          LOGICAL :: ID14T, GT14T, ID24T, GT24T, ID34T, GT34T
     
@@ -130,6 +144,7 @@ MODULE COMPARELIST
          ELSE
             COMP4(1) = 1
          ENDIF
+         
          IF (ID24T) THEN
             COMP4(2) = 0
          ELSE IF (GT24T) THEN
@@ -137,7 +152,8 @@ MODULE COMPARELIST
          ELSE
             COMP4(2) = 1
          ENDIF 
-          IF (ID34T) THEN
+         
+         IF (ID34T) THEN
             COMP4(3) = 0
          ELSE IF (GT34T) THEN
             COMP4(3) = -1 !lower priority than three

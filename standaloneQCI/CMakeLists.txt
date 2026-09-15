@@ -91,7 +91,9 @@ include_directories(${CMAKE_SOURCE_DIR})
 file(GLOB QCI_LIB_SOURCES ${GIT_ROOT}/source/*.f90
                            ${GIT_ROOT}/source/*.F90
                            ${GIT_ROOT}/source/utils/*.f90
-                           ${GIT_ROOT}/source/utils/*.F90)
+                           ${GIT_ROOT}/source/utils/*.F90
+                           ${GIT_ROOT}/source/perm/*.f90
+                           ${GIT_ROOT}/source/perm/*.F90)                           
 
 find_package(BLAS)
 find_package(LAPACK)

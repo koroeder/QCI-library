@@ -50,4 +50,13 @@ MODULE QCIFILEHANDLER
          ENDDO
       END FUNCTION GETUNIT
 
+      function file_exists(filename) result(res)
+         implicit none
+         character(len=*),intent(in) :: filename
+         logical                     :: res
+
+         ! Check if the file exists
+         inquire( file=trim(filename), exist=res )
+      end function
+
 END MODULE QCIFILEHANDLER

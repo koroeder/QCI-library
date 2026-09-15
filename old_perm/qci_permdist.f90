@@ -91,9 +91,9 @@ MODULE QCIPERMDIST
          ! and we can exchange H's attached to the same O. The dimension required
          ! becomes 3*NATOMS
          ALLOCATE(BESTPERM(NATOMS))
-         !common constraints
+         !>common constraints
          ALLOCATE(NCONCOMMON(NPERMGROUP))
-         !indices
+         !>indices
          ALLOCATE(STARTGROUP(NPERMGROUP),ENDGROUP(NPERMGROUP),GROUPACTIVE(NPERMGROUP))
       END SUBROUTINE ALLOC_QCIPERM
 
@@ -117,10 +117,11 @@ MODULE QCIPERMDIST
       END SUBROUTINE DEALLOC_QCIPERM
 
       !> Reads perm.allow file
-      SUBROUTINE INIT_PERMALLOW(NATOMS)
+      SUBROUTINE INIT_PERMALLOW()
+         use qcikeys, only: natoms
          USE QCIFILEHANDLER, ONLY: GETUNIT
          IMPLICIT NONE
-         INTEGER, INTENT(IN) :: NATOMS
+         
          LOGICAL :: PERMFILE
          INTEGER :: NDUMMY, J1, J2, J3
          INTEGER :: PERMUNIT
@@ -143,17 +144,17 @@ MODULE QCIPERMDIST
                READ(PERMUNIT,*) NPERMSIZE(J1),NSETS(J1)
                ! Sanity checks!
                IF (NSETS(J1).GT.MAXNSETS) THEN
-                  PRINT '(2(A,I8))','keyword> ERROR - number of secondary sets ',NSETS(J1), ' is > ', MAXNSETS
+                  PRINT '(2(A,I8))','init_permallow> ERROR - number of secondary sets ',NSETS(J1), ' is > ', MAXNSETS
                   STOP
                ENDIF
                IF (NDUMMY+NPERMSIZE(J1).GT.3*NATOMS) THEN
-                  PRINT '(2(A,I8))','keyword> ERROR - number of atoms to be permuted in all groups is > 3*number of atoms'
+                  PRINT '(2(A,I8))','init_permallow> ERROR - number of atoms to be permuted in all groups is > 3*number of atoms'
                   STOP
                ENDIF
                READ(PERMUNIT,*) PERMGROUP(NDUMMY:NDUMMY+NPERMSIZE(J1)-1),((SETS(PERMGROUP(J3),J1,J2), &
                                 J3=NDUMMY,NDUMMY+NPERMSIZE(J1)-1), J2=1,NSETS(J1))
                
-                ! Check that atom IDs in PERMGROUP do not exceed NATOMS
+               ! Check that atom IDs in PERMGROUP do not exceed NATOMS
                DO J3=NDUMMY,NDUMMY+NPERMSIZE(J1)-1
                   IF (PERMGROUP(J3).GT.NATOMS .OR. PERMGROUP(J3).LT.1) THEN
                      WRITE(*,*) 'init_permallow> ERROR - atom ID ',PERMGROUP(J3), &
@@ -162,13 +163,24 @@ MODULE QCIPERMDIST
                   ENDIF
                ENDDO
 
-               
+                           
                STARTGROUP(J1)=NDUMMY
                GROUPACTIVE(J1)=.FALSE.              
                NDUMMY=NDUMMY+NPERMSIZE(J1)
                ENDGROUP(J1)=NDUMMY-1
             ENDDO
             CLOSE(PERMUNIT)
+
+            ! And another sanity check!
+            do j1=1,ndummy
+               do j2=j1+1,ndummy
+                  if (permgroup(j2).eq.permgroup(j1)) then
+                     write(*,*) " perm_setup> atom appears in more than one group"
+                     stop
+                  endif
+               enddo
+            enddo
+
             MAXNSETS=SIZE(SETS,2)
          ELSE 
             WRITE(*,*) " init_permallow> Cannot find perm.allow file"
@@ -471,6 +483,8 @@ MODULE QCIPERMDIST
             ENDIF
             NDUMMY=NDUMMY+NPERMSIZE(J1)
          ENDDO
+
+
          ! Copy coordinates into dummy arrays
          DUMMYB(1:3*NATOMS)=COORDSB(1:3*NATOMS)
          DUMMYA(1:3*NATOMS)=COORDSA(1:3*NATOMS)

@@ -18,11 +18,6 @@
 ! assignment actually does (see accompanying documentation, Known Issue).
 ! distance/nmove are unambiguous regardless of that question.
 !
-! Deliberately using localpermneigh = 1 to force the local neighbourhood
-! (nats = patoms + nother) to be smaller than the full system (natoms = 5).
-! Build with -fcheck=bounds to turn the known standard_orient natoms/nats
-! bug into a hard, immediate runtime failure with a source line number,
-! rather than silent memory corruption.
 ! ============================================================================
 program test_lpermdist
    use qcikeys,      only: natoms, debug
