@@ -160,8 +160,7 @@ MODULE OUT_PRINT
             ELSE
                 WRITE(IU,'(3X,A)') 'ISBBATOM: array too large to print in full.'
             END IF
-        ELSE
-            WRITE(IU,FMT_CHAR) 'ISBBATOM', 'not allocated'
+        
         END IF
         WRITE(IU,FMT_INT)  'NBACKBONE', NBACKBONE
         
@@ -199,18 +198,24 @@ MODULE OUT_PRINT
         WRITE(IU,FMT_BOOL) 'USECONACTINACT', USECONACTINACT
         WRITE(IU,FMT_REAL) 'CONACTINACT', CONACTINACT
 
-                
+        WRITE(IU,FMT_SEC) ''
+        WRITE(IU,FMT_SEC) '--- Bond constraints ---'
+        WRITE(IU,FMT_BOOL) 'CALC_BOND_E', CALC_BOND_E
+        IF (CALC_BOND_E) THEN
+            WRITE(IU,FMT_REAL) 'K_BOND', K_CONST
+        END IF     
+
         !============================================================================
         ! Dihedral constraints
         !============================================================================
         WRITE(IU,FMT_SEC) ''
         WRITE(IU,FMT_SEC) '--- Dihedral constraints ---'
         WRITE(IU,FMT_BOOL) 'USEDIHEDRALCONST', USEDIHEDRALCONST
-        WRITE(IU,FMT_REAL) 'K_DIH', KDIH
-        WRITE(IU,FMT_INT)  'DIHTYPE', DIHTYPE
-
+        IF (USEDIHEDRALCONST) THEN
+            WRITE(IU,FMT_REAL) 'K_DIH', KDIH
+            WRITE(IU,FMT_INT)  'DIHTYPE', DIHTYPE
+        END IF
         
-
         !============================================================================
         ! Spring constants
         !============================================================================
@@ -242,10 +247,6 @@ MODULE OUT_PRINT
         WRITE(IU,FMT_SEC) ''
         WRITE(IU,FMT_SEC) '--- Image control ---'
         WRITE(IU,FMT_BOOL) 'USEIMAGEDENSITY', USEIMAGEDENSITY
-        WRITE(IU,FMT_REAL) 'E2E_DIST', E2E_DIST
-        WRITE(IU,FMT_REAL) 'IMAGEDENSITY', IMAGEDENSITY
-        WRITE(IU,FMT_REAL) 'IMSEPMAX', IMSEPMAX
-        WRITE(IU,FMT_REAL) 'IMSEPMIN', IMSEPMIN
         WRITE(IU,FMT_INT)  'QCIIMAGECHECK', QCIIMAGECHECK
 
         !============================================================================
@@ -256,8 +257,7 @@ MODULE OUT_PRINT
         WRITE(IU,FMT_INT)  'QCIPERMCHECKINT', QCIPERMCHECKINT
         WRITE(IU,FMT_BOOL) 'QCIPERMT', QCIPERMT
         WRITE(IU,FMT_REAL) 'QCIPERMCUT', QCIPERMCUT
-        WRITE(IU,FMT_REAL) 'ORBITTOL', ORBITTOL
-
+    
         WRITE(IU,FMT_BOOL) 'CHECKCHIRAL', CHECKCHIRAL
       
         !============================================================================

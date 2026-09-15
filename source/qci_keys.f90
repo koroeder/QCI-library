@@ -27,6 +27,10 @@ MODULE QCIKEYS
    LOGICAL :: BASEPAIRDETECTION = .FALSE.
    !> using groups of atoms in AMBER
    LOGICAL :: QCIUSEGROUPS = .FALSE.
+   !> Amber topology and extra files 
+   LOGICAL :: USE_EXTRA_AMBER_CONSTRAINS
+   CHARACTER(LEN=30) :: AMBERCONSTRFILE = "constraintfile"
+   CHARACTER(LEN=25) :: TOPFILENAME = "coords.prmtop"
    
    !----------------------Atom adding keys ----------------------------!
    
@@ -129,7 +133,6 @@ MODULE QCIKEYS
    LOGICAL :: CHECKCHIRAL = .FALSE.
   
    REAL(KIND=REAL64) :: QCIPERMCUT = 0.8D0  !< used in LOPERMDIST
-   REAL(KIND=REAL64) :: ORBITTOL = 0.3D0  !< for myorient
 
    !----------------------- L-BFGS -----------------------------------!
 

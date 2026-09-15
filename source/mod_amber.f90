@@ -1,6 +1,6 @@
 MODULE AMBER_CONSTRAINTS
    USE QCIPREC
-   USE QCIKEYS, ONLY: DEBUG
+   USE QCIKEYS, ONLY: DEBUG, USE_EXTRA_AMBER_CONSTRAINS, AMBERCONSTRFILE, TOPFILENAME
    IMPLICIT NONE
    INTEGER :: NRES
    INTEGER, ALLOCATABLE :: BACKBONE(:)
@@ -9,10 +9,7 @@ MODULE AMBER_CONSTRAINTS
    REAL(KIND = REAL64), ALLOCATABLE :: AMBER_CONDISTREF(:)
    REAL(KIND = REAL64), ALLOCATABLE :: AMBER_CONCUT(:)
    
-   !QUESTION Should these be in the qci keys? 
-   LOGICAL :: USE_EXTRA_AMBER_CONSTRAINS
-   CHARACTER(LEN=30) :: AMBERCONSTRFILE = "constraintfile"
-   CHARACTER(LEN=25) :: TOPFILENAME = "coords.prmtop"
+  
    
    CHARACTER(LEN=1), ALLOCATABLE :: NASIMPLE(:)
    INTEGER, ALLOCATABLE :: BONDS(:,:)
@@ -40,7 +37,8 @@ MODULE AMBER_CONSTRAINTS
          USE MOD_INTCOORDS, ONLY: XSTART, XFINAL
          USE QCIFILEHANDLER, ONLY: GETUNIT, FILE_LENGTH
          USE HELPER_FNCTS, ONLY: DISTANCE_TWOATOMS
-         USE QCIKEYS, ONLY: USELINGROUPS
+         USE QCIKEYS, ONLY: USELINGROUPS, USE_EXTRA_AMBER_CONSTRAINS, AMBERCONSTRFILE
+         USE QCIFILEHANDLER, ONLY: count_constraints
 
          IMPLICIT NONE
          INTEGER, INTENT(IN) :: NATOMS
@@ -58,14 +56,12 @@ MODULE AMBER_CONSTRAINTS
          CALL CREATE_ATOMS2RES()
 
          ! check for additional constraints in file
-         INQUIRE(FILE=AMBERCONSTRFILE, EXIST=YESNO)
-         IF (YESNO) THEN
-            USE_EXTRA_AMBER_CONSTRAINS = .TRUE.
-            NADDCONSTR = FILE_LENGTH(AMBERCONSTRFILE)
+         IF (USE_EXTRA_AMBER_CONSTRAINS) THEN
+            call count_constraints(AMBERCONSTRFILE, NADDCONSTR)
          ELSE
-            USE_EXTRA_AMBER_CONSTRAINS = .FALSE.
             NADDCONSTR = 0
          END IF
+
          CALL GET_BIOCONSTR()
 
          ! allocate arrays
@@ -131,15 +127,12 @@ MODULE AMBER_CONSTRAINTS
          END DO
 
          ! now add additional constraints from file provided
-         IF (YESNO) THEN
+         ! We already checked that the file is okay. 
+         IF (USE_EXTRA_AMBER_CONSTRAINS) THEN 
             CONUNIT = GETUNIT()
             OPEN(CONUNIT,FILE=AMBERCONSTRFILE,STATUS='OLD')
             DO J1=1,NADDCONSTR
                READ(CONUNIT,*) IDX1, IDX2
-               IF( (IDX1.GT.NATOMS).OR.(IDX2.GT.NATOMS) ) THEN
-                  WRITE(*,*) "ERROR: Amberconstraint file contains out of range index: ", IDX1, IDX2
-                  CALL INT_ERR_TERMINATE
-               END IF
                NDUMMY = NDUMMY + 1
                CALL DISTANCE_TWOATOMS(NATOMS, XSTART, IDX1, IDX2, DS)
                CALL DISTANCE_TWOATOMS(NATOMS, XFINAL, IDX1, IDX2, DF) 
@@ -206,7 +199,7 @@ MODULE AMBER_CONSTRAINTS
          LOGICAL :: ADDED
          CHARACTER(4) :: ATNAME
 
-
+         WRITE(*,*) "DEBUG> GET_ATOM_GROUPS> NRES ", NRES
          DO J1=1,NRES
             IF (RESTYPE(J1).EQ."AA".OR.RESTYPE(J1).EQ."RNA".OR.RESTYPE(J1).EQ."DNA".OR.RESTYPE(J1).EQ."FANA") THEN
                NPLACINGGROUPS = NPLACINGGROUPS + 1
@@ -353,7 +346,7 @@ MODULE AMBER_CONSTRAINTS
          ! peptide bonds
          DO J1=1,NRES-1
             IF (AALIST(J1)) THEN
-               ! chekc we are not looking at capping groups
+               ! check we are not looking at capping groups
                IF ((.NOT.ISCAP(J1)).AND.(.NOT.ISCAP(J1+1))) THEN
                   IF (.NOT.ISTER(J1)) THEN
                      CALL GET_ATOMID("O",J1,OPOS1)
@@ -969,61 +962,152 @@ MODULE AMBER_CONSTRAINTS
       END SUBROUTINE PARSE_TOPOLOGY
 
         ! check if residue is an amino acid - brute force ...
+ !     SUBROUTINE CHECK_RES(RESID,AAT,DNAT,RNAT,FANAT,CAPT)
+ !        IMPLICIT NONE
+ !        INTEGER, INTENT(IN) :: RESID
+ !        LOGICAL, INTENT(OUT) :: AAT, DNAT, RNAT, FANAT, CAPT
+ !        CHARACTER(4) :: DNAME
+ !        LOGICAL :: TERTEST
+ !        
+ !        DNAME = ADJUSTL(TRIM(RESNAMES(RESID)))
+ !        AAT = .FALSE.
+ !        RNAT = .FALSE.
+ !        DNAT = .FALSE.
+ !        FANAT = .FALSE.
+ !        CAPT = .FALSE.
+ !        TERTEST = .FALSE.
+!60       CONTINUE
+!         IF ((DNAME.EQ."ALA").OR.(DNAME.EQ."ARG").OR.(DNAME.EQ."ASH").OR.  &
+!            (DNAME.EQ."ASN").OR.(DNAME.EQ."ASP").OR.(DNAME.EQ."CYM").OR.  &
+!            (DNAME.EQ."CYS").OR.(DNAME.EQ."CYX").OR.(DNAME.EQ."GLH").OR.  &
+!            (DNAME.EQ."GLN").OR.(DNAME.EQ."GLU").OR.(DNAME.EQ."GLY").OR.  &
+!            (DNAME.EQ."HID").OR.(DNAME.EQ."HIE").OR.(DNAME.EQ."HIP").OR.  &
+!            (DNAME.EQ."HYP").OR.(DNAME.EQ."ILE").OR.(DNAME.EQ."LEU").OR.  &
+!            (DNAME.EQ."LYN").OR.(DNAME.EQ."LYS").OR.(DNAME.EQ."MET").OR.  &
+!            (DNAME.EQ."PHE").OR.(DNAME.EQ."PRO").OR.(DNAME.EQ."SER").OR.  &
+!            (DNAME.EQ."THR").OR.(DNAME.EQ."TRP").OR.(DNAME.EQ."TYR").OR.  &
+!            (DNAME.EQ."VAL")) THEN
+!            AAT = .TRUE.
+!            RESTYPE(RESID) = "AA"
+!         ELSE IF ((DNAME.EQ."A").OR.(DNAME.EQ."A3").OR.(DNAME.EQ."A5").OR.(DNAME.EQ."AN").OR.  &
+!                  (DNAME.EQ."C").OR.(DNAME.EQ."C3").OR.(DNAME.EQ."C5").OR.(DNAME.EQ."CN").OR.  &
+!                  (DNAME.EQ."G").OR.(DNAME.EQ."G3").OR.(DNAME.EQ."G5").OR.(DNAME.EQ."GN").OR.  &
+!                  (DNAME.EQ."U").OR.(DNAME.EQ."U3").OR.(DNAME.EQ."U5").OR.(DNAME.EQ."UN")) THEN
+!            RNAT = .TRUE.
+!            RESTYPE(RESID) = "RNA"           
+!         ELSE IF ((DNAME.EQ."DA").OR.(DNAME.EQ."DA3").OR.(DNAME.EQ."DA5").OR.(DNAME.EQ."DAN").OR.  &
+!                  (DNAME.EQ."DC").OR.(DNAME.EQ."DC3").OR.(DNAME.EQ."DC5").OR.(DNAME.EQ."DCN").OR.  &
+!                  (DNAME.EQ."DG").OR.(DNAME.EQ."DG3").OR.(DNAME.EQ."DG5").OR.(DNAME.EQ."DGN").OR.  &
+!                  (DNAME.EQ."DT").OR.(DNAME.EQ."DT3").OR.(DNAME.EQ."DT5").OR.(DNAME.EQ."DTN")) THEN
+!            DNAT = .TRUE.
+!            RESTYPE(RESID) = "DNA"
+!         ELSE IF ((DNAME.EQ."FA").OR.(DNAME.EQ."FA3").OR.(DNAME.EQ."FA5").OR.  &
+!                  (DNAME.EQ."FC").OR.(DNAME.EQ."FC3").OR.(DNAME.EQ."FC5").OR.  &
+!                  (DNAME.EQ."FG").OR.(DNAME.EQ."FG3").OR.(DNAME.EQ."FG5").OR.  &
+!                  (DNAME.EQ."FU").OR.(DNAME.EQ."FU3").OR.(DNAME.EQ."FU5")) THEN  
+!            FANAT = .TRUE.
+!            RESTYPE(RESID) = "FANA"         
+!         ELSE IF ((DNAME.EQ."ACE").OR.(DNAME.EQ."NHE").OR.(DNAME.EQ."NME")) THEN
+!            CAPT = .TRUE. 
+         !debug part
+!         ELSE
+!            WRITE(*,*) "CHEC_RES: FOUND NON STANDARD RESIDUE"
+!               WRITE(*,*) DNAME            
+!
+!         ENDIF
+!         !make sure it is not a terminal residue (we technically should never encounter one)
+!         IF (((.NOT.AAT).AND.(.NOT.CAPT).AND.(.NOT.TERTEST)).AND.((DNAME(1:1).EQ."N").OR.(DNAME(1:1).EQ."C"))) THEN
+!            TERTEST=.TRUE.
+!            DNAME = DNAME(2:4)
+!            GOTO 60
+!         ENDIF
+!         
+!      END SUBROUTINE CHECK_RES
+
       SUBROUTINE CHECK_RES(RESID,AAT,DNAT,RNAT,FANAT,CAPT)
-         IMPLICIT NONE
-         INTEGER, INTENT(IN) :: RESID
-         LOGICAL, INTENT(OUT) :: AAT, DNAT, RNAT, FANAT, CAPT
-         CHARACTER(4) :: DNAME
-         LOGICAL :: TERTEST
-         
-         DNAME = ADJUSTL(TRIM(RESNAMES(RESID)))
-         AAT = .FALSE.
-         RNAT = .FALSE.
-         DNAT = .FALSE.
-         FANAT = .FALSE.
-         CAPT = .FALSE.
-         TERTEST = .FALSE.
-60       CONTINUE
-         IF ((DNAME.EQ."ALA").OR.(DNAME.EQ."ARG").OR.(DNAME.EQ."ASH").OR.  &
-            (DNAME.EQ."ASN").OR.(DNAME.EQ."ASP").OR.(DNAME.EQ."CYM").OR.  &
-            (DNAME.EQ."CYS").OR.(DNAME.EQ."CYX").OR.(DNAME.EQ."GLH").OR.  &
-            (DNAME.EQ."GLN").OR.(DNAME.EQ."GLU").OR.(DNAME.EQ."GLY").OR.  &
-            (DNAME.EQ."HID").OR.(DNAME.EQ."HIE").OR.(DNAME.EQ."HIP").OR.  &
-            (DNAME.EQ."HYP").OR.(DNAME.EQ."ILE").OR.(DNAME.EQ."LEU").OR.  &
-            (DNAME.EQ."LYN").OR.(DNAME.EQ."LYS").OR.(DNAME.EQ."MET").OR.  &
-            (DNAME.EQ."PHE").OR.(DNAME.EQ."PRO").OR.(DNAME.EQ."SER").OR.  &
-            (DNAME.EQ."THR").OR.(DNAME.EQ."TRP").OR.(DNAME.EQ."TYR").OR.  &
-            (DNAME.EQ."VAL")) THEN
-            AAT = .TRUE.
-            RESTYPE(RESID) = "AA"
-         ELSE IF ((DNAME.EQ."A").OR.(DNAME.EQ."A3").OR.(DNAME.EQ."A5").OR.(DNAME.EQ."AN").OR.  &
-                  (DNAME.EQ."C").OR.(DNAME.EQ."C3").OR.(DNAME.EQ."C5").OR.(DNAME.EQ."CN").OR.  &
-                  (DNAME.EQ."G").OR.(DNAME.EQ."G3").OR.(DNAME.EQ."G5").OR.(DNAME.EQ."GN").OR.  &
-                  (DNAME.EQ."U").OR.(DNAME.EQ."U3").OR.(DNAME.EQ."U5").OR.(DNAME.EQ."UN")) THEN
-            RNAT = .TRUE.
-            RESTYPE(RESID) = "RNA"           
-         ELSE IF ((DNAME.EQ."DA").OR.(DNAME.EQ."DA3").OR.(DNAME.EQ."DA5").OR.(DNAME.EQ."DAN").OR.  &
-                  (DNAME.EQ."DC").OR.(DNAME.EQ."DC3").OR.(DNAME.EQ."DC5").OR.(DNAME.EQ."DCN").OR.  &
-                  (DNAME.EQ."DG").OR.(DNAME.EQ."DG3").OR.(DNAME.EQ."DG5").OR.(DNAME.EQ."DGN").OR.  &
-                  (DNAME.EQ."DT").OR.(DNAME.EQ."DT3").OR.(DNAME.EQ."DT5").OR.(DNAME.EQ."DTN")) THEN
-            DNAT = .TRUE.
-            RESTYPE(RESID) = "DNA"
-         ELSE IF ((DNAME.EQ."FA").OR.(DNAME.EQ."FA3").OR.(DNAME.EQ."FA5").OR.  &
-                  (DNAME.EQ."FC").OR.(DNAME.EQ."FC3").OR.(DNAME.EQ."FC5").OR.  &
-                  (DNAME.EQ."FG").OR.(DNAME.EQ."FG3").OR.(DNAME.EQ."FG5").OR.  &
-                  (DNAME.EQ."FU").OR.(DNAME.EQ."FU3").OR.(DNAME.EQ."FU5")) THEN  
-            FANAT = .TRUE.
-            RESTYPE(RESID) = "FANA"         
-         ELSE IF ((DNAME.EQ."ACE").OR.(DNAME.EQ."NHE").OR.(DNAME.EQ."NME")) THEN
-            CAPT = .TRUE. 
-         ENDIF
-         !make sure it is not a terminal residue (we technically should never encounter one)
-         IF (((.NOT.AAT).AND.(.NOT.CAPT).AND.(.NOT.TERTEST)).AND.((DNAME(1:1).EQ."N").OR.(DNAME(1:1).EQ."C"))) THEN
-            TERTEST=.TRUE.
-            DNAME = DNAME(2:4)
-            GOTO 60
-         ENDIF
-         
+      IMPLICIT NONE
+      INTEGER, INTENT(IN) :: RESID
+      LOGICAL, INTENT(OUT) :: AAT, DNAT, RNAT, FANAT, CAPT
+      CHARACTER(4) :: DNAME
+      LOGICAL :: MATCHED
+
+      DNAME = ADJUSTL(TRIM(RESNAMES(RESID)))
+      AAT   = .FALSE.
+      RNAT  = .FALSE.
+      DNAT  = .FALSE.
+      FANAT = .FALSE.
+      CAPT  = .FALSE.
+
+      CALL CLASSIFY(DNAME, AAT,DNAT,RNAT,FANAT,CAPT, MATCHED)
+
+      ! retry exactly once, and only if truly nothing matched
+      IF ((.NOT.MATCHED) .AND. ((DNAME(1:1).EQ."N").OR.(DNAME(1:1).EQ."C"))) THEN
+         DNAME = DNAME(2:4)
+         CALL CLASSIFY(DNAME, AAT,DNAT,RNAT,FANAT,CAPT, MATCHED)
+      ENDIF
+
+      IF (.NOT.MATCHED) THEN
+         WRITE(*,*) "CHEC_RES: FOUND NON STANDARD RESIDUE"
+         WRITE(*,*) DNAME
+      ENDIF
+
+      CONTAINS
+
+      SUBROUTINE CLASSIFY(NAME, AAT,DNAT,RNAT,FANAT,CAPT, MATCHED)
+      CHARACTER(4), INTENT(IN) :: NAME
+      LOGICAL, INTENT(OUT) :: AAT, DNAT, RNAT, FANAT, CAPT, MATCHED
+
+      AAT   = .FALSE.
+      RNAT  = .FALSE.
+      DNAT  = .FALSE.
+      FANAT = .FALSE.
+      CAPT  = .FALSE.
+      MATCHED = .TRUE.
+
+      IF ((NAME.EQ."ALA").OR.(NAME.EQ."ARG").OR.(NAME.EQ."ASH").OR.  &
+          (NAME.EQ."ASN").OR.(NAME.EQ."ASP").OR.(NAME.EQ."CYM").OR.  &
+          (NAME.EQ."CYS").OR.(NAME.EQ."CYX").OR.(NAME.EQ."GLH").OR.  &
+          (NAME.EQ."GLN").OR.(NAME.EQ."GLU").OR.(NAME.EQ."GLY").OR.  &
+          (NAME.EQ."HID").OR.(NAME.EQ."HIE").OR.(NAME.EQ."HIP").OR.  &
+          (NAME.EQ."HYP").OR.(NAME.EQ."ILE").OR.(NAME.EQ."LEU").OR.  &
+          (NAME.EQ."LYN").OR.(NAME.EQ."LYS").OR.(NAME.EQ."MET").OR.  &
+          (NAME.EQ."PHE").OR.(NAME.EQ."PRO").OR.(NAME.EQ."SER").OR.  &
+          (NAME.EQ."THR").OR.(NAME.EQ."TRP").OR.(NAME.EQ."TYR").OR.  &
+          (NAME.EQ."VAL")) THEN
+         AAT = .TRUE.
+         RESTYPE(RESID) = "AA"
+
+      ELSE IF ((NAME.EQ."A").OR.(NAME.EQ."A3").OR.(NAME.EQ."A5").OR.(NAME.EQ."AN").OR.  &
+               (NAME.EQ."C").OR.(NAME.EQ."C3").OR.(NAME.EQ."C5").OR.(NAME.EQ."CN").OR.  &
+               (NAME.EQ."G").OR.(NAME.EQ."G3").OR.(NAME.EQ."G5").OR.(NAME.EQ."GN").OR.  &
+               (NAME.EQ."U").OR.(NAME.EQ."U3").OR.(NAME.EQ."U5").OR.(NAME.EQ."UN")) THEN
+         RNAT = .TRUE.
+         RESTYPE(RESID) = "RNA"
+
+      ELSE IF ((NAME.EQ."DA").OR.(NAME.EQ."DA3").OR.(NAME.EQ."DA5").OR.(NAME.EQ."DAN").OR.  &
+               (NAME.EQ."DC").OR.(NAME.EQ."DC3").OR.(NAME.EQ."DC5").OR.(NAME.EQ."DCN").OR.  &
+               (NAME.EQ."DG").OR.(NAME.EQ."DG3").OR.(NAME.EQ."DG5").OR.(NAME.EQ."DGN").OR.  &
+               (NAME.EQ."DT").OR.(NAME.EQ."DT3").OR.(NAME.EQ."DT5").OR.(NAME.EQ."DTN")) THEN
+         DNAT = .TRUE.
+         RESTYPE(RESID) = "DNA"
+
+      ELSE IF ((NAME.EQ."FA").OR.(NAME.EQ."FA3").OR.(NAME.EQ."FA5").OR.  &
+               (NAME.EQ."FC").OR.(NAME.EQ."FC3").OR.(NAME.EQ."FC5").OR.  &
+               (NAME.EQ."FG").OR.(NAME.EQ."FG3").OR.(NAME.EQ."FG5").OR.  &
+               (NAME.EQ."FU").OR.(NAME.EQ."FU3").OR.(NAME.EQ."FU5")) THEN
+         FANAT = .TRUE.
+         RESTYPE(RESID) = "FANA"
+
+      ELSE IF ((NAME.EQ."ACE").OR.(NAME.EQ."NHE").OR.(NAME.EQ."NME")) THEN
+         CAPT = .TRUE.
+
+      ELSE
+         MATCHED = .FALSE.
+
+      ENDIF
+
+      END SUBROUTINE CLASSIFY
+
       END SUBROUTINE CHECK_RES
 
       !get atom id from name for given residue
