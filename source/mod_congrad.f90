@@ -100,7 +100,7 @@ MODULE CONSTR_E_GRAD
 
          
          IF (.NOT.(K_CONST.EQ.0.0D0)) THEN
-            CALL GET_CONSTRAINT_E_NOINTERNAL(XYZ,GGGC,EEEC,ECON)
+            CALL GET_CONSTRAINT_E_NOINTERNAL2(XYZ,GGGC,EEEC,ECON)
          ELSE
              !Set convergence criteria to 0 if we don't use constraints. 
              CONVERGECONTEST = 0.0D0
@@ -380,6 +380,141 @@ MODULE CONSTR_E_GRAD
          ENDIF
       END SUBROUTINE GET_CONSTRAINT_E_NOINTERNAL
 
+      SUBROUTINE GET_CONSTRAINT_E_NOINTERNAL2(XYZ,GGG,EEE,ECON)
+         USE QCIKEYS, ONLY: NIMAGES, NATOMS, K_CONST, INTMINFAC, CHECKCONINT, &
+                            CONACTINACT, USECONACTINACT
+         USE QCI_CONSTRAINT_KEYS, ONLY: NCONSTRAINT, CONI, CONJ, CONDISTREFLOCAL
+         USE INTERPOLATION_KEYS, ONLY: CONACTIVE, ATOMACTIVE
+         USE HELPER_FNCTS, ONLY: DISTANCE_SIMPLE
+         IMPLICIT NONE
+         REAL(KIND = REAL64), INTENT(IN) :: XYZ(3*NATOMS*(NIMAGES+2))   !< input coordinates
+         REAL(KIND = REAL64), INTENT(OUT) :: GGG(3*NATOMS*(NIMAGES+2))  !< gradient for each atom in each image
+         REAL(KIND = REAL64), INTENT(OUT) :: EEE(NIMAGES+2)             !< energy for constraints in each image
+         REAL(KIND = REAL64), INTENT(OUT) :: ECON                       !< energy for constraints
+         INTEGER :: J1, J2
+         INTEGER :: NI1, NJ1                         !< indices for atoms A and B in XYZ and GGG
+         REAL(KIND=REAL64) :: CCLOCAL, CCLOCAL2      !< local concut
+         REAL(KIND=REAL64) :: XA(3), XB(3)           !< coordinates for atoms A and B 
+         REAL(KIND=REAL64) :: DIST, DUMMY, DUMMY2    !< distance and related measure
+         REAL(KIND=REAL64) :: G2(3), GRADAB(3)
+         REAL(KIND=REAL64) :: EMAX, FMIN, FMAX
+         REAL(KIND=REAL64) :: LOCALCONFACTOR, DIST_MAXE
+         REAL(KIND=REAL64) :: EMAXIMG(NIMAGES+2), DISTIMG(NIMAGES+2)   !< per-image max term and its distance
+         INTEGER :: JMAXIMG(NIMAGES+2)                                 !< constraint giving EMAXIMG
+         INTEGER :: IMAX, JMAX
+
+
+         EMAX = -(HUGE(1.0D0))
+         FMAX = -(HUGE(1.0D0))
+         FMIN = HUGE(1.0D0)
+         IMAX = -1
+         JMAX = -1
+         EEE(1:NIMAGES+2)=0.0D0
+         GGG(1:(3*NATOMS)*(NIMAGES+2))=0.0D0
+         ECON = 0.0D0
+         EMAXIMG = -(HUGE(1.0D0)); JMAXIMG = -1; DISTIMG = 0.0D0
+         
+
+         !$OMP PARALLEL DO SCHEDULE(DYNAMIC,1) DEFAULT(NONE) &
+         !$OMP    SHARED(XYZ, GGG, EEE, EMAXIMG, JMAXIMG, DISTIMG, NIMAGES, NATOMS, NCONSTRAINT, &
+         !$OMP           CONI, CONJ, CONDISTREFLOCAL, CONACTIVE, ATOMACTIVE, USECONACTINACT, CONACTINACT, K_CONST) &
+         !$OMP    PRIVATE(J2, NI1, NJ1, XA, XB, DIST, G2, DUMMY, DUMMY2, CCLOCAL, CCLOCAL2, &
+         !$OMP            LOCALCONFACTOR, GRADAB) &
+         !$OMP    REDUCTION(MIN:FMIN) REDUCTION(MAX:FMAX)
+         DO J1=2,NIMAGES+2
+            DO J2=1,NCONSTRAINT
+
+            
+               !added extra conditions for active-inactive           
+               IF (.NOT.USECONACTINACT) THEN
+                  ! only active constraints contribute
+                  IF (.NOT.CONACTIVE(J2)) CYCLE
+               END IF
+
+               IF (ATOMACTIVE(CONI(J2)).AND.ATOMACTIVE(CONJ(J2))) THEN
+                  !both atoms active:
+                  LOCALCONFACTOR = 1.0D0
+               ELSE IF ((ATOMACTIVE(CONI(J2)).AND.(.NOT.ATOMACTIVE(CONJ(J2)))).OR.((.NOT.ATOMACTIVE(CONI(J2))).AND.ATOMACTIVE(CONJ(J2)))) THEN
+                  ! one atom active
+                  LOCALCONFACTOR = CONACTINACT
+               ELSE
+                  !Skip if neither atom is active
+                  CYCLE
+               END IF   
+               
+               CALL GET_CCLOCAL(J2,CCLOCAL)
+                           
+               NI1=(3*NATOMS)*(J1-1)+3*(CONI(J2)-1)
+               NJ1=(3*NATOMS)*(J1-1)+3*(CONJ(J2)-1)
+               ! get coordinates for atoms involved in constraint
+               
+               XA(1:3) = XYZ(NI1+1:NI1+3) 
+               XB(1:3) = XYZ(NJ1+1:NJ1+3)            
+              
+               ! get distance and various related measures
+               CALL DISTANCE_SIMPLE(XA, XB, DIST)
+               G2 = (XA-XB)/DIST
+               DUMMY = DIST - CONDISTREFLOCAL(J2)
+               DUMMY2 = DUMMY**2
+               CCLOCAL2 = CCLOCAL**2 
+               ! now check whether we are beyond the constraint cutoff
+               ! Condition: |G2| - mean(d_AB) > C_AB
+               IF ((DUMMY.GT.CCLOCAL).AND.(J1.LT.NIMAGES+2)) THEN
+                    
+
+                  ! calculate gradient and energy
+                                                     
+                 
+                  GRADAB(1:3)=2.0D0*K_CONST*LOCALCONFACTOR*((DUMMY2-CCLOCAL2)/CCLOCAL2**2)*DUMMY*G2(1:3)
+                  
+                  ! Eq(8) J.Chem.Theory Comput. 2012, 8, 5020-5034
+                  ! Deviation from published equation ... added /CCLOCAL**2  
+                  
+                  ! new: V_con(d^i_AB) = (k_con* ((d^i_AB - ave(d_AB))^2 -(C^con_AB)^2 )^2 )/ 2*(C^con_AB)^4
+                  DUMMY = K_CONST*LOCALCONFACTOR*((DUMMY2-CCLOCAL2)**2/(2.0D0*CCLOCAL2**2))
+                                    
+                  EEE(J1) = EEE(J1) + DUMMY
+                  
+                   
+                  ! save largest contribution to EMAX
+                  IF (DUMMY.GT.EMAXIMG(J1)) THEN
+                     JMAXIMG(J1) = J2
+                     EMAXIMG(J1) = DUMMY
+                     DISTIMG(J1) = DIST
+                  END IF
+                  
+                  GGG(NI1+1:NI1+3)=GGG(NI1+1:NI1+3)+GRADAB(1:3)
+                  GGG(NJ1+1:NJ1+3)=GGG(NJ1+1:NJ1+3)-GRADAB(1:3)
+                  
+                  FMIN=MIN(FMIN,MINVAL(GRADAB))
+                  FMAX=MAX(FMAX,MAXVAL(GRADAB))
+
+               END IF
+            END DO
+         END DO
+         !$OMP END PARALLEL DO
+
+         ECON = SUM(EEE(2:NIMAGES+1))
+         DO J1=2,NIMAGES+2
+            IF ((EMAXIMG(J1).GT.EMAX).OR.((EMAXIMG(J1).EQ.EMAX).AND.(JMAXIMG(J1).LT.JMAX))) THEN
+               IMAX = J1
+               JMAX = JMAXIMG(J1)
+               EMAX = EMAXIMG(J1)
+               DIST_MAXE = DISTIMG(J1)
+            END IF
+         END DO
+        
+         IF (-FMIN.GT.FMAX) FMAX=-FMIN
+         FCONMAX=FMAX
+         CONVERGECONTEST=EMAX/K_CONST
+         MAXCONIMAGE = IMAX
+         MAXCONSTR = JMAX
+
+         IF (JMAX.GT.0) THEN
+            WRITE(*,*) ' congrad1> Highest constraint for image ',IMAX, ', con ',JMAX, ', atoms ',CONI(JMAX),CONJ(JMAX),' value=',EMAX, 'dist=', DIST_MAXE
+         ENDIF
+      END SUBROUTINE GET_CONSTRAINT_E_NOINTERNAL2
+
       SUBROUTINE GET_DIH_CON_E(XYZ,GGG,EEE,EDIH)
          USE QCIKEYS, ONLY: NIMAGES, NATOMS
          USE DIHEDRAL_CONSTRAINTS, ONLY: DIHEDRAL,DIHEDRAL2, DIHEDRALS, NDIH, REFDIH, ALLDIHACTIVE, DIHACTIVE, &
@@ -396,6 +531,8 @@ MODULE CONSTR_E_GRAD
 
          REAL(KIND = REAL64) :: EMAX, FMIN, FMAX, FX(4)
          INTEGER :: MAXDIHIMAGE, JMAX, MAXDIHR, IMAX
+         REAL(KIND = REAL64) :: EMAXIMG(NIMAGES+2)   !< per-image max term
+         INTEGER :: JMAXIMG(NIMAGES+2)               !< dihedral giving EMAXIMG
 
          EDIH = 0.0D0
          GGG = 0.0D0
@@ -404,18 +541,25 @@ MODULE CONSTR_E_GRAD
          EMAX = -HUGE(1.0D0)
          FMAX = -HUGE(1.0D0)
          FMIN =  HUGE(1.0D0)
+         EMAXIMG = -HUGE(1.0D0); JMAXIMG = -1
+         IMAX = -1; JMAX = -1
          ! if not all dihedral constraints are activated, update the list
          IF (.NOT.ALLDIHACTIVE) CALL CHECK_DIH_ACTIVE()
-         DO J=1,NDIH
-            !cycle if the dihedral constraint is inactive
-            IF (.NOT.DIHACTIVE(J)) CYCLE
-            !look up atoms in dihedral
-            A = DIHEDRALS(J,1)
-            B = DIHEDRALS(J,2)
-            C = DIHEDRALS(J,3)
-            D = DIHEDRALS(J,4)
-            !change back to (2,NIMAGES+1) when dihedrals work
-            DO I=2,NIMAGES+1
+         !$OMP PARALLEL DO SCHEDULE(DYNAMIC,1) DEFAULT(NONE) &
+         !$OMP    SHARED(XYZ, GGG, EEE, EMAXIMG, JMAXIMG, NIMAGES, NATOMS, NDIH, DIHACTIVE, DIHEDRALS) &
+         !$OMP    PRIVATE(J, A, B, C, D, N, XA, XB, XC, XD, THISE, FA, FB, FC, FD, FX) &
+         !$OMP    REDUCTION(MIN:FMIN) REDUCTION(MAX:FMAX)
+         DO I=2,NIMAGES+1
+            DO J=1,NDIH
+               !cycle if the dihedral constraint is inactive
+               IF (.NOT.DIHACTIVE(J)) CYCLE
+               !look up atoms in dihedral
+               A = DIHEDRALS(J,1)
+               B = DIHEDRALS(J,2)
+               C = DIHEDRALS(J,3)
+               D = DIHEDRALS(J,4)
+               !change back to (2,NIMAGES+1) when dihedrals work
+            
                !reference for image we are in (The x ccoord of the first atom of the current image is N+1)
                N = 3*NATOMS*(I-1)
                !extract relevant coordinates
@@ -429,13 +573,12 @@ MODULE CONSTR_E_GRAD
                CALL DIHEDRAL2(I, XA, XB, XC, XD, J, THISE, FA, FB, FC, FD)
 
                !add results to appropriate variables
-               EDIH = EDIH + THISE
+               
                EEE(I) = EEE(I) + THISE
 
-               IF (THISE.GT.EMAX) THEN
-                  IMAX=J
-                  JMAX=I
-                  EMAX=THISE
+               IF (THISE.GT.EMAXIMG(I)) THEN
+                  JMAXIMG(I) = J
+                  EMAXIMG(I) = THISE
                ENDIF
 
                !We add forces here (we calculated the negative gradient in the DIHEDRAL function)
@@ -451,7 +594,15 @@ MODULE CONSTR_E_GRAD
                
             END DO
          END DO
-         
+         !$OMP END PARALLEL DO
+         EDIH = SUM(EEE(2:NIMAGES+1))
+         DO I=2,NIMAGES+1
+            IF ((EMAXIMG(I).GT.EMAX).OR.((EMAXIMG(I).EQ.EMAX).AND.(JMAXIMG(I).LT.IMAX))) THEN
+               IMAX = JMAXIMG(I)   ! dihedral
+               JMAX = I            ! image
+               EMAX = EMAXIMG(I)
+            END IF
+         END DO
          IF (-FMIN.GT.FMAX) FMAX=-FMIN
          FDIHMAX=FMAX
          CONVERGENCEDIHTEST=EMAX/KDIH
@@ -703,6 +854,8 @@ MODULE CONSTR_E_GRAD
          REAL(KIND=REAL64) :: DUMMY, DUMMY2
          REAL(KIND=REAL64) :: TEMPF
          INTEGER :: IMAX, JMAX
+         REAL(KIND = REAL64) :: EREPIMG(NIMAGES+2), EMAXIMG(NIMAGES+2)   !< per-image EREP and max term
+         INTEGER :: JMAXIMG(NIMAGES+2)                                   !< repulsion giving EMAXIMG
 
          !variables to try make sence of indices and what goes wrong
          INTEGER :: NI1, NI2, NJ1, NJ2 
@@ -743,8 +896,16 @@ MODULE CONSTR_E_GRAD
          EREP = 0.0D0
          IMAX = -1
          JMAX = -1
+         EREPIMG = 0.0D0; EMAXIMG = -(HUGE(1.0D0)); JMAXIMG = -1
 
-         !WARNING changed from NIMAGES+1 -> NIMAGES+2 = siginificant for get+repE/E2 diff
+         !$OMP PARALLEL DO SCHEDULE(DYNAMIC,1) DEFAULT(NONE) &
+         !$OMP    SHARED(XYZ, GGG, GGG2, EEE, EEE2, EREPIMG, EMAXIMG, JMAXIMG, NATOMS, NIMAGES, &
+         !$OMP           NNREPULSIVE, NREPI, NREPJ, NREPCUT, QCIINTREPMINSEP, K_REP, INTMINFAC) &
+         !$OMP    PRIVATE(J2, OFFSET1, OFFSET2, X1, X2, GLOCAL1, GLOCAL2, EREP1, EREP2, NI, NJ, &
+         !$OMP            NI1, NI2, NJ1, NJ2, G1, G2, DSQ1, DSQ2, DCUT, DINTMIN, DP_G12, D1, D2, &
+         !$OMP            RPLOCAL, RPLOCAL2, RPLOCAL3, RPLOCALINV, REPGRAD, NOINT, DINT, DSQI, &
+         !$OMP            G1INT, G2INT, DUMMY, TEMPF) &
+         !$OMP    REDUCTION(MIN:FMIN) REDUCTION(MAX:FMAX)
          DO J1=2,NIMAGES+2
             ! get coordinates for images
             OFFSET2=(3*NATOMS)*(J1-1)
@@ -822,11 +983,10 @@ MODULE CONSTR_E_GRAD
                          
 
                   EEE(J1)=EEE(J1)+DUMMY
-                  EREP = EREP + DUMMY
-                  IF (DUMMY.GT.EMAX) THEN
-                     IMAX = J1
-                     JMAX = J2
-                     EMAX = DUMMY
+                  EREPIMG(J1) = EREPIMG(J1) + DUMMY
+                  IF (DUMMY.GT.EMAXIMG(J1)) THEN
+                     JMAXIMG(J1) = J2
+                     EMAXIMG(J1) = DUMMY
                   END IF
                   DUMMY = 0.0D0
 
@@ -867,12 +1027,11 @@ MODULE CONSTR_E_GRAD
                   !V_int(d(theta*)) = k_rep*INTMINFAC ( (C_repAB/d(theta*))^2 - 3 + 2*d(theta*)/C_repAB )
                   DUMMY = K_REP*INTMINFAC*(RPLOCAL2/DSQI + 2.0D0*DINT*RPLOCALINV - 3.0D0)         
                   
-                  EREP=EREP+DUMMY
-                  IF (DUMMY.GT.EMAX) THEN
-                     IMAX=J1
-                     JMAX=J2
-                     EMAX=DUMMY
-                  ENDIF
+                  EREPIMG(J1) = EREPIMG(J1) + DUMMY
+                  IF (DUMMY.GT.EMAXIMG(J1)) THEN
+                     JMAXIMG(J1) = J2
+                     EMAXIMG(J1) = DUMMY
+                  END IF
                   
                   IF (J1.EQ.2) THEN
                      EEE(J1)=EEE(J1)+DUMMY 
@@ -922,7 +1081,18 @@ MODULE CONSTR_E_GRAD
                END IF
             END DO
          END DO
-
+         !$OMP END PARALLEL DO
+         
+         DO J1=2,NIMAGES+2
+            EREP = EREP + EREPIMG(J1)
+            IF (EMAXIMG(J1).GT.EMAX) THEN
+               IMAX = J1
+               JMAX = JMAXIMG(J1)
+               EMAX = EMAXIMG(J1)
+            END IF
+         END DO
+         
+         
          GGG2 = CSHIFT(GGG2,SHIFT=3*NATOMS)
          GGG(1:3*NATOMS*(NIMAGES+2)) = GGG(1:3*NATOMS*(NIMAGES+2))+ GGG2(1:3*NATOMS*(NIMAGES+2))
          

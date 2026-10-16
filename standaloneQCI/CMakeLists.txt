@@ -4,7 +4,7 @@
 # 
 ############################################################
 
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.10)
 
 # Silence warnings about PROJECT_VERSION not being set
 # cmake_policy(SET CMP0048 OLD)
@@ -108,6 +108,13 @@ set_module_dir(qcilib)
 set_target_properties(qcilib PROPERTIES LINKER_LANGUAGE "Fortran")
 set_target_properties(qcilib PROPERTIES COMPILE_DEFINITIONS "${COMPILE_DEFINITIONS};__QCI") 
 target_link_libraries(qcilib ${lapackblas_libraries})
+
+option(WITH_OPENMP "Compile with OpenMP" OFF)
+if(WITH_OPENMP)
+  find_package(OpenMP REQUIRED COMPONENTS Fortran)
+  target_link_libraries(qcilib OpenMP::OpenMP_Fortran)
+  message(STATUS "OpenMP enabled: ${OpenMP_Fortran_FLAGS}")
+endif()
 
 option(PROF_VER "Enable profiling" OFF)
 if(PROF_VER)

@@ -658,7 +658,7 @@ MODULE DIHEDRAL_CONSTRAINTS
          REAL(KIND = REAL64), PARAMETER :: EPS9 = 1.0D-12
          REAL(KIND = REAL64), PARAMETER :: EPS6 = 1.0D-9
          REAL(KIND = REAL64), PARAMETER :: EPS3 = 1.0D-6
-         REAL(KIND = REAL64), PARAMETER :: P9999 = 0.99999999999
+         REAL(KIND = REAL64), PARAMETER :: P9999 = 0.99999999999D0
 
 
          ! compute the vectors between atoms in order
@@ -779,12 +779,11 @@ MODULE DIHEDRAL_CONSTRAINTS
          ! dphi/dr
 
          FAB = -NBC*Z1**2 * N1
-         !This seems to work better with a + between the terms (...)
          FBC = ((DOT_PRODUCT(RAB,RBC)*Z1**2) / NBC)*N1 + ((DOT_PRODUCT(RCD,RBC)*Z2**2) / NBC) * N2
          FCD = NBC*Z2**2 * N2
          
          !gradient
-         FA =  FAB 
+         FA = FAB 
          FB = - FAB + FBC 
          FC = - FBC - FCD 
          FD = FCD  
@@ -795,14 +794,7 @@ MODULE DIHEDRAL_CONSTRAINTS
          FC =  FC * DF
          FD =  FD * DF 
                  
-         !WRITE(*,*) "dihedral> DIHREF", DIHREF, " S0", S0(DIHREF), " C0 ", C0(DIHREF), " SINHPHI ", SINPHI, " COSPHI ", COSPHI
-         !WRITE(*,*) "dihedral> E ", E, "PHI_0 ", THISREF , "PHI_REG ", PHI_REG, "DIFF= ", DIFF, "DF = ", DF
-         !WRITE(*,*) "M", M
-         !WRITE(*,*) "F_A ", FA 
-         !WRITE(*,*) "F_B ", FB 
-         !WRITE(*,*) "F_C ", FC 
-         !WRITE(*,*) "F_D ", FD 
-
+ 
       END SUBROUTINE DIHEDRAL2    
 
 END MODULE DIHEDRAL_CONSTRAINTS
