@@ -162,7 +162,7 @@ MODULE OUT_PRINT
             END IF
         
         END IF
-        WRITE(IU,FMT_INT)  'NBACKBONE', NBACKBONE
+        IF (QCIDOBACK.OR.QCIDOBACKALL) WRITE(IU,FMT_INT)  'NBACKBONE', NBACKBONE
         
         !============================================================================
         ! Penalty functions
@@ -202,7 +202,7 @@ MODULE OUT_PRINT
         WRITE(IU,FMT_SEC) '--- Bond constraints ---'
         WRITE(IU,FMT_BOOL) 'CALC_BOND_E', CALC_BOND_E
         IF (CALC_BOND_E) THEN
-            WRITE(IU,FMT_REAL) 'K_BOND', K_CONST
+            WRITE(IU,FMT_REAL) 'K_BOND', K_BOND
         END IF     
 
         !============================================================================
@@ -225,7 +225,6 @@ MODULE OUT_PRINT
         WRITE(IU,FMT_BOOL) 'QCIADJUSTKT', QCIADJUSTKT
         WRITE(IU,FMT_INT)  'QCIADJUSTKFRQ', QCIADJUSTKFRQ
         WRITE(IU,FMT_REAL) 'QCIADJUSTKTOL', QCIADJUSTKTOL
-        WRITE(IU,FMT_REAL) 'QCIAVDEV', QCIAVDEV
         WRITE(IU,FMT_REAL) 'KINT', KINT
         WRITE(IU,FMT_REAL) 'KINTSCALED', KINTSCALED
         WRITE(IU,FMT_REAL) 'QCIKINTMIN', QCIKINTMIN

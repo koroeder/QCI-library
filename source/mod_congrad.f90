@@ -130,7 +130,7 @@ MODULE CONSTR_E_GRAD
          END IF
          
          ! add all contributions
-         EEE = EEEC + EEER + EEES + EEED + EBOND
+         EEE = EEEC + EEER + EEES + EEED + EEEB
          GGG = GGGC + GGGR + GGGS + GGGD + GGGB
       
          
@@ -339,13 +339,12 @@ MODULE CONSTR_E_GRAD
 
                   ! calculate gradient and energy
                                                      
-                  !GRADAB(1:3)=2.0D0*K_CONST*LOCALCONFACTOR*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G2(1:3)
+                 
                   GRADAB(1:3)=2.0D0*K_CONST*LOCALCONFACTOR*((DUMMY2-CCLOCAL2)/CCLOCAL2**2)*DUMMY*G2(1:3)
                   
                   ! Eq(8) J.Chem.Theory Comput. 2012, 8, 5020-5034
                   ! Deviation from published equation ... added /CCLOCAL**2  
-                  !old equation: V_con(d^i_AB) = (k_con* ((d^i_AB - ave(d_AB))^2 -(C^con_AB)^2 )^2 )/ 2*(C^con_AB)^2
-                  !DUMMY = 0.5D0*K_CONST*LOCALCONFACTOR*((DUMMY/CCLOCAL)**2-1.0D0)**2 *CCLOCAL2
+                  
                   ! new: V_con(d^i_AB) = (k_con* ((d^i_AB - ave(d_AB))^2 -(C^con_AB)^2 )^2 )/ 2*(C^con_AB)^4
                   DUMMY = K_CONST*LOCALCONFACTOR*((DUMMY2-CCLOCAL2)**2/(2.0D0*CCLOCAL2**2))
                                     
@@ -363,19 +362,18 @@ MODULE CONSTR_E_GRAD
                   GGG(NI1+1:NI1+3)=GGG(NI1+1:NI1+3)+GRADAB(1:3)
                   GGG(NJ1+1:NJ1+3)=GGG(NJ1+1:NJ1+3)-GRADAB(1:3)
                   
-                  DUMMY2=MINVAL(GRADAB)
-                  IF (DUMMY2.LT.FMIN) FMIN=DUMMY2
-                  DUMMY2=MAXVAL(GRADAB)
-                  IF (DUMMY2.GT.FMAX) FMAX=DUMMY2
+                  FMIN=MIN(FMIN,MINVAL(GRADAB))
+                  FMAX=MAX(FMAX,MAXVAL(GRADAB))
+
                END IF
             END DO
          END DO
-         !QUERY: FIs FMAX definitely for the same JMAX and IMAX as EMAX?
+        
          IF (-FMIN.GT.FMAX) FMAX=-FMIN
          FCONMAX=FMAX
          CONVERGECONTEST=EMAX/K_CONST
-         MAXCONIMAGE = JMAX
-         MAXCONSTR = IMAX
+         MAXCONIMAGE = IMAX
+         MAXCONSTR = JMAX
 
          IF (JMAX.GT.0) THEN
             WRITE(*,*) ' congrad1> Highest constraint for image ',IMAX, ', con ',JMAX, ', atoms ',CONI(JMAX),CONJ(JMAX),' value=',EMAX, 'dist=', DIST_MAXE
@@ -501,6 +499,7 @@ MODULE CONSTR_E_GRAD
          IMAX = -1
          JMAX = -1
          DUMMY = 0.0D0
+         DINT = 0.0D0
 
          ! Constraint energy and forces.
          !
@@ -551,14 +550,16 @@ MODULE CONSTR_E_GRAD
                ! Convert derivatives of distance^2 to derivative of distance.
                ! We have cancelled a factor of two above and below
                D1 = SQRT(DSQ1); D2 = SQRT(DSQ2)
-               G1(1:3) = G1(1:3)/D1; G2(1:3) = G2(1:3)/D2
-
+               
                ! Don't calculate internal minima for congrad1 
                IF ((.NOT.CHECKCONINT).OR.(DINTMIN.LT.DINTTEST)) THEN
                   NOINT = .TRUE.
                ELSE
                   CALL INTMIN_CONSTRAINT(G1,G2,DSQ1,DSQ2,DP_G12,DINTMIN,NOINT,DSQI,DINT,G1INT,G2INT)
                END IF
+
+               G1(1:3) = G1(1:3)/D1; G2(1:3) = G2(1:3)/D2
+
                !TODO: CHECK FORMUATION - ARE THESE THE SAME?!?!?
                ! Need to include both D2 and D1 contributions if they are both outside tolerance.
                ! Otherwise we get discontinuities if they are very close and swap over.
@@ -570,14 +571,11 @@ MODULE CONSTR_E_GRAD
                DUMMY = D2-CONDISTREFLOCAL(J2)
                IF ((DUMMY.GT.CCLOCAL).AND.(J1.LT.NIMAGES+2)) THEN  
                   
-                 
+                  !dV/du = 2*K_CONST*L*(u^2 - C^2)*u/C^4, u = d - dbar
                   CONSTGRAD(1:3)=2.0D0*K_CONST*LOCALCONFACTOR*((DUMMY**2-CCLOCAL**2)/CCLOCAL**4)*DUMMY*G2(1:3)      
-                  ! V_con(d^i_AB) = eps_con ((d^i_AB-ave*(d^i_AB))^2 - C_con_AB^2 )^2 / 2(C_con_AB)^2
-                  !Changed eqution from the published one by factor (1/CCLOCAL**2)
+                  ! V = K_CONST*L*(u^2 - C^2)^2/(2*C^4)   (published / C^2)
                   DUMMY=K_CONST*LOCALCONFACTOR*((DUMMY**2-CCLOCAL**2)**2)/(2.0D0*CCLOCAL**4)                  
                  
-                  !DUMMY=0.5D0*K_CONST*LOCALCONFACTOR*(((DUMMY/CCLOCAL)-1.0D0)*((DUMMY/CCLOCAL)+1.0D0)*CCLOCAL)**2
-
                   EEE(J1) = EEE(J1) + DUMMY
                   ECON=ECON+DUMMY
                   IF (DUMMY.GT.EMAX) THEN
@@ -605,77 +603,73 @@ MODULE CONSTR_E_GRAD
                ! Warning added J1.NE.2 to match repulsions
                
                DUMMY=DINT-CONDISTREFLOCAL(J2) 
-               IF (CHECKCONINT.AND.(.NOT.NOINT).AND.(ABS(DUMMY).GT.CCLOCAL).AND.(J1.NE.2).AND.(J1.LT.(NIMAGES+2))) THEN
-       
+               !IF (CHECKCONINT.AND.(.NOT.NOINT).AND.(ABS(DUMMY).GT.CCLOCAL).AND.(J1.NE.2).AND.(J1.LT.(NIMAGES+2))) THEN
+               IF (CHECKCONINT.AND.(.NOT.NOINT).AND.(ABS(DUMMY).GT.CCLOCAL)) THEN
                   !Image J1-1 
 
-                  !CONSTGRAD(1:3)=2.0D0*INTMINFAC*LOCALCONFACTOR*K_CONST*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G1INT(1:3)
+                  ! dV/du = 2*K_CONST*INTMINFAC*L*(u^2 - C^2)*u/C^4, u = d(theta*) - dbar
+                  ! Image J1-1: stored at image J1 in GGG2, moved back by CSHIFT
                   CONSTGRAD(1:3)=2.0D0*INTMINFAC*LOCALCONFACTOR*K_CONST*((DUMMY**2-CCLOCAL**2)/CCLOCAL**4)*DUMMY*G1INT(1:3)
-                  !CONSTGRAD(1:3)=2.0D0*K_CONST*INTMINFAC*LOCALCONFACTOR*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G1INT(1:3)
-                  !CONSTGRAD(1:3)=2.0D0*K_CONST*INTMINFAC*LOCALCONFACTOR*((DUMMY/CCLOCAL)-1.0D0)*((DUMMY/CCLOCAL)+1.0D0)*DUMMY*G1INT(1:3)
                   
-                  !GGG(NI1+1:NI1+3)=GGG(NI1+1:NI1+3)+CONSTGRAD(1:3)
-                  !GGG(NJ1+1:NJ1+3)=GGG(NJ1+1:NJ1+3)-CONSTGRAD(1:3)
+                  GGG2(NI2+1:NI2+3)=GGG2(NI2+1:NI2+3)+CONSTGRAD(1:3)
+                  GGG2(NJ2+1:NJ2+3)=GGG2(NJ2+1:NJ2+3)-CONSTGRAD(1:3)
 
-                  GGG2(NI1+1:NI1+3)=GGG2(NI1+1:NI1+3)+CONSTGRAD(1:3)
-                  GGG2(NJ1+1:NJ1+3)=GGG2(NJ1+1:NJ1+3)-CONSTGRAD(1:3)
-                  
+                  ! skip fixed image 1
+                  IF (J1.NE.2) THEN
+                     FMIN=MIN(FMIN,MINVAL(CONSTGRAD))
+                     FMAX=MAX(FMAX,MAXVAL(CONSTGRAD))
+                  END IF
+
                   !Image J1 - we add this one normally
                   CONSTGRAD(1:3)=2.0D0*INTMINFAC*LOCALCONFACTOR*K_CONST*((DUMMY**2-CCLOCAL**2)/CCLOCAL**4)*DUMMY*G2INT(1:3)
-                  !CONSTGRAD(1:3)=2.0D0*K_CONST*INTMINFAC*LOCALCONFACTOR*((DUMMY/CCLOCAL)**2-1.0D0)*DUMMY*G2INT(1:3)
-                  !CONSTGRAD(1:3)=2.0D0*K_CONST*INTMINFAC*LOCALCONFACTOR*((DUMMY/CCLOCAL)-1.0D0)*((DUMMY/CCLOCAL)+1.0D0)*DUMMY*G2INT(1:3)
+                
                   GGG(NI2+1:NI2+3)=GGG(NI2+1:NI2+3)+CONSTGRAD(1:3)
                   GGG(NJ2+1:NJ2+3)=GGG(NJ2+1:NJ2+3)-CONSTGRAD(1:3)
 
-                  
+                  ! skip fixed image NIMAGES+2
+                  IF (J1.NE.NIMAGES+2) THEN
+                     FMIN=MIN(FMIN,MINVAL(CONSTGRAD))
+                     FMAX=MAX(FMAX,MAXVAL(CONSTGRAD))
+                  END IF
+
+                  ! V_int = K_CONST*INTMINFAC*L*(u^2 - C^2)^2/(2*C^4), u = d(theta*) - dbar
                   DUMMY=K_CONST*INTMINFAC*LOCALCONFACTOR*(DUMMY**2-CCLOCAL**2)**2/(2.0D0*CCLOCAL**4)
                   
-                  !Note not much difference between expressions below 
-                  !DUMMY=0.5D0*K_CONST*INTMINFAC*LOCALCONFACTOR*(((DUMMY/CCLOCAL)-1.0D0)*((DUMMY/CCLOCAL)+1.0D0)*CCLOCAL)**2
-                  !WRITE(*,*) "CONSTRAINT_E> DUMMY", DUMMY
                   ECON=ECON+DUMMY
                   IF (DUMMY.GT.EMAX) THEN
                      IMAX=J1
                      JMAX=J2
                      EMAX=DUMMY
                   ENDIF
-                  !IF (J1.EQ.2) THEN
-                  !   EEE(J1)=EEE(J1)+DUMMY
-                  !ELSE IF (J1.LT.NIMAGES+2) THEN
+                  IF (J1.EQ.2) THEN
+                     EEE(J1)=EEE(J1)+DUMMY
+                  ELSE IF (J1.LT.NIMAGES+2) THEN
                      EEE(J1)=EEE(J1)+DUMMY/2.0D0
                      EEE2(J1)=EEE2(J1)+DUMMY/2.0D0
                      !EEE(J1-1)=EEE(J1-1)+DUMMY/2.0D0
-                  !ELSE IF (J1.EQ.NIMAGES+2) THEN
+                  ELSE IF (J1.EQ.NIMAGES+2) THEN
                      !EEE(J1-1)=EEE(J1-1)+DUMMY
-                  !   EEE2(J1)=EEE2(J1)+DUMMY
-                  !ENDIF
+                     EEE2(J1)=EEE2(J1)+DUMMY
+                  ENDIF
                   
-                  !Added block to track FMAX
-                   DUMMY=MINVAL(CONSTGRAD)
-                  IF (DUMMY.LT.FMIN) FMIN=DUMMY
-                  DUMMY=MAXVAL(CONSTGRAD)
-                  IF (DUMMY.GT.FMAX) FMAX=DUMMY
                ENDIF
             END DO
          END DO
 
          !Changed the way we add to J-1 images
-         !WRITE(*,*) "EEE2 Before CSHIF ", EEE2
+         
          EEE2 = CSHIFT(EEE2,SHIFT=1)
-         !WRITE(*,*) "EEE2 After CSHIF ", EEE2
          EEE(1:NIMAGES+2)=EEE(1:NIMAGES+2)+EEE2(1:NIMAGES+2) 
 
          GGG2 = CSHIFT(GGG2,SHIFT=3*NATOMS)
-
          GGG(1:3*NATOMS*(NIMAGES+2)) = GGG(1:3*NATOMS*(NIMAGES+2))+ GGG2(1:3*NATOMS*(NIMAGES+2))
-
-         !QUESTION why do we have the line below?  
+ 
          CONVERGECONTEST=EMAX/K_CONST
 
          IF (-FMIN.GT.FMAX) FMAX=-FMIN
          FCONMAX=FMAX
-         MAXCONIMAGE = JMAX
-         MAXCONSTR = IMAX
+         MAXCONIMAGE = IMAX
+         MAXCONSTR = JMAX
 
          IF (JMAX.GT.0) THEN
             WRITE(*,*) ' congrad2> Highest constraint for image ',IMAX, ', con ',JMAX, ', atoms ',CONI(JMAX),CONJ(JMAX),' value=',EMAX
@@ -716,12 +710,12 @@ MODULE CONSTR_E_GRAD
          
          REAL(KIND = REAL64) :: G1A, G2A, GDIFF
          REAL(KIND = REAL64) :: GGG2(3*NATOMS*(NIMAGES+2))
-        
+
          REAL(KIND = REAL64) :: EEE2(NIMAGES+2)
          EEE2 = 0.0D0
          
          GGG2(1:(3*NATOMS)*(NIMAGES+2))=0.0D0 
-         
+
          G1A=0.0D0; G2A=0.0D0; GDIFF=0.0D0
          
          NOINT = .TRUE.
@@ -750,7 +744,7 @@ MODULE CONSTR_E_GRAD
          IMAX = -1
          JMAX = -1
 
-         !WARNING chenged from NIMAGES+1 -> NIMAGES+2 = siginificant for get+repE/E2 diff
+         !WARNING changed from NIMAGES+1 -> NIMAGES+2 = siginificant for get+repE/E2 diff
          DO J1=2,NIMAGES+2
             ! get coordinates for images
             OFFSET2=(3*NATOMS)*(J1-1)
@@ -773,12 +767,13 @@ MODULE CONSTR_E_GRAD
                NJ=3*(NREPJ(J2)-1) !X-coord of arom J
 
                !Explicit index subtraction is faster here
-               !G1(1:3)=X1(NI+1:NI+3)-X1(NJ+1:NJ+3) !vector from j to i in image 1
+               
+               !vector from j to i in image 1
                G1(1)=X1(NI+1)-X1(NJ+1)
                G1(2)=X1(NI+2)-X1(NJ+2)
                G1(3)=X1(NI+3)-X1(NJ+3)
 
-               !G2(1:3)=X2(NI+1:NI+3)-X2(NJ+1:NJ+3) !vector from j to i in image 2
+               !vector from j to i in image 2
                G2(1)=X2(NI+1)-X2(NJ+1)
                G2(2)=X2(NI+2)-X2(NJ+2)
                G2(3)=X2(NI+3)-X2(NJ+3)
@@ -805,14 +800,14 @@ MODULE CONSTR_E_GRAD
                ! Convert derivatives of distance^2 to derivative of distance.
                ! We have cancelled a factor of two above and below
                D1 = SQRT(DSQ1); D2 = SQRT(DSQ2)
-               G1(1:3) = G1(1:3)/D1; G2(1:3) = G2(1:3)/D2
-
+               
                ! if the denominator in the d^2 is approx zero, we do not need to check for an internal minimum
                IF (DINTMIN.LT.DINTTEST) THEN
                   NOINT = .TRUE.
                ELSE
                   CALL INTMIN_REPULSION(G1,G2,DSQ1,DSQ2,DP_G12,DINTMIN,NOINT,DSQI,DINT,G1INT,G2INT)
                END IF
+               G1(1:3) = G1(1:3)/D1; G2(1:3) = G2(1:3)/D2
 
                RPLOCAL = NREPCUT(J2)
                RPLOCAL2 = RPLOCAL**2
@@ -820,14 +815,11 @@ MODULE CONSTR_E_GRAD
                RPLOCALINV = 1.0D0/RPLOCAL
 
                IF ((D2.LT.RPLOCAL).AND.(J1.LT.NIMAGES+2)) THEN
-                  ! QUESTION missing EPS_rep 
-                  !V_rep(d^i_AB) = eps_rep ( 1/(d^i_AB)^2 - 3/C_repAB + 2* d^i_AB / C_repAB )
-                  !Changed from published equation by RPLOCSL**2
+                  
+                  !Published: V_rep(d^i_AB) = k_rep * ( 1/(d^i_AB)^2 - 3/(C_repAB)^2 + 2*d^i_AB/(C_repAB)^3 )
+                  !Used here (published * C_repAB^2): V_rep(d^i_AB) = k_rep * ( (C_repAB/d^i_AB)^2 - 3 + 2*d^i_AB/C_repAB )
                   DUMMY = K_REP*(RPLOCAL2/DSQ2 + 2.0D0*D2*RPLOCALINV - 3.0D0)
-                  !WARNING changed dummy to correspond to equation above
-   
-                  !DUMMY = K_REP*(1.0D0/DSQ2-3.0D0/RPLOCAL2+(2.0D0*D2)/RPLOCAL3)
-                          
+                         
 
                   EEE(J1)=EEE(J1)+DUMMY
                   EREP = EREP + DUMMY
@@ -838,19 +830,18 @@ MODULE CONSTR_E_GRAD
                   END IF
                   DUMMY = 0.0D0
 
-                  !dV/dd_AB = -2/(d^i_AB)^3 + 2/C_repAB^3 
+                  !Published: dV/dd_AB = k_rep * ( -2/(d^i_AB)^3 + 2/(C_repAB)^3 )
+                  !Used here (published * C_repAB^2): dV/dd_AB = k_rep * ( -2*(C_repAB)^2/(d^i_AB)^3 + 2/C_repAB )
                   DUMMY=-2.0D0*K_REP*(RPLOCAL2/(D2*DSQ2)-RPLOCALINV)
-                  !WARNING changed to match equation above 
-                  !DUMMY=2.0D0*K_REP*(-1.0D0/(D2*DSQ2)+1.0D0/(RPLOCAL3) )
                   
                   REPGRAD(1:3) = DUMMY*G2(1:3)
 
                   !Add gradients in image J1
-                  !Comparing direct addition vs image-by-image
+                  
                   GGG(NI2+1:NI2+3)=GGG(NI2+1:NI2+3)+REPGRAD(1:3)
                   GGG(NJ2+1:NJ2+3)=GGG(NJ2+1:NJ2+3)-REPGRAD(1:3)
 
-                  !Added block to track FMAX
+                  
                   TEMPF=MINVAL(REPGRAD)
                   IF (TEMPF.LT.FMIN) FMIN=TEMPF
                   TEMPF=MAXVAL(REPGRAD)
@@ -864,14 +855,17 @@ MODULE CONSTR_E_GRAD
                ! edge 1, which was assigned to image 2, and edge NIMAGES+1, which
                ! was assigned to image NIMAGES+1. 
                DUMMY = 0.0D0
+               
                !QUESTION why J1 NE 2 condition and/or should it also be J1 NE NIMAGES+2?
-               IF ((.NOT.NOINT).AND.(DINT.LT.RPLOCAL).AND.(J1.NE.2).AND.(J1.LT.(NIMAGES+2))) THEN
+               !IF ((.NOT.NOINT).AND.(DINT.LT.RPLOCAL) .AND.(J1.NE.2).AND.(J1.LT.(NIMAGES+2))) THEN
+               
+               IF ((.NOT.NOINT).AND.(DINT.LT.RPLOCAL)) THEN   
                   !D12 = DSQI !from call to find internal minimum
-                  !DUMMY=INTMINFAC*(RPLOCAL2/D12+2.0D0*DINT*RPLOCALINV-3.0D0)
-                  !WARNING changed equation again
                   
-                  !DUMMY = K_REP*INTMINFAC*(1.0D0/DSQI-3.0D0/RPLOCAL2+(2.0D0*DINT)/(RPLOCAL3) )
-                  DUMMY = K_REP*INTMINFAC*(1.0D0/DSQI+(2.0D0*DINT/RPLOCAL-3.0D0)/RPLOCAL2 )            
+                  !Published: V_int(d(theta*)) = eps_rep*INTMINFAC ( 1/d(theta*)^2 - 3/(C_repAB)^2 + 2*d(theta*)/(C_repAB)^3 )
+                  !Used here (published * C_repAB^2, same scaling as the image term):
+                  !V_int(d(theta*)) = k_rep*INTMINFAC ( (C_repAB/d(theta*))^2 - 3 + 2*d(theta*)/C_repAB )
+                  DUMMY = K_REP*INTMINFAC*(RPLOCAL2/DSQI + 2.0D0*DINT*RPLOCALINV - 3.0D0)         
                   
                   EREP=EREP+DUMMY
                   IF (DUMMY.GT.EMAX) THEN
@@ -880,36 +874,35 @@ MODULE CONSTR_E_GRAD
                      EMAX=DUMMY
                   ENDIF
                   
-                 ! IF (J1.EQ.2) THEN
-                     !This condition never evaluates true
-                     !EEE(J1)=EEE(J1)+DUMMY 
-                  !   WRITE(*,*) "J1=2, DUMMY ", DUMMY        
-                  !ELSE IF (J1.LT.NIMAGES+2) THEN
+                  IF (J1.EQ.2) THEN
+                     EEE(J1)=EEE(J1)+DUMMY 
+                  ELSE IF (J1.LT.NIMAGES+2) THEN
                      EEE(J1)=EEE(J1)+DUMMY/2.0D0
                      !EEE(J1-1) = EEE(J1-1)+DUMMY/2.0D0
                      EEE2(J1)=EEE2(J1)+DUMMY/2.0D0 
-                  !ELSE IF (J1.EQ.NIMAGES+2) THEN
+                  ELSE IF (J1.EQ.NIMAGES+2) THEN
                      !EEE(J1-1)=EEE(J1-1)+DUMMY
-                  !   EEE2(J1)=EEE2(J1)+DUMMY
-                  !ENDIF
+                     EEE2(J1)=EEE2(J1)+DUMMY
+                  ENDIF
                   
-                  !DUMMY=-2.0D0*(RPLOCAL2/(DINT*D12)-RPLOCALINV)
-                  !WARNING changed equation again
-                 
-                  DUMMY=2.0D0*K_REP*(-1.0D0/(DINT*DSQI)+1.0D0/RPLOCAL3 )
-                  
+                  ! dV/dd = 2*K_REP*(-C^2/d^3 + 1/C), d = DINT; INTMINFAC applied in REPGRAD
+                  DUMMY=-2.0D0*K_REP*(RPLOCAL2/(DINT*DSQI)-RPLOCALINV)
+
+
                   ! Gradient contributions for image J1-1
                   REPGRAD(1:3)=INTMINFAC*DUMMY*G1INT(1:3)
-                  
-                  
-                  GGG2(NI1+1:NI1+3)=GGG2(NI1+1:NI1+3)+REPGRAD(1:3)
-                  GGG2(NJ1+1:NJ1+3)=GGG2(NJ1+1:NJ1+3)-REPGRAD(1:3)
-                  
-                  !Added block to track FMAX
-                  TEMPF=MINVAL(REPGRAD)
-                  IF (TEMPF.LT.FMIN) FMIN=TEMPF
-                  TEMPF=MAXVAL(REPGRAD)
-                  IF (TEMPF.GT.FMAX) FMAX=TEMPF
+                                 
+                 
+                  GGG2(NI2+1:NI2+3)=GGG2(NI2+1:NI2+3)+REPGRAD(1:3)
+                  GGG2(NJ2+1:NJ2+3)=GGG2(NJ2+1:NJ2+3)-REPGRAD(1:3)
+
+                  ! skip fixed image 1
+                  IF (J1.NE.2) THEN
+                     TEMPF=MINVAL(REPGRAD)
+                     IF (TEMPF.LT.FMIN) FMIN=TEMPF
+                     TEMPF=MAXVAL(REPGRAD)
+                     IF (TEMPF.GT.FMAX) FMAX=TEMPF
+                  END IF
                  
                   ! Gradient contributions for image J1
                   ! This one can be added normally
@@ -918,11 +911,13 @@ MODULE CONSTR_E_GRAD
                   GGG(NI2+1:NI2+3)=GGG(NI2+1:NI2+3)+REPGRAD(1:3)
                   GGG(NJ2+1:NJ2+3)=GGG(NJ2+1:NJ2+3)-REPGRAD(1:3)
 
-                  !Added block to track FMAX
-                  TEMPF=MINVAL(REPGRAD)
-                  IF (TEMPF.LT.FMIN) FMIN=TEMPF
-                  TEMPF=MAXVAL(REPGRAD)
-                  IF (TEMPF.GT.FMAX) FMAX=TEMPF
+                  ! skip fixed image NIMAGES+2
+                  IF (J1.NE.NIMAGES+2) THEN
+                     TEMPF=MINVAL(REPGRAD)
+                     IF (TEMPF.LT.FMIN) FMIN=TEMPF
+                     TEMPF=MAXVAL(REPGRAD)
+                     IF (TEMPF.GT.FMAX) FMAX=TEMPF
+                  END IF
                   
                END IF
             END DO
@@ -937,8 +932,9 @@ MODULE CONSTR_E_GRAD
          IF (-FMIN.GT.FMAX) FMAX=-FMIN
          FREPMAX=FMAX
          CONVERGEREPTEST=EMAX/K_REP
-         MAXCONIMAGE = JMAX
-         MAXCONSTR = IMAX
+         MAXREPIMAGE = IMAX
+         MAXREP = JMAX
+
       END SUBROUTINE GET_REPULSION_E
 
       !> should be the same as GET_REPULSION_E, but the iteration inverts the order - outer loops is repulsions
@@ -1024,12 +1020,7 @@ MODULE CONSTR_E_GRAD
                ! don't look for an internal minimum if both repulsions outside cutoff
                IF ((DSQ1.GT.DCUT).AND.(DSQ2.GT.DCUT)) CYCLE 
                
-               !QUERY: in the other repulsion routine we use an additional cutoff with QCIINTREPMINSEP - why not here?
-               !WARNING Added this condition
-               !DP_G12 = DOTP(3,G1,G2)
-               !DINTMIN = DSQ1+DSQ2-2.0D0*DP_G12
-
-                IF (ABS(NREPI(J2)-NREPJ(J2)).LT.QCIINTREPMINSEP) THEN
+               IF (ABS(NREPI(J2)-NREPJ(J2)).LT.QCIINTREPMINSEP) THEN
                   DINTMIN = 0.0D0
                ELSE 
                   !internal minimum (theta*)?
@@ -1039,22 +1030,20 @@ MODULE CONSTR_E_GRAD
                ! Convert derivatives of distance^2 to derivative of distance.
                ! We have cancelled a factor of two above and below
                D1 = SQRT(DSQ1); D2 = SQRT(DSQ2)
-               G1(1:3) = G1(1:3)/D1; G2(1:3) = G2(1:3)/D2
-
+               
                ! if the denominator in the d^2 is approx zero, we do not need to check for an internal minimum
                IF (DINTMIN.LT.DINTTEST) THEN
                   NOINT = .TRUE.
                ELSE
                   CALL INTMIN_REPULSION(G1,G2,DSQ1,DSQ2,DP_G12,DINTMIN,NOINT,DSQI,DINT,G1INT,G2INT)
                END IF
+               !normalise here?
+               G1(1:3) = G1(1:3)/D1; G2(1:3) = G2(1:3)/D2
+               
                ! terms for image J1 - non-zero derivatives only for J1
                IF ((D2.LT.RPLOCAL).AND.(J1.LT.NIMAGES+2)) THEN
           
-                  !DUMMY=K_REP*(1.0D0/DSQ2+(2.0D0*D2-3.0D0*RPLOCAL)*INTCONSTINV)
-                  
-                  !DUMMY = K_REP*(1.0D0/DSQ2-3.0D0/RPLOCAL2+(2.0D0*D2)/RPLOCAL3)
-                  !DUMMY = K_REP*(1.0D0/DSQ2+( (2.0D0*D2)/RPLOCAL-3.0D0)/RPLOCAL2)
-                  !Changed from published equation by RPLOCSL**2
+                  ! V = K_REP*(C^2/d^2 + 2d/C - 3)
                   DUMMY=K_REP*(RPLOCAL2/DSQ2-3.0D0+2*D2/RPLOCAL)
                   
                   EEE(J1)=EEE(J1)+DUMMY
@@ -1064,24 +1053,24 @@ MODULE CONSTR_E_GRAD
                      JMAX=J2
                      EMAX=DUMMY
                   ENDIF
-                  !DUMMY=-2.0D0*K_REP*(1.0D0/(D2*DSQ2)-INTCONSTINV)
-                  !DUMMY=2.0D0*K_REP*(-1.0D0/(D2*DSQ2)+1.0D0/(RPLOCAL3) )
                   
+                  ! dV/dd = 2*K_REP*(-C^2/d^3 + 1/C)
                   DUMMY=2.0D0*K_REP*(-RPLOCAL2/(D2*DSQ2)+1.0D0/RPLOCAL )
 
                   REPGRAD(1:3)=DUMMY*G2(1:3)
                   GGG(NI2+1:NI2+3)=GGG(NI2+1:NI2+3)+REPGRAD(1:3)
                   GGG(NJ2+1:NJ2+3)=GGG(NJ2+1:NJ2+3)-REPGRAD(1:3)
+
+                  FMIN=MIN(FMIN,MINVAL(REPGRAD))
+                  FMAX=MAX(FMAX,MAXVAL(REPGRAD))
+
                END IF
                DUMMY=0.0D0
                !WARNING not calculating internal minima involving end images
-               IF ((.NOT.NOINT).AND.(DINT.LT.RPLOCAL).AND.(J1.NE.2).AND.(J1.LT.(NIMAGES+2))) THEN
+               !IF ((.NOT.NOINT).AND.(DINT.LT.RPLOCAL).AND.(J1.NE.2).AND.(J1.LT.(NIMAGES+2))) THEN
+               IF ((.NOT.NOINT).AND.(DINT.LT.RPLOCAL)) THEN
                  
-                  !DUMMY=INTMINFAC*K_REP*(1.0D0/DSQI+(2.0D0*DINT-3.0D0*RPLOCAL)*INTCONSTINV)
-                  
-                  !DUMMY = K_REP*INTMINFAC*(1.0D0/DSQI-3.0D0/RPLOCAL2+(2.0D0*DINT)/(RPLOCAL3) )
-                  !DUMMY = K_REP*INTMINFAC*(1.0D0/DSQI+(2.0D0*DINT/RPLOCAL-3.0D0)/RPLOCAL2 )
-                  !Changed from published equation by RPLOCSL**2
+                  ! V_int = K_REP*INTMINFAC*(C^2/d^2 + 2d/C - 3), d = DINT
                   DUMMY = K_REP*INTMINFAC*(RPLOCAL2/DSQI+2.0D0*DINT/RPLOCAL-3.0D0)
 
                   EREP=EREP+DUMMY
@@ -1091,34 +1080,44 @@ MODULE CONSTR_E_GRAD
                      EMAX=DUMMY
                   ENDIF
                   
-                  !IF (J1.EQ.2) THEN
+                  IF (J1.EQ.2) THEN
                      !This condition never evaluates true
-                  !   EEE(J1)=EEE(J1)+DUMMY         
-                  !ELSE IF (J1.LT.NIMAGES+2) THEN
+                     EEE(J1)=EEE(J1)+DUMMY         
+                  ELSE IF (J1.LT.NIMAGES+2) THEN
                      EEE(J1)=EEE(J1)+DUMMY/2.0D0
                      !EEE(J1-1)=EEE(J1-1)+DUMMY/2.0D0
                      EEE2(J1)=EEE2(J1)+DUMMY/2.0D0 
-                  !ELSE IF  (J1.EQ.NIMAGES+2) THEN
+                  ELSE IF  (J1.EQ.NIMAGES+2) THEN
                      !WARNING source of difference E_REP1/2, should this condition be here?
                      !EEE(J1-1)=EEE(J1-1)+DUMMY
-                   !  EEE2(J1)=EEE2(J1)+DUMMY
-                  !ENDIF
+                     EEE2(J1)=EEE2(J1)+DUMMY
+                  ENDIF
                  
-                  !DUMMY=-2.0D0*K_REP*(1.0D0/(DINT*DSQI)-INTCONSTINV)
-                 
-                  !DUMMY=2.0D0*K_REP*(-1.0D0/(DINT*DSQI)+1.0D0/RPLOCAL3 )
+                  ! dV/dd = 2*K_REP*(-C^2/d^3 + 1/C)
                   DUMMY=2.0D0*K_REP*(-RPLOCAL2/(DINT*DSQI)+1.0D0/RPLOCAL )
-
 
                   !Image J-1
                   REPGRAD(1:3)=INTMINFAC*DUMMY*G1INT(1:3)
-                  GGG2(NI1+1:NI1+3)=GGG2(NI1+1:NI1+3)+REPGRAD(1:3)
-                  GGG2(NJ1+1:NJ1+3)=GGG2(NJ1+1:NJ1+3)-REPGRAD(1:3)
-                  
+                  GGG2(NI2+1:NI2+3)=GGG2(NI2+1:NI2+3)+REPGRAD(1:3)
+                  GGG2(NJ2+1:NJ2+3)=GGG2(NJ2+1:NJ2+3)-REPGRAD(1:3)
+
+                  ! skip fixed image 1
+                  IF (J1.NE.2) THEN
+                     FMIN=MIN(FMIN,MINVAL(REPGRAD))
+                     FMAX=MAX(FMAX,MAXVAL(REPGRAD))
+                  END IF
+
                   !Image J - normal 
                   REPGRAD(1:3)=INTMINFAC*DUMMY*G2INT(1:3)
                   GGG(NI2+1:NI2+3)=GGG(NI2+1:NI2+3)+REPGRAD(1:3)
                   GGG(NJ2+1:NJ2+3)=GGG(NJ2+1:NJ2+3)-REPGRAD(1:3)
+
+                  ! skip fixed image NIMAGES+2
+                  IF (J1.NE.NIMAGES+2) THEN
+                     FMIN=MIN(FMIN,MINVAL(REPGRAD))
+                     FMAX=MAX(FMAX,MAXVAL(REPGRAD))
+                  END IF
+
                ENDIF
             END DO
          END DO
@@ -1130,12 +1129,13 @@ MODULE CONSTR_E_GRAD
 
          FMIN=MINVAL(GGG(3*NATOMS+1:3*NATOMS*(NIMAGES+1)))
          FMAX=MAXVAL(GGG(3*NATOMS+1:3*NATOMS*(NIMAGES+1)))
+         
          IF (-FMIN.GT.FMAX) FMAX=-FMIN
          FREPMAX=FMAX
        
          CONVERGEREPTEST=EMAX/K_REP
-         MAXCONIMAGE = JMAX
-         MAXCONSTR = IMAX
+         MAXREPIMAGE = IMAX
+         MAXREP = JMAX
       END SUBROUTINE GET_REPULSION_E2
 
    SUBROUTINE GET_BOND_E(XYZ,GGG,EEE,EBOND)
@@ -1156,7 +1156,7 @@ MODULE CONSTR_E_GRAD
          REAL(KIND=REAL64) :: DIST, DUMMY, DUMMY2    !< distance and related measure
          REAL(KIND=REAL64) :: G2(3), GRADAB(3)
          REAL(KIND=REAL64) :: EMAX, FMIN, FMAX
-         REAL(KIND=REAL64) :: LOCALCONFACTOR, DIST_MAXE
+         REAL(KIND=REAL64) :: DIST_MAXE
          INTEGER :: IMAX, JMAX
 
          EMAX = -(HUGE(1.0D0))
@@ -1177,7 +1177,7 @@ MODULE CONSTR_E_GRAD
                   
 
             ! go through all images
-            DO J1=2,NIMAGES+2
+            DO J1=2,NIMAGES+1
                NI1=(3*NATOMS)*(J1-1)+3*(BOND_LIST(1,J2)-1)
                NJ1=(3*NATOMS)*(J1-1)+3*(BOND_LIST(2,J2)-1)
                ! get coordinates for atoms involved in constraint
@@ -1201,10 +1201,10 @@ MODULE CONSTR_E_GRAD
                EBOND = EBOND + E
                
                ! save largest contribution to EMAX
-               IF (DUMMY.GT.EMAX) THEN
+               IF (E.GT.EMAX) THEN
                   IMAX = J1
                   JMAX = J2
-                  EMAX = DUMMY
+                  EMAX = E
                   DIST_MAXE = DIST
                END IF
                
@@ -1225,7 +1225,7 @@ MODULE CONSTR_E_GRAD
       SUBROUTINE GET_SPRING_E(XYZ, GGG, EEE, ESPR)
 
          USE QCIKEYS, ONLY: NIMAGES, NATOMS, KINT, KINTSCALED, QCIADJUSTKT, QCISPRINGACTIVET
-         USE INTERPOLATION_KEYS, ONLY: ATOMACTIVE, K_SPRING
+         USE INTERPOLATION_KEYS, ONLY: ATOMACTIVE
          
          IMPLICIT NONE
          
@@ -1401,8 +1401,8 @@ MODULE CONSTR_E_GRAD
      
       !> @brief Calculate internal minima distance 
       !> @details d_min = (|G1|^2|G2|^2 - |G1.G2|^2 )/ |G1-G2|^2 
-      !! @param[in]     G1: normalised vector from j to i in image 1
-      !! @param[in]     G2: normalised vector from j to i in image 2
+      !! @param[in]     G1: vector from j to i in image 1
+      !! @param[in]     G2: vector from j to i in image 2
       !! @param[in]     DSQ1: |G1|^2 
       !! @param[in]     DSQ2: |G2|^2
       !! @param[in]     DP_G12: dotproduct (G1, G2) 
