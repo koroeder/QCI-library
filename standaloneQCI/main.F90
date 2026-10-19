@@ -2,6 +2,7 @@ PROGRAM QCI_STANDALONE
    USE, INTRINSIC :: ISO_FORTRAN_ENV, ONLY: COMPILER_VERSION
    USE QCI_INTERFACE
    USE TIMER_MODULE
+   !$ use omp_lib
    IMPLICIT NONE
    INTEGER, PARAMETER  :: REAL64 = SELECTED_REAL_KIND(15, 307)
    
@@ -39,6 +40,11 @@ PROGRAM QCI_STANDALONE
       WRITE(*,'(A)')   " Usage: ./QCI <params_file> > output"
       WRITE(*,'(A,A,A,A)') ' Built on:  ', __DATE__, ' ', __TIME__
       WRITE(*,'(A,A)')   ' Compiler:  ', TRIM(COMPILER_VERSION())
+#ifdef _OPENMP
+      write(*,'(A,I0)') ' Compiled with OpenMP, spec version ', _OPENMP
+#else
+      write(*,'(A)') ' Compiled without OpenMP'
+#endif
       STOP
    ELSE
       WRITE(STDOUT,'(A,I4)') "Expecting two arguments, but got ", NARGS
@@ -80,6 +86,7 @@ PROGRAM QCI_STANDALONE
    WRITE(STDOUT,'(A,A2,".",A2,".",A4," ",A2,":",A2,":",A2)') &
                ' Started:  ', cdate(7:8), cdate(5:6), cdate(1:4), &
                ctime(1:2), ctime(3:4), ctime(5:6)
+   !$ WRITE(STDOUT,'(A,I0,A)') ' OpenMP enabled, running with ', omp_get_max_threads(), ' threads'
    WRITE(STDOUT,'(A)') SEP
    
    WRITE(STDOUT,'(A)') "Read coordinates for endpoints"

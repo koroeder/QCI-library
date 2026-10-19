@@ -1,5 +1,9 @@
 # Standalone Quasi-Continious Interpolation (QCI) code
 
+### 19.10.2026
+- Bug fix in congrad (cshift, potentials consistency)
+- OpenMP implementation for repulsions, dihedrals, constraints with no internal minima
+
 ### 15.09.2026
 - Implement new permutations modules
 - Add harmonic bond potential which can be used for refining QCI interpolation reusl
