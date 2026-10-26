@@ -29,8 +29,7 @@ MODULE QCIINTERPOLATION
          USE HELPER_FNCTS, ONLY: DOTP
          USE MOD_CHECK_GRAD, ONLY: CHECK_GRAD
          USE OUT_PRINT, ONLY: WRITE_CONGRADOUT, WRITE_IMAGE_DIST, WRITE_IMAGE_E
-         USE BOND_CROSSING_DETECTION, ONLY: DETECT_BOND_CROSSINGS
-         
+                  
          use lpermdist, only: check_perm_band, UPDATE_ACTIVE_PERMGROUPS
          use perm_defs, only: npermgroup, npermsize , groupactive
         
@@ -249,12 +248,12 @@ MODULE QCIINTERPOLATION
             END IF
 
             !Check for backbone crossings - DOES NOT WORK
-            IF (DETECTBBCROSSING.AND.(MOD(NITERDONE,CHECKCROSSFREQ).EQ.0)) THEN
+            !IF (DETECTBBCROSSING.AND.(MOD(NITERDONE,CHECKCROSSFREQ).EQ.0)) THEN
                !For now only do a passive check 
                ! TODO: Develop strategy to deal resolve bond crossings 
-               CALL DETECT_BOND_CROSSINGS(XYZ)
+               !CALL DETECT_BOND_CROSSINGS(XYZ)
                            
-            END IF
+            !END IF
             
             !if not all atoms are active, we add an atom now to the active set and hence the images
             IF (ADDATOMT.AND.(NACTIVE.LT.NATOMS)) THEN

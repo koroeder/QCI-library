@@ -658,7 +658,7 @@ MODULE ADDINGATOM
          NLOCAL = NCOUNT
       END SUBROUTINE GET_ATOMS_FOR_LOCAL_AXIS
 
-       SUBROUTINE TRILATERATE_ATOMS(NEWATOM,CONIDXLIST,CONDISTLIST, FAILED)
+      SUBROUTINE TRILATERATE_ATOMS(NEWATOM,CONIDXLIST,CONDISTLIST, FAILED)
          USE QCIKEYS, ONLY: NATOMS, DEBUG, NIMAGES
          USE MOD_INTCOORDS, ONLY: XYZ         
          IMPLICIT NONE
@@ -708,14 +708,18 @@ MODULE ADDINGATOM
       !! directly modifies XYZ
       SUBROUTINE TRILATERATE_ATOMS2(NEWATOM,CONIDXLIST,CONDISTLIST, TFAILED)
          USE QCIKEYS, ONLY: NATOMS, DEBUG, NIMAGES
-         USE MOD_INTCOORDS, ONLY: XYZ         
+         USE MOD_INTCOORDS, ONLY: XYZ      
+         USE QCI_CONSTRAINT_KEYS, ONLY: NBONDS, BOND_LIST, N_BONDS_PER_ATOM, BONDS_PER_ATOM_LIST
+         USE INTERPOLATION_KEYS, ONLY: ATOMACTIVE
+         USE BOND_CROSSING_DETECTION
+         
          IMPLICIT NONE
          INTEGER, INTENT(IN) :: NEWATOM
          INTEGER, INTENT(IN) :: CONIDXLIST(4)        
          REAL(KIND=REAL64), INTENT(IN) :: CONDISTLIST(4)
          LOGICAL, INTENT(OUT) :: TFAILED !< Have we failed to place the new atom via trilateration?
          REAL(KIND=REAL64) :: P1(3), P2(3), P3(3), P4(3), R1, R2, R3, R4
-         REAL(KIND=REAL64) :: SOL1(3), SOL2(3), PREV(3), D1SQ, D2SQ
+         REAL(KIND=REAL64) :: SOL1(3), SOL2(3), LASTGOOD(3), D1SQ, D2SQ
          INTEGER :: IMAGEOFFSET
          INTEGER :: N1, N2, N3, N4, IDX1, IDX2, IDX3, IDX4, J1, I
          LOGICAL :: FTEST, HAVE_4TH_CONSTRAINT
@@ -725,6 +729,10 @@ MODULE ADDINGATOM
          REAL(KIND=REAL64) :: FRAC_BEFORE, FRAC_AFTER
          REAL(KIND=REAL64), PARAMETER :: FAIL_TOLERANCE_FRACTION = 0.1D0
          REAL(KIND=REAL64) :: XYZ_BEFORE(3), XYZ_AFTER(3)
+
+         INTEGER :: J2, J3, PA, K1, K2, O0, O1
+         LOGICAL :: CROSSED(NIMAGES+1)
+
          FAILED = .FALSE.
          DFAILED = .FALSE.
          TFAILED = .FALSE.
@@ -736,7 +744,10 @@ MODULE ADDINGATOM
          IDX4 = CONIDXLIST(N4)
 
          HAVE_4TH_CONSTRAINT = (IDX4.NE.-1)
-
+          
+         ! NEWATOM in image 1, then in last successfully placed image
+         LASTGOOD(1:3) = XYZ(3*(NEWATOM-1)+1:3*(NEWATOM-1)+3)
+         
          DO J1=2,NIMAGES+1
             IMAGEOFFSET = (J1-1)*3*NATOMS
             P1(1:3)=XYZ((IMAGEOFFSET+3*(IDX1-1)+1):(IMAGEOFFSET+3*(IDX1-1)+3))
@@ -749,25 +760,26 @@ MODULE ADDINGATOM
             CALL TRILATERATION(P1,P2,P3,R1,R2,R3,SOL1,SOL2,FTEST)
                     
             IF (.NOT.FTEST) THEN
-               PREV(1:3) = XYZ((IMAGEOFFSET+3*(NEWATOM-1)+1):(IMAGEOFFSET+3*(NEWATOM-1)+3))
-               
+                              
                !Option to try with a distance from 4th constraint if it exists. 
-               !IF(HAVE_4TH_CONSTRAINT) THEN
-               !   P4(1:3)=XYZ((IMAGEOFFSET+3*(IDX4-1)+1):(IMAGEOFFSET+3*(IDX4-1)+3))
-               !   R4=CONDISTLIST(N4)
-               !
-               !   D1SQ = SQRT((SOL1(1)-P4(1))**2 + (SOL1(2)-P4(2))**2 + (SOL1(3)-P4(3))**2)
-               !   D2SQ = SQRT((SOL2(1)-P4(1))**2 + (SOL2(2)-P4(2))**2 + (SOL2(3)-P4(3))**2)
-               !ELSE
-                  D1SQ = (SOL1(1)-PREV(1))**2 + (SOL1(2)-PREV(2))**2 + (SOL1(3)-PREV(3))**2
-                  D2SQ = (SOL2(1)-PREV(1))**2 + (SOL2(2)-PREV(2))**2 + (SOL2(3)-PREV(3))**2
-               !END IF
+               IF (HAVE_4TH_CONSTRAINT) THEN
+                  P4(1:3)=XYZ((IMAGEOFFSET+3*(IDX4-1)+1):(IMAGEOFFSET+3*(IDX4-1)+3))
+                  R4=CONDISTLIST(N4)
+                  ! mismatch with 4th constraint distance
+                  D1SQ = ABS(SQRT(DOT_PRODUCT(SOL1-P4,SOL1-P4)) - R4)
+                  D2SQ = ABS(SQRT(DOT_PRODUCT(SOL2-P4,SOL2-P4)) - R4)
+               ELSE
+                  ! continuity with last placed image
+                  D1SQ = DOT_PRODUCT(SOL1-LASTGOOD,SOL1-LASTGOOD)
+                  D2SQ = DOT_PRODUCT(SOL2-LASTGOOD,SOL2-LASTGOOD)
+               END IF
                
                IF (D1SQ.LT.D2SQ) THEN
                   XYZ((IMAGEOFFSET+3*(NEWATOM-1)+1):(IMAGEOFFSET+3*(NEWATOM-1)+3)) = SOL1(1:3)
                ELSE
                   XYZ((IMAGEOFFSET+3*(NEWATOM-1)+1):(IMAGEOFFSET+3*(NEWATOM-1)+3)) = SOL2(1:3)
                END IF
+               LASTGOOD(1:3) = XYZ((IMAGEOFFSET+3*(NEWATOM-1)+1):(IMAGEOFFSET+3*(NEWATOM-1)+3))
             ELSE
                FAILED(J1) = .TRUE.
                DFAILED(J1) = .TRUE.
@@ -785,6 +797,9 @@ MODULE ADDINGATOM
                
                IF( .NOT.(FAILED(I))) CYCLE !skip successful images
                
+
+
+
                !Find nearest successful image before this one
                NEAREST_BEFORE = 0
                DO J1 = I-1, 1, -1
@@ -834,9 +849,34 @@ MODULE ADDINGATOM
          ! Check if failure fraction exceeds tolerance
          IF(N_IMAGES_FAILED.EQ.0) TFAILED = .FALSE. 
 
-         IF (TFAILED) THEN
-            WRITE(*,*) " trilaterate_atom> Failed to trilaterate atom ", NEWATOM, " in ", N_IMAGES_FAILED, " out of ", NIMAGES, " images."
+         ! bonds of NEWATOM against all other active bonds, on every edge
+         CROSSED = .FALSE.
+         DO J1 = 1, NIMAGES+1
+            O0 = (J1-1)*3*NATOMS; O1 = J1*3*NATOMS
+            DO J2 = 1, N_BONDS_PER_ATOM(NEWATOM)
+               PA = BONDS_PER_ATOM_LIST(NEWATOM,J2)
+               IF (.NOT.ATOMACTIVE(PA)) CYCLE
+               DO J3 = 1, NBONDS
+                  K1 = BOND_LIST(1,J3); K2 = BOND_LIST(2,J3)
+                  IF ((K1.EQ.NEWATOM).OR.(K2.EQ.NEWATOM).OR.(K1.EQ.PA).OR.(K2.EQ.PA)) CYCLE
+                  IF (.NOT.(ATOMACTIVE(K1).AND.ATOMACTIVE(K2))) CYCLE
+                  IF (BONDS_CROSS(XYZ(O0+3*NEWATOM-2:O0+3*NEWATOM), XYZ(O0+3*PA-2:O0+3*PA), &
+                                  XYZ(O0+3*K1-2:O0+3*K1),           XYZ(O0+3*K2-2:O0+3*K2), &
+                                  XYZ(O1+3*NEWATOM-2:O1+3*NEWATOM), XYZ(O1+3*PA-2:O1+3*PA), &
+                                  XYZ(O1+3*K1-2:O1+3*K1),           XYZ(O1+3*K2-2:O1+3*K2))) THEN
+                     CROSSED(J1) = .TRUE.
+                     WRITE(*,'(A,I8,A,2I8,A,2I8)') ' trilaterate_atom> edge ', J1, ' bond ', NEWATOM, PA, ' crosses ', K1, K2
+                  END IF
+               END DO
+            END DO
+         END DO
+         IF (ANY(CROSSED)) TFAILED = .TRUE.
+
+        IF (TFAILED) THEN
+            WRITE(*,'(A,I8,A,I6,A,I6,A)') ' trilaterate_atom> atom ', NEWATOM, ': ', N_IMAGES_FAILED, &
+                 ' images failed, ', COUNT(CROSSED), ' edges with bond crossing'
          END IF
+         
       END SUBROUTINE TRILATERATE_ATOMS2
 
   
@@ -1291,7 +1331,7 @@ MODULE ADDINGATOM
          DO J1=1,NATOMS
             IF (.NOT.ATOMACTIVE(J1)) CYCLE !ignore atoms that are not active
             !TODO setup proper dihedral exclusion
-            IF (ABS(J1-NEWATOM).LE.4) CYCLE !no repulsions if atoms are close in sequence
+            IF (ABS(J1-NEWATOM).LE.QCIINTREPMINSEP) CYCLE !no repulsions if atoms are close in sequence
             ISCONSTRAINED = .FALSE.
             !Don't add repulsion if there are constraints between the atoms 
             DO J2=1,NCONSTRAINT

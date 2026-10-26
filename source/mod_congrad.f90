@@ -704,6 +704,8 @@ MODULE CONSTR_E_GRAD
          REAL(KIND=REAL64) :: TEMPF
          INTEGER :: IMAX, JMAX
 
+         REAL(KIND = REAL64) :: DG(3), GT(3), DGSQ, T                !< segment minimum test when both images outside cutoff
+
          !variables to try make sence of indices and what goes wrong
          INTEGER :: NI1, NI2, NJ1, NJ2 
          REAL(KIND=REAL64) :: DUMMYA
@@ -786,8 +788,20 @@ MODULE CONSTR_E_GRAD
                DSQ2=DOT_PRODUCT(G2,G2)
                DCUT = NREPCUT(J2)**2
                ! don't look for an internal minimum if both repulsions outside cutoff
-               IF ((DSQ1.GT.DCUT).AND.(DSQ2.GT.DCUT)) CYCLE
+               !IF ((DSQ1.GT.DCUT).AND.(DSQ2.GT.DCUT)) CYCLE
                
+               IF ((DSQ1.GT.DCUT).AND.(DSQ2.GT.DCUT)) THEN
+                  ! both images outside cutoff: keep only if segment minimum is inside
+                  IF (ABS(NREPI(J2)-NREPJ(J2)).LT.QCIINTREPMINSEP) CYCLE
+                  DG(1:3) = G2(1:3) - G1(1:3)
+                  DGSQ = DOT_PRODUCT(DG,DG)
+                  IF (DGSQ.LT.DINTTEST) CYCLE
+                  T = -DOT_PRODUCT(G1,DG)/DGSQ
+                  IF ((T.LE.0.0D0).OR.(T.GE.1.0D0)) CYCLE
+                  GT(1:3) = G1(1:3) + T*DG(1:3)
+                  IF (DOT_PRODUCT(GT,GT).GE.DCUT) CYCLE
+               END IF
+
                ! don't check for internal minimum in distance - atoms too close for chain crossing.
                IF (ABS(NREPI(J2)-NREPJ(J2)).LT.QCIINTREPMINSEP) THEN
                   DINTMIN = 0.0D0
@@ -1367,6 +1381,7 @@ MODULE CONSTR_E_GRAD
          REAL(KIND = REAL64), INTENT(OUT) :: G1INT(3), G2INT(3)
          REAL(KIND = REAL64) :: DUMMY, DUMMY2, DP_G12_SQ
          REAL(KIND = REAL64), PARAMETER :: LARGEDIST = 1.0D10
+         REAL(KIND = REAL64) :: GT(3)
 
          !initliase all output variables
          NOINT = .TRUE.
@@ -1378,21 +1393,29 @@ MODULE CONSTR_E_GRAD
          DUMMY = (DSQ1-DP_G12)/DINTMIN
          IF ((DUMMY.GT.0.0D0).AND.(DUMMY.LT.1.0D0)) THEN
             NOINT=.FALSE.
-            DP_G12_SQ = DP_G12**2
             
-            DUMMY2 =  DSQ1*DSQ2 - DP_G12_SQ 
+            !DP_G12_SQ = DP_G12**2
+            !DUMMY2 =  DSQ1*DSQ2 - DP_G12_SQ 
             !WRITE(*,*) "DP_G12_SQL ", DP_G12_SQ, "DSQ1*DSQ2", DSQ1*DSQ2, "DUMMY2: ", DUMMY2, " DINTMIN: ", DINTMIN
-            DSQI = MAX(DUMMY2/DINTMIN,0.0D0)
+            !DSQI = MAX(DUMMY2/DINTMIN,0.0D0)
+            !DINT = SQRT(DSQI)
+            
+            ! direct evaluation avoids DSQ1*DSQ2 - DP_G12**2 cancellation
+            GT(1:3) = G1(1:3) + DUMMY*(G2(1:3)-G1(1:3))
+            DSQI = DOT_PRODUCT(GT,GT)
             DINT = SQRT(DSQI)
-            !WRITE(*,*) "DSQI: ", DSQI
+
             IF (DINT.LE.0.0D0) THEN
                NOINT = .TRUE.
             ELSE IF (DINT.LE.QCIREPCUT) THEN
-               DUMMY2 = DP_G12_SQ - DSQ1*DSQ2
-               DUMMY = DINT*DINTMIN**2
+               !DUMMY2 = DP_G12_SQ - DSQ1*DSQ2
+               !DUMMY = DINT*DINTMIN**2
                ! to convert derivatives of distance^2 to derivative of distance
-               G1INT(1:3)= (DUMMY2*(G1(1:3) - G2(1:3)) + DINTMIN*(G1(1:3)*DSQ2 -G2(1:3)*DP_G12))/DUMMY
-               G2INT(1:3)= (DUMMY2*(G2(1:3) - G1(1:3)) + DINTMIN*(G2(1:3)*DSQ1 -G1(1:3)*DP_G12))/DUMMY
+               !G1INT(1:3)= (DUMMY2*(G1(1:3) - G2(1:3)) + DINTMIN*(G1(1:3)*DSQ2 -G2(1:3)*DP_G12))/DUMMY
+               !G2INT(1:3)= (DUMMY2*(G2(1:3) - G1(1:3)) + DINTMIN*(G2(1:3)*DSQ1 -G1(1:3)*DP_G12))/DUMMY
+               ! envelope theorem: no dt/dG terms at the minimum
+               G1INT(1:3) = (1.0D0-DUMMY)*GT(1:3)/DINT
+               G2INT(1:3) = DUMMY*GT(1:3)/DINT
             END IF              
          END IF
       END SUBROUTINE INTMIN_REPULSION

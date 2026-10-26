@@ -7,298 +7,93 @@ MODULE BOND_CROSSING_DETECTION
    
    CONTAINS
 
-  
-   SUBROUTINE DETECT_BOND_CROSSINGS(XYZ) 
- 
-      USE HELPER_FNCTS, ONLY: DISTANCE_SIMPLE, EUC_NORM, DOTP, CROSS_PROD
-      USE QCIKEYS, ONLY: NIMAGES, NATOMS, ISBBATOM
-      USE QCI_CONSTRAINT_KEYS, ONLY: BOND_LIST, NBONDS
-      
-      REAL(KIND = REAL64), INTENT(IN) :: XYZ(3*NATOMS*(NIMAGES+2)) 
-  
-      REAL(KIND = REAL64) :: DIST_CUTOFF
-     
-      INTEGER :: N_CROSSINGS
-      INTEGER :: CROSSING_PAIRS(NIMAGES-1)  
-      
-      LOGICAL :: IS_CROSSED(NIMAGES-1)
-      
+  LOGICAL FUNCTION BONDS_CROSS(A0,B0,C0,D0,A1,B1,C1,D1)
+         ! does bond AB pass through bond CD as atoms move linearly from image 0 to image 1?
+         IMPLICIT NONE
+         REAL(KIND=REAL64), INTENT(IN) :: A0(3),B0(3),C0(3),D0(3),A1(3),B1(3),C1(3),D1(3)
+         REAL(KIND=REAL64) :: U0(3),U1(3),V0(3),V1(3),W0(3),W1(3),CF(0:3)
+         REAL(KIND=REAL64) :: TB(4),QA,QB,QC,DISC,Q,TLO,THI,TM,FLO,FM,TMP
+         INTEGER :: NB,J,IT
 
-      INTEGER :: IMG, B1, B2, I1, J1, I2, J2, PAIR_COUNT, TOTAL_EVENTS
-      INTEGER :: IMOFFSET, IMOFFSET1
-      REAL(KIND = REAL64) :: P1(3), P2(3), P3(3), P4(3) !< points for intersect check
-      REAL(KIND = REAL64) :: Q1(3), Q2(3), R1(3), R2(3), T1(3), T2(3)
-      REAL(KIND = REAL64) :: PQ1(3), PQ2(3), RT1(3), RT2(3)
-      REAL(KIND = REAL64) :: D1(3), D2(3), S(3)
-      REAL(KIND = REAL64) :: COS_ANGLE
-      
-      LOGICAL :: SHARE_ATOM, INTERSECT
-      REAL(KIND = REAL64) :: RCUT, D
-      REAL(KIND = REAL64) :: C1(3), C2(3)
-      REAL(KIND = REAL64) :: DEFAULT_DIST_CUTOFF
+         U0 = B0-A0; U1 = (B1-A1)-U0
+         V0 = C0-A0; V1 = (C1-A1)-V0
+         W0 = D0-A0; W1 = (D1-A1)-W0
+         ! coplanarity f(t) = (B-A).((C-A)x(D-A)) is cubic in t
+         CF(0) = TRIPLE(U0,V0,W0)
+         CF(1) = TRIPLE(U1,V0,W0)+TRIPLE(U0,V1,W0)+TRIPLE(U0,V0,W1)
+         CF(2) = TRIPLE(U1,V1,W0)+TRIPLE(U1,V0,W1)+TRIPLE(U0,V1,W1)
+         CF(3) = TRIPLE(U1,V1,W1)
 
-      DEFAULT_DIST_CUTOFF = 100.0D0
-      RCUT = DEFAULT_DIST_CUTOFF
-     
-
-      IS_CROSSED = .FALSE.
-      TOTAL_EVENTS = 0
-      CROSSING_PAIRS = 0
-
-      WRITE(*,*) "hello "
-      DO IMG = 1, NIMAGES - 1
-         PAIR_COUNT = 0
-
-         DO B1 = 1, NBONDS-1
-            
-            
-            I1 = BOND_LIST(1, B1)
-            J1 = BOND_LIST(2, B1)
-
-            !Loop over backbone bonds only
-            IF (.NOT. (ISBBATOM(I1).AND.ISBBATOM(J1))) CYCLE
-
-            IF (I1.LT.1 .OR. I1 .GT. NATOMS .OR. J1 .LT. 1 .OR. J1 .GT. NATOMS) CYCLE
-
-            ! PRECOMPUTE CENTROID OF BOND B1 FOR THIS IMAGE PAIR
-
-            IMOFFSET = 3*NATOMS*(IMG-1) 
-            IMOFFSET1 = 3*NATOMS*IMG 
-
-            C1(1) = XYZ(IMOFFSET+3*(I1-1)+1) + XYZ(IMOFFSET+3*(J1-1)+1) + XYZ(IMOFFSET1+3*(I1-1)+1) + XYZ(IMOFFSET1+3*(J1-1)+1)
-            C1(2) = XYZ(IMOFFSET+3*(I1-1)+2) + XYZ(IMOFFSET+3*(J1-1)+2) + XYZ(IMOFFSET1+3*(I1-1)+2) + XYZ(IMOFFSET1+3*(J1-1)+2)
-            C1(3) = XYZ(IMOFFSET+3*(I1-1)+3) + XYZ(IMOFFSET+3*(J1-1)+3) + XYZ(IMOFFSET1+3*(I1-1)+3) + XYZ(IMOFFSET1+3*(J1-1)+3)
-            
-            C1 = C1 * 0.250D0
-
-            DO B2 = B1 + 1, NBONDS
-                              
-               I2 = BOND_LIST(1, B2)
-               J2 = BOND_LIST(2, B2)
-
-               !Loop over backbone atoms only
-               IF (.NOT. (ISBBATOM(I2).AND.ISBBATOM(J2))) CYCLE
-
-               IF (I2.LT.1 .OR. I2 .GT. NATOMS .OR. J2 .LT. 1 .OR. J2 .GT. NATOMS) CYCLE
-
-               ! SKIP ADJACENT BACKBONE BONDS (SHARE AN ATOM)
-               SHARE_ATOM = (I1.EQ.I2) .OR. (I1.EQ.J2) .OR. (J1.EQ.I2) .OR. (J1.EQ.J2)
-               IF (SHARE_ATOM) CYCLE
-
-               ! --- SPATIAL CULLING: SKIP IF CENTRES ARE TOO FAR APART ---
-                              
-               C2(1) = XYZ(IMOFFSET+3*(I2-1)+1) + XYZ(IMOFFSET+3*(J2-1)+1) + XYZ(IMOFFSET1+3*(I2-1)+1) + XYZ(IMOFFSET1+3*(J2-1)+1)
-               C2(2) = XYZ(IMOFFSET+3*(I2-1)+2) + XYZ(IMOFFSET+3*(J2-1)+2) + XYZ(IMOFFSET1+3*(I2-1)+2) + XYZ(IMOFFSET1+3*(J2-1)+2)
-               C2(3) = XYZ(IMOFFSET+3*(I2-1)+3) + XYZ(IMOFFSET+3*(J2-1)+3) + XYZ(IMOFFSET1+3*(I2-1)+3) + XYZ(IMOFFSET1+3*(J2-1)+3)
-            
-               C2 = C2 * 0.25D0
-               
-               CALL DISTANCE_SIMPLE(C1, C2, D)
-               
-               IF (D.GT.RCUT) CYCLE
-
-
-               !We are looking at the bond between atoms P and Q at image 1 and 2 (P1-Q1, P2-Q2)
-               !similar for atoms R and T 
-
-               P1 = XYZ(IMOFFSET+3*(I1-1)+1:IMOFFSET+3*(I1-1)+3)  
-               P2 = XYZ(IMOFFSET1+3*(I1-1)+1:IMOFFSET1+3*(I1-1)+3)
-
-               Q1 = XYZ(IMOFFSET+3*(J1-1)+1:IMOFFSET+3*(J1-1)+3)
-               Q2 = XYZ(IMOFFSET1+3*(J1-1)+1:IMOFFSET1+3*(J1-1)+3)
-
-               R1 = XYZ(IMOFFSET+3*(I2-1)+1:IMOFFSET+3*(I2-1)+3)
-               R2 = XYZ(IMOFFSET1+3*(I2-1)+1:IMOFFSET1+3*(I2-1)+3)
-
-               T1 = XYZ(IMOFFSET+3*(J2-1)+1:IMOFFSET+3*(J2-1)+3)
-               T2 = XYZ(IMOFFSET1+3*(J2-1)+1:IMOFFSET1+3*(J2-1)+3)
-
-              
-               !bond 1 vector
-               PQ1 = Q1 - P1
-               PQ2 = Q2 - P2 
-
-               !bond 2 vector
-               RT1 = T1 - R1
-               RT2 = T2 - R2
-
-
-               !distance vector between bond1 and bond 2 
-               !CALL shortest_displacement(P1, Q1, R1, T1, D1)
-               !CALL shortest_displacement(P2, Q2, R2, T2, D2)
-
-                ! Vector between bond midpoints in image IMG
-               D1 = 0.5D0*(R1 + T1) - 0.5D0*(P1 + Q1)
-               
-               ! Vector between bond midpoints in image IMG+1
-               D2 = 0.5D0*(R2 + T2) - 0.5D0*(P2 + Q2)
-
-               !normalise these vectors
-               D1 = D1 / EUC_NORM(D1)
-               D2 = D2 / EUC_NORM(D2)
-
-               !calculate cos between D1 and D2 
-
-               COS_ANGLE = DOTP(3, D1, D2)
-
-               INTERSECT = .FALSE.
-               IF (COS_ANGLE.LE.0D0) THEN
-                    WRITE(*,*) "POTENTIAL BOND CROSSING!!!"
-                    INTERSECT = vec_proj_in_segment(D1, P1, Q1)
+         ! split [0,1] at stationary points of f so each piece has at most one root
+         NB = 1; TB(1) = 0.0D0
+         QA = 3.0D0*CF(3); QB = 2.0D0*CF(2); QC = CF(1)
+         IF (QA.NE.0.0D0) THEN
+            DISC = QB*QB-4.0D0*QA*QC
+            IF (DISC.GE.0.0D0) THEN
+               Q = -0.5D0*(QB+SIGN(SQRT(DISC),QB))
+               IF (Q.NE.0.0D0) THEN
+                  CALL ADDT(Q/QA); CALL ADDT(QC/Q)
                END IF
+            END IF
+         ELSE IF (QB.NE.0.0D0) THEN
+            CALL ADDT(-QC/QB)
+         END IF
+         IF ((NB.EQ.3).AND.(TB(3).LT.TB(2))) THEN
+            TMP = TB(2); TB(2) = TB(3); TB(3) = TMP
+         END IF
+         NB = NB+1; TB(NB) = 1.0D0
 
-                    
-
-               IF (INTERSECT) THEN
-                  IS_CROSSED(IMG) = .TRUE.
-                  PAIR_COUNT = PAIR_COUNT + 1
+         ! bisect each sign change, then test whether the coplanar segments intersect
+         BONDS_CROSS = .FALSE.
+         DO J = 1, NB-1
+            TLO = TB(J); THI = TB(J+1)
+            FLO = FCUB(TLO)
+            IF (FLO*FCUB(THI).GT.0.0D0) CYCLE
+            DO IT = 1, 60
+               TM = 0.5D0*(TLO+THI); FM = FCUB(TM)
+               IF (FLO*FM.LE.0.0D0) THEN
+                  THI = TM
+               ELSE
+                  TLO = TM; FLO = FM
                END IF
-
-               
-
             END DO
+            IF (STRADDLE(0.5D0*(TLO+THI))) THEN
+               BONDS_CROSS = .TRUE.
+               RETURN
+            END IF
          END DO
 
-         !IF (PRESENT(CROSSING_PAIRS)) CROSSING_PAIRS(IMG) = PAIR_COUNT
-         TOTAL_EVENTS = TOTAL_EVENTS + PAIR_COUNT  
-
-      END DO
-
-      
-      !Write output
-      WRITE(*,*) "Detect_bond_crossing> Check for backbone bond crossings "
-      IF (TOTAL_EVENTS.EQ.0) THEN
-         WRITE(*,*) "Detect_bond_crossing> Bond crossing not detected. "
-      ELSEIF (TOTAL_EVENTS.GT.0) THEN
-         WRITE(*,*) " WARNING! Detected ", TOTAL_EVENTS, " bond crossings. "
-      END IF 
-
-   END SUBROUTINE DETECT_BOND_CROSSINGS
-
-
-   pure logical function vec_proj_in_segment(D1, P1, Q1) result(in_seg)
-        implicit none
-        real(8), intent(in) :: D1(3), P1(3), Q1(3)
-        real(8) :: eps
-        real(8) :: PQ1(3), sq_len, t, epsilon
-
-        ! Default tolerance for double-precision noise
-        epsilon = 1.0d-12
-    
-
-        ! Bond vector PQ1 = Q1 - P1
-        PQ1 = Q1 - P1
-        sq_len = dot_product(PQ1, PQ1)
-
-        ! Degenerate bond (zero length)
-        if (sq_len == 0.0d0) then
-            in_seg = .false.
-            return
-        end if
-
-        ! Scalar projection factor: proj_vec = t * PQ1
-        t = dot_product(D1, PQ1) / sq_len
-
-        ! Check bounds with tolerance: [-eps, 1+eps]
-        in_seg = (t >= -epsilon .and. t <= 1.0d0 + epsilon)
-
-    end function vec_proj_in_segment
-
-    pure subroutine shortest_displacement(p1, q1, r1, t1, disp, s, t, dist_sq)
-        
-        real(kind=REAL64), intent(in)  :: p1(3), q1(3), r1(3), t1(3)
-        real(kind=REAL64), intent(out) :: disp(3)
-        real(kind=REAL64), intent(out), optional :: s, t, dist_sq
-
-        real(kind=REAL64) :: u(3), v(3), w0(3)
-        real(kind=REAL64) :: a, b, c, d, e, DET   ! <-- DET instead of D
-        real(kind=REAL64) :: sN, sD, tN, tD, sc, tc
-        real(kind=REAL64) :: c1(3), c2(3)
-        real(kind=REAL64), parameter :: SMALL_NUM = 1.0D-12
-
-        ! Segment directions
-        u = q1 - p1
-        v = t1 - r1
-        w0 = p1 - r1
-
-        a = dot_product(u, u)
-        b = dot_product(u, v)
-        c = dot_product(v, v)
-        d = dot_product(u, w0)
-        e = dot_product(v, w0)
-
-        DET = a*c - b*b   ! <-- renamed here too
-        sD = DET
-        tD = DET
-
-        ! --- Find the closest points on the two infinite lines ---
-        if (DET < SMALL_NUM) then
-            ! Parallel (or nearly so): pick s = 0, find closest t
-            sN = 0.0D0
-            sD = 1.0D0
-            tN = e
-            tD = c
-        else
-            sN = b*e - c*d
-            tN = a*e - b*d
-            ! Clamp s to [0,1] and recompute t accordingly
-            if (sN < 0.0D0) then
-                sN = 0.0D0
-                tN = e
-                tD = c
-            else if (sN > sD) then
-                sN = sD
-                tN = e + b
-                tD = c
-            end if
-        end if
-
-        ! --- Clamp t to [0,1] and recompute s if necessary ---
-        if (tN < 0.0D0) then
-            tN = 0.0D0
-            if (-d < 0.0D0) then
-                sN = 0.0D0
-            else if (-d > a) then
-                sN = sD
-            else
-                sN = -d
-                sD = a
-            end if
-        else if (tN > tD) then
-            tN = tD
-            if ((-d + b) < 0.0D0) then
-                sN = 0.0D0
-            else if ((-d + b) > a) then
-                sN = sD
-            else
-                sN = (-d + b)
-                sD = a
-            end if
-        end if
-
-        ! --- Final parameters ---
-        if (abs(sD) > SMALL_NUM) then
-            sc = sN / sD
-        else
-            sc = 0.0D0
-        end if
-
-        if (abs(tD) > SMALL_NUM) then
-            tc = tN / tD
-        else
-            tc = 0.0D0
-        end if
-
-        ! --- Closest points and displacement vector ---
-        c1 = p1 + sc * u
-        c2 = r1 + tc * v
-        disp = c2 - c1   ! vector from bond1 to bond2
-
-        if (present(dist_sq)) dist_sq = dot_product(disp, disp)
-        if (present(s)) s = sc
-        if (present(t)) t = tc
-
-    end subroutine shortest_displacement
+      CONTAINS
+         SUBROUTINE ADDT(T)
+            REAL(KIND=REAL64), INTENT(IN) :: T
+            IF ((T.GT.0.0D0).AND.(T.LT.1.0D0)) THEN
+               NB = NB+1; TB(NB) = T
+            END IF
+         END SUBROUTINE ADDT
+         REAL(KIND=REAL64) FUNCTION FCUB(T)
+            REAL(KIND=REAL64), INTENT(IN) :: T
+            FCUB = CF(0)+T*(CF(1)+T*(CF(2)+T*CF(3)))
+         END FUNCTION FCUB
+         REAL(KIND=REAL64) FUNCTION TRIPLE(X,Y,Z)
+            REAL(KIND=REAL64), INTENT(IN) :: X(3),Y(3),Z(3)
+            TRIPLE = DOT_PRODUCT(X,CROSS3(Y,Z))
+         END FUNCTION TRIPLE
+         FUNCTION CROSS3(X,Y)
+            REAL(KIND=REAL64), INTENT(IN) :: X(3),Y(3)
+            REAL(KIND=REAL64) :: CROSS3(3)
+            CROSS3 = (/X(2)*Y(3)-X(3)*Y(2), X(3)*Y(1)-X(1)*Y(3), X(1)*Y(2)-X(2)*Y(1)/)
+         END FUNCTION CROSS3
+         ! coplanar segments intersect iff each straddles the other's line
+         LOGICAL FUNCTION STRADDLE(T)
+            REAL(KIND=REAL64), INTENT(IN) :: T
+            REAL(KIND=REAL64) :: A(3),B(3),C(3),D(3)
+            A = A0+T*(A1-A0); B = B0+T*(B1-B0)
+            C = C0+T*(C1-C0); D = D0+T*(D1-D0)
+            STRADDLE = (DOT_PRODUCT(CROSS3(B-A,C-A),CROSS3(B-A,D-A)).LE.0.0D0).AND. &
+                       (DOT_PRODUCT(CROSS3(D-C,A-C),CROSS3(D-C,B-C)).LE.0.0D0)
+         END FUNCTION STRADDLE
+      END FUNCTION BONDS_CROSS
+   
 
 
 END MODULE BOND_CROSSING_DETECTION
