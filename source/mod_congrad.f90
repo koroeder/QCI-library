@@ -79,7 +79,7 @@ MODULE CONSTR_E_GRAD
          REAL(KIND = REAL64) :: EEEB(NIMAGES+2), GGGB(3*NATOMS*(NIMAGES+2))
          INTEGER :: J1, J2
 
-         REAL(KIND = REAL64) :: GGG_SUM(NATOMS*(NIMAGES+2))
+         REAL(KIND = REAL64) :: GGG_SUM(NATOMS*(NIMAGES+2)), FSQ
 
          CALLN = CALLN + 1
 
@@ -130,9 +130,9 @@ MODULE CONSTR_E_GRAD
          END IF
          
          ! add all contributions
-         EEE = EEEC + EEER + EEES + EEED + EEEB
-         GGG = GGGC + GGGR + GGGS + GGGD + GGGB
-      
+         EEE    = EEEC + EEER + EEES + EEED + EEEB
+         GGG    = GGGC + GGGR + GGGS + GGGD + GGGB
+         ETOTAL = ECON + EREP + ESPR + EDIH + EBOND
          
          ! Set gradients to zero for start and finish images.
          GGG(1:(3*NATOMS))=0.0D0
@@ -140,27 +140,20 @@ MODULE CONSTR_E_GRAD
 
          ! get the RMS force
          RMS=0.0D0
-         DO J1=2,NIMAGES+1
-            DO J2=1,3*NATOMS
-               RMS = RMS + GGG((3*NATOMS)*(J1-1)+J2)**2            
-            END DO
-         END DO
-
          GGG_SUM(:) = 0.0D0
          DO J1=2,NIMAGES+1
             DO J2=1,NATOMS
-               !|F_atom|                  (!image          +   atom)
-               GGG_SUM(NATOMS*(J1-1)+J2) = SQRT (GGG(3*NATOMS*(J1-1) + 3*(J2-1)+1)**2 + &
-                                                 GGG(3*NATOMS*(J1-1) + 3*(J2-1)+2)**2 + &
-                                                 GGG(3*NATOMS*(J1-1) + 3*(J2-1)+3)**2 )
+               FSQ = GGG(3*NATOMS*(J1-1) + 3*(J2-1)+1)**2 + &
+                     GGG(3*NATOMS*(J1-1) + 3*(J2-1)+2)**2 + &
+                     GGG(3*NATOMS*(J1-1) + 3*(J2-1)+3)**2 
+               RMS = RMS + FSQ
+               GGG_SUM(NATOMS*(J1-1)+J2) = SQRT(FSQ)
             END DO
+            
          END DO
-
+         
          FMAX_GLOBAL = MAXVAL(GGG_SUM)
-       
          RMS = SQRT(RMS/(3*NATOMS*NIMAGES))
-         ETOTAL = SUM(EEE(2:NIMAGES+1))
-
          MAX_E_PER_IMAGE = MAXVAL(EEE)
          
          !Save outputs, so we can choose when to print
@@ -318,7 +311,7 @@ MODULE CONSTR_E_GRAD
             CALL GET_CCLOCAL(J2,CCLOCAL)
             !!!!!Debugging WRITE(*,*) " Constraint: ", J2, " reference: ", CONDISTREFLOCAL(J2), " cut: ", CCLOCAL
             ! go through all images
-            DO J1=2,NIMAGES+2
+            DO J1=2,NIMAGES+1
                NI1=(3*NATOMS)*(J1-1)+3*(CONI(J2)-1)
                NJ1=(3*NATOMS)*(J1-1)+3*(CONJ(J2)-1)
                ! get coordinates for atoms involved in constraint
@@ -334,7 +327,7 @@ MODULE CONSTR_E_GRAD
                CCLOCAL2 = CCLOCAL**2 
                ! now check whether we are beyond the constraint cutoff
                ! Condition: |G2| - mean(d_AB) > C_AB
-               IF ((DUMMY.GT.CCLOCAL).AND.(J1.LT.NIMAGES+2)) THEN
+               IF (DUMMY.GT.CCLOCAL) THEN
                     
 
                   ! calculate gradient and energy
@@ -380,88 +373,9 @@ MODULE CONSTR_E_GRAD
          ENDIF
       END SUBROUTINE GET_CONSTRAINT_E_NOINTERNAL
 
-      SUBROUTINE GET_DIH_CON_E(XYZ,GGG,EEE,EDIH)
-         USE QCIKEYS, ONLY: NIMAGES, NATOMS
-         USE DIHEDRAL_CONSTRAINTS, ONLY: DIHEDRAL,DIHEDRAL2, DIHEDRALS, NDIH, REFDIH, ALLDIHACTIVE, DIHACTIVE, &
-                                         CHECK_DIH_ACTIVE, KDIH
-         IMPLICIT NONE
-         REAL(KIND = REAL64), INTENT(IN) :: XYZ(3*NATOMS*(NIMAGES+2))   !< input coordinates
-         REAL(KIND = REAL64), INTENT(OUT) :: GGG(3*NATOMS*(NIMAGES+2))  !< gradient for each atom in each image
-         REAL(KIND = REAL64), INTENT(OUT) :: EEE(NIMAGES+2), EDIH       !< energy for constraints  
-
-         INTEGER :: A, B, C, D, N, I, J
-         REAL(KIND = REAL64) :: XA(3), XB(3), XC(3), XD(4) !coordinates of atoms in dihedral
-         REAL(KIND = REAL64) :: FA(3), FB(3), FC(3), FD(3) !returned gradient for individual atoms
-         REAL(KIND = REAL64) :: PHIREF, THISE
-
-         REAL(KIND = REAL64) :: EMAX, FMIN, FMAX, FX(4)
-         INTEGER :: MAXDIHIMAGE, JMAX, MAXDIHR, IMAX
-
-         EDIH = 0.0D0
-         GGG = 0.0D0
-         EEE = 0.0D0
-
-         EMAX = -HUGE(1.0D0)
-         FMAX = -HUGE(1.0D0)
-         FMIN =  HUGE(1.0D0)
-         ! if not all dihedral constraints are activated, update the list
-         IF (.NOT.ALLDIHACTIVE) CALL CHECK_DIH_ACTIVE()
-         DO J=1,NDIH
-            !cycle if the dihedral constraint is inactive
-            IF (.NOT.DIHACTIVE(J)) CYCLE
-            !look up atoms in dihedral
-            A = DIHEDRALS(J,1)
-            B = DIHEDRALS(J,2)
-            C = DIHEDRALS(J,3)
-            D = DIHEDRALS(J,4)
-            !change back to (2,NIMAGES+1) when dihedrals work
-            DO I=2,NIMAGES+1
-               !reference for image we are in (The x ccoord of the first atom of the current image is N+1)
-               N = 3*NATOMS*(I-1)
-               !extract relevant coordinates
-               XA(1:3) = XYZ(N+3*A-2:N+3*A)
-               XB(1:3) = XYZ(N+3*B-2:N+3*B)
-               XC(1:3) = XYZ(N+3*C-2:N+3*C)
-               XD(1:3) = XYZ(N+3*D-2:N+3*D)
-               !call routine to compute dihedral and get forces
-               !CALL DIHEDRAL(XA, XB, XC, XD, J, THISE, FA, FB, FC, FD)
-               
-               CALL DIHEDRAL2(I, XA, XB, XC, XD, J, THISE, FA, FB, FC, FD)
-
-               !add results to appropriate variables
-               EDIH = EDIH + THISE
-               EEE(I) = EEE(I) + THISE
-
-               IF (THISE.GT.EMAX) THEN
-                  IMAX=J
-                  JMAX=I
-                  EMAX=THISE
-               ENDIF
-
-               !We add forces here (we calculated the negative gradient in the DIHEDRAL function)
-               GGG(N+3*A-2:N+3*A) = GGG(N+3*A-2:N+3*A) + FA(1:3)
-               GGG(N+3*B-2:N+3*B) = GGG(N+3*B-2:N+3*B) + FB(1:3)
-               GGG(N+3*C-2:N+3*C) = GGG(N+3*C-2:N+3*C) + FC(1:3)
-               GGG(N+3*D-2:N+3*D) = GGG(N+3*D-2:N+3*D) + FD(1:3)
-               
-               FX = [ MAXVAL(FA), MAXVAL(FB), MAXVAL(FC), MAXVAL(FD) ]
-               FMAX = MAX(FMAX, MAXVAL(FX))
-               FX = [ MINVAL(FA), MINVAL(FB), MINVAL(FC), MINVAL(FD)]
-               FMIN = MIN(FMIN, MINVAL(FX))
-               
-            END DO
-         END DO
-         
-         IF (-FMIN.GT.FMAX) FMAX=-FMIN
-         FDIHMAX=FMAX
-         CONVERGENCEDIHTEST=EMAX/KDIH
-         MAXDIHIMAGE = JMAX
-         MAXDIHR = IMAX
-       
-
-      END SUBROUTINE GET_DIH_CON_E
 
       SUBROUTINE GET_CONSTRAINT_E(XYZ,GGG,EEE,ECON)
+         
          USE QCIKEYS, ONLY: NIMAGES, NATOMS, INTMINFAC, CHECKCONINT, &
                             CONACTINACT, USECONACTINACT, K_CONST
          USE QCI_CONSTRAINT_KEYS, ONLY: NCONSTRAINT, CONI, CONJ, CONDISTREFLOCAL
@@ -481,13 +395,12 @@ MODULE CONSTR_E_GRAD
          LOGICAL :: NOINT                                            !< do we have an internal minimum, TRUE=we don't
          REAL(KIND = REAL64) :: DINT, DSQI, G1INT(3), G2INT(3)       !< information for internal minimum contribution
          REAL(KIND = REAL64) , PARAMETER :: DINTTEST = 1.0D-50       !< cutoff for DINTMIN to test for internal min
-         REAL(KIND = REAL64) :: D1, D2, D12                         ! distances in image 1 and 2         
+         REAL(KIND = REAL64) :: D1, D2                               !< distances in image 1 and 2         
          REAL(KIND=REAL64) :: EMAX, FMIN, FMAX
          REAL(KIND=REAL64) :: LOCALCONFACTOR                          !< scaling factor if active-inactive atom interaction
          INTEGER :: IMAX, JMAX
 
-         
-        
+              
          EEE(1:NIMAGES+2)=0.0D0
          GGG(1:(3*NATOMS)*(NIMAGES+2))=0.0D0
          EEE2 = 0.0D0
@@ -527,7 +440,7 @@ MODULE CONSTR_E_GRAD
             ! get constraint cut off for this contraint
             CALL GET_CCLOCAL(J2,CCLOCAL)            
             ! go through all images 
-            ! QUERY: here we differ from the no internal minimum routine - why are we going up to NIMAGES+2
+            
             DO J1=2,NIMAGES+2
                
                NI1=(3*NATOMS)*(J1-2)+3*(CONI(J2)-1)
@@ -600,11 +513,12 @@ MODULE CONSTR_E_GRAD
                !QUERY: Does this need to be absolute??? Or should it be the relative value? Not sure it makes sense to have this as the absolute value?
                
                ! Used for congrad2 and have intenal minima AND d(theta*)-mean(d_AB) > C_conAB
-               ! Warning added J1.NE.2 to match repulsions
+               
                
                DUMMY=DINT-CONDISTREFLOCAL(J2) 
-               !IF (CHECKCONINT.AND.(.NOT.NOINT).AND.(ABS(DUMMY).GT.CCLOCAL).AND.(J1.NE.2).AND.(J1.LT.(NIMAGES+2))) THEN
-               IF (CHECKCONINT.AND.(.NOT.NOINT).AND.(ABS(DUMMY).GT.CCLOCAL)) THEN
+               
+               !Calculate internal minima only for constraint compression, not extension. 
+               IF (CHECKCONINT.AND.(.NOT.NOINT).AND.(DUMMY.LT.CCLOCAL)) THEN
                   !Image J1-1 
 
                   ! dV/du = 2*K_CONST*INTMINFAC*L*(u^2 - C^2)*u/C^4, u = d(theta*) - dbar
@@ -675,6 +589,90 @@ MODULE CONSTR_E_GRAD
             WRITE(*,*) ' congrad2> Highest constraint for image ',IMAX, ', con ',JMAX, ', atoms ',CONI(JMAX),CONJ(JMAX),' value=',EMAX
          ENDIF
       END SUBROUTINE GET_CONSTRAINT_E
+
+
+      SUBROUTINE GET_DIH_CON_E(XYZ,GGG,EEE,EDIH)
+         USE QCIKEYS, ONLY: NIMAGES, NATOMS
+         USE DIHEDRAL_CONSTRAINTS, ONLY: DIHEDRAL,DIHEDRAL2, DIHEDRALS, NDIH, ALLDIHACTIVE, DIHACTIVE, &
+                                         CHECK_DIH_ACTIVE, KDIH
+         IMPLICIT NONE
+         REAL(KIND = REAL64), INTENT(IN) :: XYZ(3*NATOMS*(NIMAGES+2))   !< input coordinates
+         REAL(KIND = REAL64), INTENT(OUT) :: GGG(3*NATOMS*(NIMAGES+2))  !< gradient for each atom in each image
+         REAL(KIND = REAL64), INTENT(OUT) :: EEE(NIMAGES+2), EDIH       !< energy for constraints  
+
+         INTEGER :: A, B, C, D, N, I, J
+         REAL(KIND = REAL64) :: XA(3), XB(3), XC(3), XD(3) !coordinates of atoms in dihedral
+         REAL(KIND = REAL64) :: FA(3), FB(3), FC(3), FD(3) !returned gradient for individual atoms
+         REAL(KIND = REAL64) :: THISE
+
+         REAL(KIND = REAL64) :: EMAX, FMIN, FMAX, FX(4)
+         INTEGER :: MAXDIHIMAGE, JMAX, MAXDIHR, IMAX
+
+         EDIH = 0.0D0
+         GGG = 0.0D0
+         EEE = 0.0D0
+         IMAX = -1
+         JMAX = -1
+
+         EMAX = -HUGE(1.0D0)
+         FMAX = -HUGE(1.0D0)
+         FMIN =  HUGE(1.0D0)
+         ! if not all dihedral constraints are activated, update the list
+         IF (.NOT.ALLDIHACTIVE) CALL CHECK_DIH_ACTIVE()
+         DO J=1,NDIH
+            !cycle if the dihedral constraint is inactive
+            IF (.NOT.DIHACTIVE(J)) CYCLE
+            !look up atoms in dihedral
+            A = DIHEDRALS(J,1)
+            B = DIHEDRALS(J,2)
+            C = DIHEDRALS(J,3)
+            D = DIHEDRALS(J,4)
+            !change back to (2,NIMAGES+1) when dihedrals work
+            DO I=2,NIMAGES+1
+               !reference for image we are in (The x ccoord of the first atom of the current image is N+1)
+               N = 3*NATOMS*(I-1)
+               !extract relevant coordinates
+               XA(1:3) = XYZ(N+3*A-2:N+3*A)
+               XB(1:3) = XYZ(N+3*B-2:N+3*B)
+               XC(1:3) = XYZ(N+3*C-2:N+3*C)
+               XD(1:3) = XYZ(N+3*D-2:N+3*D)
+               !call routine to compute dihedral and get forces
+               !CALL DIHEDRAL(XA, XB, XC, XD, J, THISE, FA, FB, FC, FD)
+               
+               CALL DIHEDRAL2(I, XA, XB, XC, XD, J, THISE, FA, FB, FC, FD)
+
+               !add results to appropriate variables
+               EDIH = EDIH + THISE
+               EEE(I) = EEE(I) + THISE
+
+               IF (THISE.GT.EMAX) THEN
+                  IMAX=J
+                  JMAX=I
+                  EMAX=THISE
+               ENDIF
+
+               !We add gradient here.
+               GGG(N+3*A-2:N+3*A) = GGG(N+3*A-2:N+3*A) + FA(1:3)
+               GGG(N+3*B-2:N+3*B) = GGG(N+3*B-2:N+3*B) + FB(1:3)
+               GGG(N+3*C-2:N+3*C) = GGG(N+3*C-2:N+3*C) + FC(1:3)
+               GGG(N+3*D-2:N+3*D) = GGG(N+3*D-2:N+3*D) + FD(1:3)
+               
+               FX = [ MAXVAL(FA), MAXVAL(FB), MAXVAL(FC), MAXVAL(FD) ]
+               FMAX = MAX(FMAX, MAXVAL(FX))
+               FX = [ MINVAL(FA), MINVAL(FB), MINVAL(FC), MINVAL(FD)]
+               FMIN = MIN(FMIN, MINVAL(FX))
+               
+            END DO
+         END DO
+         
+         IF (-FMIN.GT.FMAX) FMAX=-FMIN
+         FDIHMAX=FMAX
+         CONVERGENCEDIHTEST=EMAX/KDIH
+         MAXDIHIMAGE = JMAX
+         MAXDIHR = IMAX
+       
+
+      END SUBROUTINE GET_DIH_CON_E
 
       SUBROUTINE GET_REPULSION_E(XYZ,GGG,EEE,EREP)
          USE QCIKEYS, ONLY: NIMAGES, NATOMS, INTMINFAC, QCIINTREPMINSEP, K_REP
@@ -869,10 +867,7 @@ MODULE CONSTR_E_GRAD
                ! edge 1, which was assigned to image 2, and edge NIMAGES+1, which
                ! was assigned to image NIMAGES+1. 
                DUMMY = 0.0D0
-               
-               !QUESTION why J1 NE 2 condition and/or should it also be J1 NE NIMAGES+2?
-               !IF ((.NOT.NOINT).AND.(DINT.LT.RPLOCAL) .AND.(J1.NE.2).AND.(J1.LT.(NIMAGES+2))) THEN
-               
+                           
                IF ((.NOT.NOINT).AND.(DINT.LT.RPLOCAL)) THEN   
                   !D12 = DSQI !from call to find internal minimum
                   
@@ -1095,14 +1090,12 @@ MODULE CONSTR_E_GRAD
                   ENDIF
                   
                   IF (J1.EQ.2) THEN
-                     !This condition never evaluates true
                      EEE(J1)=EEE(J1)+DUMMY         
                   ELSE IF (J1.LT.NIMAGES+2) THEN
                      EEE(J1)=EEE(J1)+DUMMY/2.0D0
                      !EEE(J1-1)=EEE(J1-1)+DUMMY/2.0D0
                      EEE2(J1)=EEE2(J1)+DUMMY/2.0D0 
                   ELSE IF  (J1.EQ.NIMAGES+2) THEN
-                     !WARNING source of difference E_REP1/2, should this condition be here?
                      !EEE(J1-1)=EEE(J1-1)+DUMMY
                      EEE2(J1)=EEE2(J1)+DUMMY
                   ENDIF
@@ -1167,8 +1160,8 @@ MODULE CONSTR_E_GRAD
          REAL(KIND=REAL64) :: AVE_BL(NBONDS)          !< average bond legth between (start+finish)/2
          REAL(KIND=REAL64) :: XA(3), XB(3)           !< coordinates for atoms A and B 
          REAL(KIND=REAL64) :: E
-         REAL(KIND=REAL64) :: DIST, DUMMY, DUMMY2    !< distance and related measure
-         REAL(KIND=REAL64) :: G2(3), GRADAB(3)
+         REAL(KIND=REAL64) :: DIST, DUMMY2    !< distance and related measure
+         REAL(KIND=REAL64) :: GRADAB(3)
          REAL(KIND=REAL64) :: EMAX, FMIN, FMAX
          REAL(KIND=REAL64) :: DIST_MAXE
          INTEGER :: IMAX, JMAX
@@ -1182,14 +1175,14 @@ MODULE CONSTR_E_GRAD
          GGG(1:(3*NATOMS)*(NIMAGES+2))=0.0D0
          EBOND = 0.0D0
          
+
+         IF(.NOT.ALL(ATOMACTIVE(1:NATOMS))) RETURN
+
          CALL GET_AVE_BOND_LENGTH(AVE_BL)
          
+
          DO J2=1,NBONDS
             
-            !All atoms should be active when using bond potential
-            IF (.NOT.(ATOMACTIVE(BOND_LIST(1,J2)).OR.ATOMACTIVE(BOND_LIST(2,J2)))) EXIT
-                  
-
             ! go through all images
             DO J1=2,NIMAGES+1
                NI1=(3*NATOMS)*(J1-1)+3*(BOND_LIST(1,J2)-1)
@@ -1366,7 +1359,8 @@ MODULE CONSTR_E_GRAD
          IF (CONCUTABST) THEN
             CCLOCAL=CCLOCAL+CONCUTABS
          ELSE IF (CONCUTFRACT) THEN
-            CCLOCAL=CCLOCAL+CONCUTFRAC*CONDISTREFLOCAL(CONID)
+            !CCLOCAL=CCLOCAL+CONCUTFRAC*CONDISTREFLOCAL(CONID)
+            CCLOCAL=CONCUTFRAC*CONDISTREFLOCAL(CONID)
          END IF
       END SUBROUTINE GET_CCLOCAL
 

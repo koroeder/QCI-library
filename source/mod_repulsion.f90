@@ -94,7 +94,7 @@ MODULE REPULSION
             OI = 3*(REPI(J)-1)
             OJ = 3*(REPJ(J)-1)
  
-!            ! image 1
+            ! image 1
             G2(1:3) = XYZ(OI+1:OI+3) - XYZ(OJ+1:OJ+3)
             DSQ2 = DOT_PRODUCT(G2,G2)
             NEAR = (DSQ2.LT.COMPARE2)

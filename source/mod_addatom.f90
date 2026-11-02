@@ -133,18 +133,6 @@ MODULE ADDINGATOM
          ! call check on number of chiral centres
          IF (CHECKCHIRAL) CALL GET_ACTIVE_CHIRAL_CENTRES(INIT_NCHIRACTIVE,INIT_ACTIVE_CHIR_CENTRES)
          
-         !!!!!!!!!!!!!!! DEBUG !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
-         !check chirality accross the band before we start adding atoms
-         !WRITE(*,*) "addatom> DEBUG - Check chirality before we start adding atoms. "
-         !CALL CHIRALITY_CHECK_ONLY(XYZ, SWAPPED)
-         !IF (SWAPPED)  THEN 
-         !   WRITE(*,*) "addatom> DEBUG - Chirality check found broken chirality"
-         !   SWAPPED = .FALSE.
-         !ELSE 
-         !   WRITE(*,*) "addatom> DEBUG - chirality ok"
-         !END IF 
-         !!!!!!!!!!!!!!!!!END DEBUG!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
          !Set variable for tracking whether we completed adding atoms
          MORETOADD = .TRUE.
          DO WHILE (MORETOADD)
@@ -708,28 +696,30 @@ MODULE ADDINGATOM
       !! directly modifies XYZ
       SUBROUTINE TRILATERATE_ATOMS2(NEWATOM,CONIDXLIST,CONDISTLIST, TFAILED)
          USE QCIKEYS, ONLY: NATOMS, DEBUG, NIMAGES
-         USE MOD_INTCOORDS, ONLY: XYZ      
+         USE MOD_INTCOORDS, ONLY: XYZ
          USE QCI_CONSTRAINT_KEYS, ONLY: NBONDS, BOND_LIST, N_BONDS_PER_ATOM, BONDS_PER_ATOM_LIST
          USE INTERPOLATION_KEYS, ONLY: ATOMACTIVE
+         USE HELPER_FNCTS, ONLY: CROSS_PROD
          USE BOND_CROSSING_DETECTION
-         
+         USE CHIRALITY, ONLY: NCHIRAL, CHIR_INFO
+
          IMPLICIT NONE
          INTEGER, INTENT(IN) :: NEWATOM
-         INTEGER, INTENT(IN) :: CONIDXLIST(4)        
+         INTEGER, INTENT(IN) :: CONIDXLIST(4)
          REAL(KIND=REAL64), INTENT(IN) :: CONDISTLIST(4)
          LOGICAL, INTENT(OUT) :: TFAILED !< Have we failed to place the new atom via trilateration?
-         REAL(KIND=REAL64) :: P1(3), P2(3), P3(3), P4(3), R1, R2, R3, R4
-         REAL(KIND=REAL64) :: SOL1(3), SOL2(3), LASTGOOD(3), D1SQ, D2SQ
+         REAL(KIND=REAL64) :: P1(3), P2(3), P3(3), R1, R2, R3
+         REAL(KIND=REAL64) :: SOL1(3), SOL2(3), PREV(3)
+         REAL(KIND=REAL64) :: CHISTART, CHIEND
          INTEGER :: IMAGEOFFSET
-         INTEGER :: N1, N2, N3, N4, IDX1, IDX2, IDX3, IDX4, J1, I
-         LOGICAL :: FTEST, HAVE_4TH_CONSTRAINT
+         INTEGER :: N1, N2, N3, IDX1, IDX2, IDX3, J1, I
+         LOGICAL :: FTEST, USECHI, PICKSOL1
          INTEGER :: N_IMAGES_FAILED
          LOGICAL :: FAILED(NIMAGES+2), DFAILED(NIMAGES+2)
          INTEGER :: NEAREST_BEFORE, NEAREST_AFTER
          REAL(KIND=REAL64) :: FRAC_BEFORE, FRAC_AFTER
          REAL(KIND=REAL64), PARAMETER :: FAIL_TOLERANCE_FRACTION = 0.1D0
          REAL(KIND=REAL64) :: XYZ_BEFORE(3), XYZ_AFTER(3)
-
          INTEGER :: J2, J3, PA, K1, K2, O0, O1
          LOGICAL :: CROSSED(NIMAGES+1)
 
@@ -739,47 +729,50 @@ MODULE ADDINGATOM
          N_IMAGES_FAILED = 0
 
          !set initial guess to the best three constrained atoms
-         N1=1; N2=2; N3=3; N4=4  
+         N1=1; N2=2; N3=3
          IDX1 = CONIDXLIST(N1); IDX2 = CONIDXLIST(N2); IDX3 = CONIDXLIST(N3)
-         IDX4 = CONIDXLIST(N4)
 
-         HAVE_4TH_CONSTRAINT = (IDX4.NE.-1)
-          
-         ! NEWATOM in image 1, then in last successfully placed image
-         LASTGOOD(1:3) = XYZ(3*(NEWATOM-1)+1:3*(NEWATOM-1)+3)
-         
+         ! handedness of NEWATOM relative to IDX1, IDX2, IDX3 in the two endpoints
+         CHISTART = SIGNED_VOL(0)
+         CHIEND   = SIGNED_VOL((NIMAGES+1)*3*NATOMS)
+         USECHI   = (CHISTART*CHIEND.GT.0.0D0)
+         IF (DEBUG) WRITE(*,'(A,I8,2ES12.4)') ' trilaterate_atom> atom, endpoint signed volumes: ', &
+              NEWATOM, CHISTART, CHIEND
+         IF (.NOT.USECHI) WRITE(*,'(A,I8)') &
+              ' trilaterate_atom> endpoints differ in handedness, using current guess for atom ', NEWATOM
+
          DO J1=2,NIMAGES+1
             IMAGEOFFSET = (J1-1)*3*NATOMS
             P1(1:3)=XYZ((IMAGEOFFSET+3*(IDX1-1)+1):(IMAGEOFFSET+3*(IDX1-1)+3))
             P2(1:3)=XYZ((IMAGEOFFSET+3*(IDX2-1)+1):(IMAGEOFFSET+3*(IDX2-1)+3))
-            P3(1:3)=XYZ((IMAGEOFFSET+3*(IDX3-1)+1):(IMAGEOFFSET+3*(IDX3-1)+3))     
-              
+            P3(1:3)=XYZ((IMAGEOFFSET+3*(IDX3-1)+1):(IMAGEOFFSET+3*(IDX3-1)+3))
+
             R1=CONDISTLIST(N1)
             R2=CONDISTLIST(N2)
-            R3=CONDISTLIST(N3) 
+            R3=CONDISTLIST(N3)
             CALL TRILATERATION(P1,P2,P3,R1,R2,R3,SOL1,SOL2,FTEST)
-                    
+
             IF (.NOT.FTEST) THEN
-                              
-               !Option to try with a distance from 4th constraint if it exists. 
-               IF (HAVE_4TH_CONSTRAINT) THEN
-                  P4(1:3)=XYZ((IMAGEOFFSET+3*(IDX4-1)+1):(IMAGEOFFSET+3*(IDX4-1)+3))
-                  R4=CONDISTLIST(N4)
-                  ! mismatch with 4th constraint distance
-                  D1SQ = ABS(SQRT(DOT_PRODUCT(SOL1-P4,SOL1-P4)) - R4)
-                  D2SQ = ABS(SQRT(DOT_PRODUCT(SOL2-P4,SOL2-P4)) - R4)
+               PREV(1:3) = XYZ((IMAGEOFFSET+3*(NEWATOM-1)+1):(IMAGEOFFSET+3*(NEWATOM-1)+3))
+               IF (USECHI) THEN
+                  ! SOL1 is on the +((P2-P1)x(P3-P1)) side
+                  PICKSOL1 = (CHISTART.GT.0.0D0)
+                  IF (DEBUG) THEN
+                     IF ((DOT_PRODUCT(SOL1-PREV,SOL1-PREV).LT.DOT_PRODUCT(SOL2-PREV,SOL2-PREV)) &
+                          .NEQV.PICKSOL1) &
+                        WRITE(*,'(A,2I8)') ' trilaterate_atom> chirality and PREV disagree: atom, image ', &
+                             NEWATOM, J1
+                  END IF
                ELSE
-                  ! continuity with last placed image
-                  D1SQ = DOT_PRODUCT(SOL1-LASTGOOD,SOL1-LASTGOOD)
-                  D2SQ = DOT_PRODUCT(SOL2-LASTGOOD,SOL2-LASTGOOD)
+                  ! endpoints differ in handedness: closest to current guess
+                  PICKSOL1 = (DOT_PRODUCT(SOL1-PREV,SOL1-PREV).LT.DOT_PRODUCT(SOL2-PREV,SOL2-PREV))
                END IF
-               
-               IF (D1SQ.LT.D2SQ) THEN
+
+               IF (PICKSOL1) THEN
                   XYZ((IMAGEOFFSET+3*(NEWATOM-1)+1):(IMAGEOFFSET+3*(NEWATOM-1)+3)) = SOL1(1:3)
                ELSE
                   XYZ((IMAGEOFFSET+3*(NEWATOM-1)+1):(IMAGEOFFSET+3*(NEWATOM-1)+3)) = SOL2(1:3)
                END IF
-               LASTGOOD(1:3) = XYZ((IMAGEOFFSET+3*(NEWATOM-1)+1):(IMAGEOFFSET+3*(NEWATOM-1)+3))
             ELSE
                FAILED(J1) = .TRUE.
                DFAILED(J1) = .TRUE.
@@ -789,16 +782,13 @@ MODULE ADDINGATOM
          END DO
 
          WRITE(*,*) " trilaterate_atom> Failed to trilaterate" , N_IMAGES_FAILED, "images out of ", NIMAGES, " images."
-         
+
          ! Interpolate failed images if we have some successful ones
          IF ((N_IMAGES_FAILED.GT.0).AND.(N_IMAGES_FAILED*1.0D0.LT.NIMAGES*FAIL_TOLERANCE_FRACTION)) THEN
-            WRITE(*,*) " trilaterate_atom> Attempting to fix failed images by interpolation, as failure fraction is below tolerance of ", FAIL_TOLERANCE_FRACTION   
+            WRITE(*,*) " trilaterate_atom> Attempting to fix failed images by interpolation, as failure fraction is below tolerance of ", FAIL_TOLERANCE_FRACTION
             DO I = 2, NIMAGES+1
-               
+
                IF( .NOT.(FAILED(I))) CYCLE !skip successful images
-               
-
-
 
                !Find nearest successful image before this one
                NEAREST_BEFORE = 0
@@ -808,7 +798,7 @@ MODULE ADDINGATOM
                      EXIT
                   END IF
                END DO
-               
+
                !Find nearest successful image after this one
                NEAREST_AFTER = 0
                DO J1 = I+1, NIMAGES+2
@@ -816,38 +806,35 @@ MODULE ADDINGATOM
                      NEAREST_AFTER = J1
                      EXIT
                   END IF
-               END DO    
-            
+               END DO
+
                !Linear interpolate if we have a successful image both before and after
                IF ((NEAREST_BEFORE.GT.0) .AND. (NEAREST_AFTER.GT.0)) THEN
-                  !Linear interpolation between two successful images
                   FRAC_BEFORE = 1.0D0*(NEAREST_AFTER - I)/ (1.0D0*(NEAREST_AFTER - NEAREST_BEFORE))
                   FRAC_AFTER  = 1.0D0*(I - NEAREST_BEFORE)/ (1.0D0*(NEAREST_AFTER - NEAREST_BEFORE))
-                  
+
                   IMAGEOFFSET = (NEAREST_BEFORE-1)*3*NATOMS+3*(NEWATOM-1)
                   XYZ_BEFORE(1:3) = XYZ(IMAGEOFFSET+1:IMAGEOFFSET+3)
-               
+
                   IMAGEOFFSET = (NEAREST_AFTER-1)*3*NATOMS+3*(NEWATOM-1)
                   XYZ_AFTER(1:3) = XYZ(IMAGEOFFSET+1:IMAGEOFFSET+3)
-                  
 
                   IMAGEOFFSET = (I-1)*3*NATOMS+3*(NEWATOM-1)
-
                   XYZ(IMAGEOFFSET+1: IMAGEOFFSET+3) = FRAC_BEFORE * XYZ_BEFORE(1:3) + FRAC_AFTER * XYZ_AFTER(1:3)
-                  
+
                   !Don't want to use images generated by interpolation to try to fix other images
                   !use DFAILED to track total number of failed images
-                  DFAILED(I) = .FALSE. 
+                  DFAILED(I) = .FALSE.
                END IF
             END DO
-      
+
             ! Recount failures after interpolation
             N_IMAGES_FAILED = COUNT(DFAILED)
-        
+
          END IF
-   
+
          ! Check if failure fraction exceeds tolerance
-         IF(N_IMAGES_FAILED.EQ.0) TFAILED = .FALSE. 
+         IF(N_IMAGES_FAILED.EQ.0) TFAILED = .FALSE.
 
          ! bonds of NEWATOM against all other active bonds, on every edge
          CROSSED = .FALSE.
@@ -872,13 +859,24 @@ MODULE ADDINGATOM
          END DO
          IF (ANY(CROSSED)) TFAILED = .TRUE.
 
-        IF (TFAILED) THEN
+         IF (TFAILED) THEN
             WRITE(*,'(A,I8,A,I6,A,I6,A)') ' trilaterate_atom> atom ', NEWATOM, ': ', N_IMAGES_FAILED, &
                  ' images failed, ', COUNT(CROSSED), ' edges with bond crossing'
          END IF
-         
-      END SUBROUTINE TRILATERATE_ATOMS2
 
+      CONTAINS
+         ! signed volume of NEWATOM relative to IDX1, IDX2, IDX3 in the image at offset OFF
+         REAL(KIND=REAL64) FUNCTION SIGNED_VOL(OFF)
+            INTEGER, INTENT(IN) :: OFF
+            REAL(KIND=REAL64) :: A(3), B(3), C(3), X(3)
+            A = XYZ(OFF+3*IDX1-2:OFF+3*IDX1)
+            B = XYZ(OFF+3*IDX2-2:OFF+3*IDX2)
+            C = XYZ(OFF+3*IDX3-2:OFF+3*IDX3)
+            X = XYZ(OFF+3*NEWATOM-2:OFF+3*NEWATOM)
+            SIGNED_VOL = DOT_PRODUCT(CROSS_PROD(B-A,C-A), X-A)
+         END FUNCTION SIGNED_VOL
+
+      END SUBROUTINE TRILATERATE_ATOMS2
   
 
       !Intersection of three spheres with centres P1...P3 with radii R1...R3
@@ -916,7 +914,8 @@ MODULE ADDINGATOM
          CALL NORM_VEC(V1,EX,NORM)     
 
          DOTX2 = EX(1)*V2(1) + EX(2)*V2(2) + EX(3)*V2(3) 
-         V3(1:3) = V2(1:3) - DOTX2*V1(1:3)
+         !V3(1:3) = V2(1:3) - DOTX2*V1(1:3)
+         V3(1:3) = V2(1:3) - DOTX2*EX(1:3)
          CALL NORM_VEC(V3,EY,NORM2)
          EZ = CROSS_PROD(EX,EY)
 
@@ -930,10 +929,11 @@ MODULE ADDINGATOM
          X=(R1*R1 - R2*R2 + NORM*NORM) / (2.0D0*NORM)
          Y=(R1*R1 - R3*R3 -2.0D0*DOTX2*X + DOTX2*DOTX2 + DOTY2*DOTY2) / (2.0D0*DOTY2)
          TEMP = R1*R1 - X*X - Y*Y
-   
+         
          
          IF (TEMP.LT.0.0D0) THEN
             FTEST=.TRUE.
+            WRITE(*,*) "ZTEST: ", TEMP
          ELSE
             FTEST=.FALSE.
             Z=SQRT(TEMP)
@@ -1033,7 +1033,7 @@ MODULE ADDINGATOM
          DO J1=2,NIMAGES+1
             IMAGEOFFSET = (J1-1)*3*NATOMS
             ! get linear interpolation in internal coordinates
-            ALPHA = (J1-1)/(NIMAGES+1)
+            ALPHA = 1.0D0*(J1-1)/(NIMAGES+1)
             DNEW = (1-ALPHA)*D1 + ALPHA*D2
             ANGNEW = (1-ALPHA)*ANG1 + ALPHA*ANG2
             DIHNEW = (1-ALPHA)*DIH1 + ALPHA*DIH2
@@ -1230,7 +1230,7 @@ MODULE ADDINGATOM
          IF (VOL.GT.VOLCUT) THEN
             !WRITE(*,*) "local_axis> Local volume indicates this is not a planer set of axis, using Gram-Schmidt projection"
             !V3 = VEC3-GS_PROJECTION(VEC3,VEC1)-GS_PROJECTION(VEC3,VEC2)
-            V3 = VEC3-GS_PROJECTION(V3,V1)-GS_PROJECTION(V3,V2)
+            V3 = VEC3 - GS_PROJECTION(VEC3,V1) - GS_PROJECTION(VEC3,V2)
             CALL NORM_VEC(V3,B3,NORM)
          ELSE
             !WRITE(*,*) "local_axis> Local volume indicates this is a planer set of axis, using normal vector"
@@ -1538,14 +1538,14 @@ MODULE ADDINGATOM
             !add a sanity check for active atoms
             IF (.NOT.ATOMACTIVE(J1)) CYCLE
             NSECCONSTR = NSECCONSTR + 1
-            IF (USE_BOND_DIST) THEN
-               AVD = 1.0D0*BOND_DIST(J1)
-            ELSE
+            !IF (USE_BOND_DIST) THEN
+            !   AVD = 1.0D0*BOND_DIST(J1)
+            !ELSE
                CALL DISTANCE_TWOATOMS(NATOMS, XSTART, NEWATOM, J1, DS)
                CALL DISTANCE_TWOATOMS(NATOMS, XFINAL, NEWATOM, J1, DF)
                AVD=0.5*(DS+DF)
                DEV=0.5*ABS(DS-DF)
-            END IF
+            !END IF
             ! go through sorting loop to mke sure we maintain an ordered list
             DO J2=1,NSECCONSTR
                IF (AVD.LT.SECCONDIST(J2)) THEN
