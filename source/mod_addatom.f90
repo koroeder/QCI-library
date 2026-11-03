@@ -1322,46 +1322,45 @@ MODULE ADDINGATOM
          USE DIHEDRAL_CONSTRAINTS, ONLY: NDIH, DIHEDRALS
          IMPLICIT NONE  
          INTEGER, INTENT(IN) :: NEWATOM
-         INTEGER :: J1, J2, J3
+         INTEGER :: J1, J2, J3, K, IDX
          LOGICAL :: ISCONSTRAINED  
          REAL(KIND = REAL64) :: DF, DS , DMIN      
+         LOGICAL :: EXCL(NATOMS)
          
          WRITE(*,*) " Update_repulsion> Before update: ", NREPULSIVE
 
+         ! atoms sharing a constraint or dihedral with NEWATOM get no repulsion
+         EXCL(1:NATOMS) = .FALSE.
+         DO J2=1,NCONSTRAINT
+            IF (CONI(J2).EQ.NEWATOM) EXCL(CONJ(J2)) = .TRUE.
+            IF (CONJ(J2).EQ.NEWATOM) EXCL(CONI(J2)) = .TRUE.
+         END DO
+         DO J2=1,NDIH
+            IF (.NOT.ANY(DIHEDRALS(J2,:).EQ.NEWATOM)) CYCLE
+            DO K=1,SIZE(DIHEDRALS,2)
+               IDX = DIHEDRALS(J2,K)
+               IF ((IDX.GE.1).AND.(IDX.LE.NATOMS)) EXCL(IDX) = .TRUE.
+            END DO
+         END DO
+         
+         
+         
          DO J1=1,NATOMS
             IF (.NOT.ATOMACTIVE(J1)) CYCLE !ignore atoms that are not active
-            !TODO setup proper dihedral exclusion
+            IF (EXCL(J1)) CYCLE
             IF (ABS(J1-NEWATOM).LE.QCIINTREPMINSEP) CYCLE !no repulsions if atoms are close in sequence
-            ISCONSTRAINED = .FALSE.
-            !Don't add repulsion if there are constraints between the atoms 
-            DO J2=1,NCONSTRAINT
-               IF (((CONI(J2).EQ.J1).AND.(CONJ(J2).EQ.NEWATOM)).OR.((CONJ(J2).EQ.J1).AND.(CONI(J2).EQ.NEWATOM))) THEN
-                  ISCONSTRAINED = .TRUE.
-                  EXIT
-               END IF
-            END DO
-
-            !Don't include repuslsions if atoms are part of the same dihedral
-            DO J2=1, NDIH
-               IF ( ANY(NEWATOM.EQ.DIHEDRALS(J2,:)).AND.ANY(J1.EQ.DIHEDRALS(J2,:))) THEN
-                  ISCONSTRAINED = .TRUE.
-                  EXIT
-               ENDIF
-            ENDDO
-            
-
-            IF (.NOT.ISCONSTRAINED) THEN
-               CALL DISTANCE_TWOATOMS(NATOMS, XSTART, NEWATOM, J1, DS)
-               CALL DISTANCE_TWOATOMS(NATOMS, XFINAL, NEWATOM, J1, DF)
-               DMIN=MIN(DS,DF)
-               DMIN=MIN(DMIN,QCIREPCUT)
-               NREPULSIVE=NREPULSIVE+1
-               IF (NREPULSIVE.GT.NREPCURR) CALL DOUBLE_ALLOC_REP()
-               REPI(NREPULSIVE)=J1
-               REPJ(NREPULSIVE)=NEWATOM
-               REPCUT(NREPULSIVE)=DMIN
-               !WRITE(*,*) " new repulsion: ",NREPULSIVE, " repi: ", REPI(NREPULSIVE), " repj: ", REPJ(NREPULSIVE), " repcut: ", REPCUT(NREPULSIVE)
-            END IF
+                  
+            CALL DISTANCE_TWOATOMS(NATOMS, XSTART, NEWATOM, J1, DS)
+            CALL DISTANCE_TWOATOMS(NATOMS, XFINAL, NEWATOM, J1, DF)
+            DMIN=MIN(DS,DF)
+            DMIN=MIN(DMIN,QCIREPCUT)
+            NREPULSIVE=NREPULSIVE+1
+            IF (NREPULSIVE.GT.NREPCURR) CALL DOUBLE_ALLOC_REP()
+            REPI(NREPULSIVE)=J1
+            REPJ(NREPULSIVE)=NEWATOM
+            REPCUT(NREPULSIVE)=DMIN
+            !WRITE(*,*) " new repulsion: ",NREPULSIVE, " repi: ", REPI(NREPULSIVE), " repj: ", REPJ(NREPULSIVE), " repcut: ", REPCUT(NREPULSIVE)
+           
          END DO
          WRITE(*,*) " Update_repulsion> After update: ", NREPULSIVE
 
