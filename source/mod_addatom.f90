@@ -876,7 +876,8 @@ MODULE ADDINGATOM
          CALL NORM_VEC(V1,EX,NORM)     
 
          DOTX2 = EX(1)*V2(1) + EX(2)*V2(2) + EX(3)*V2(3) 
-         V3(1:3) = V2(1:3) - DOTX2*V1(1:3)
+         V3(1:3) = V2(1:3) - DOTX2*EX(1:3)
+         !V3(1:3) = V2(1:3) - DOTX2*V1(1:3)
          CALL NORM_VEC(V3,EY,NORM2)
          EZ = CROSS_PROD(EX,EY)
 
@@ -1560,7 +1561,7 @@ MODULE ADDINGATOM
             AVD=0.5*(DS+DF)
             DEV=0.5*ABS(DS-DF)
             NDISTNEWATOM = NDISTNEWATOM + 1
-            ! go through sorting loop to mke sure we maintain an ordered list
+            ! go through sorting loop to make sure we maintain an ordered list
             DO J2=1,NDISTNEWATOM
                IF (AVD.LT.BESTDIST(J2)) THEN
                   DO J3=NDISTNEWATOM,J2+1,-1

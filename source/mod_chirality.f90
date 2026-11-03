@@ -154,6 +154,32 @@ MODULE CHIRALITY
          END DO
       END SUBROUTINE CHECK_SINGLE_CHIRAL_CENTRE
 
+      !SUBROUTINE SWITCH_PAIR(CENTRE,IDX1,IDX2,COORDS)
+         !USE QCIKEYS, ONLY: NATOMS
+         !USE HELPER_FNCTS, ONLY: NORM_VEC
+         !INTEGER, INTENT(IN) :: CENTRE
+         !INTEGER, INTENT(IN) :: IDX1, IDX2
+         !REAL(KIND = REAL64), INTENT(INOUT) :: COORDS(3*NATOMS)
+         !REAL(KIND = REAL64) :: C(3), AT1(3), AT2(3)
+         !REAL(KIND = REAL64) :: LEN1, LEN2, VEC1(3), VEC2(3), N1(3), N2(3)
+
+         !atom positions
+         !C(1:3) = COORDS(3*(CENTRE-1)+1:3*(CENTRE-1)+3)
+         !AT1(1:3) = COORDS(3*(IDX1-1)+1:3*(IDX1-1)+3)
+         !AT2(1:3) = COORDS(3*(IDX2-1)+1:3*(IDX2-1)+3)
+         !position vectors
+         !VEC1(1:3) = AT1(1:3) - C(1:3)
+         !VEC2(1:3) = AT2(1:3) - C(1:3)
+         !!get normalised vectors
+         !CALL NORM_VEC(VEC1,N1,LEN1)
+         !CALL NORM_VEC(VEC2,N2,LEN2)
+         !now switch their positions
+         !for atom1 we place it at the distance of C to atom1 along n2, and vice versa for atom2
+         !COORDS(3*(IDX1-1)+1:3*(IDX1-1)+3) = C(1:3) + LEN1*N2(1:3)
+         !COORDS(3*(IDX2-1)+1:3*(IDX2-1)+3) = C(1:3) + LEN2*N1(1:3)
+        
+      !END SUBROUTINE SWITCH_PAIR
+
       SUBROUTINE SWITCH_PAIR(CENTRE,IDX1,IDX2,COORDS)
          USE QCIKEYS, ONLY: NATOMS
          USE HELPER_FNCTS, ONLY: NORM_VEC
@@ -162,6 +188,9 @@ MODULE CHIRALITY
          REAL(KIND = REAL64), INTENT(INOUT) :: COORDS(3*NATOMS)
          REAL(KIND = REAL64) :: C(3), AT1(3), AT2(3)
          REAL(KIND = REAL64) :: LEN1, LEN2, VEC1(3), VEC2(3), N1(3), N2(3)
+         ! --- added: rotation used to carry terminal atoms with their parent
+         REAL(KIND = REAL64) :: K(3), V(3), KXV(3), KLEN, COSTH, SINTH, S
+         INTEGER :: J1, J2, NB, ROOT
 
          !atom positions
          C(1:3) = COORDS(3*(CENTRE-1)+1:3*(CENTRE-1)+3)
@@ -177,6 +206,41 @@ MODULE CHIRALITY
          !for atom1 we place it at the distance of C to atom1 along n2, and vice versa for atom2
          COORDS(3*(IDX1-1)+1:3*(IDX1-1)+3) = C(1:3) + LEN1*N2(1:3)
          COORDS(3*(IDX2-1)+1:3*(IDX2-1)+3) = C(1:3) + LEN2*N1(1:3)
+
+         ! --- added: carry terminal atoms (e.g. HG1 on Thr OG1) rigidly with their parent.
+         ! The placement above equals a rotation about K = N1 x N2 by +theta for IDX1
+         ! (N1 -> N2) and by -theta for IDX2 (N2 -> N1); apply the same to terminal neighbours.
+         K(1) = N1(2)*N2(3) - N1(3)*N2(2)
+         K(2) = N1(3)*N2(1) - N1(1)*N2(3)
+         K(3) = N1(1)*N2(2) - N1(2)*N2(1)
+         KLEN = SQRT(SUM(K**2))
+         IF (KLEN.LT.1.0D-6) THEN
+            WRITE(*,*) " switch_pair> Warning: collinear bond vectors at centre ", CENTRE, &
+                       " - terminal atoms not moved"
+            RETURN
+         END IF
+         K = K/KLEN
+         COSTH = SUM(N1*N2)
+         SINTH = KLEN
+         DO J1=1,2
+            IF (J1.EQ.1) THEN
+               ROOT = IDX1
+               S = SINTH
+            ELSE
+               ROOT = IDX2
+               S = -SINTH
+            END IF
+            DO J2=1,6
+               NB = BONDEDATS(ROOT,J2)
+               IF ((NB.LE.0).OR.(NB.EQ.CENTRE)) CYCLE   ! empty slot, ghost atom, or the centre
+               IF (NBONDED(NB).NE.1) CYCLE              ! only terminal atoms (separate IF: no short-circuit in Fortran)
+               V(1:3) = COORDS(3*NB-2:3*NB) - C(1:3)
+               KXV(1) = K(2)*V(3) - K(3)*V(2)
+               KXV(2) = K(3)*V(1) - K(1)*V(3)
+               KXV(3) = K(1)*V(2) - K(2)*V(1)
+               COORDS(3*NB-2:3*NB) = C(1:3) + V(1:3)*COSTH + KXV(1:3)*S + K(1:3)*SUM(K*V)*(1.0D0-COSTH)
+            END DO
+         END DO
       END SUBROUTINE SWITCH_PAIR
 
       SUBROUTINE SWITCH_SMALL_GROUPS(XYZ,CENTRE,IMAGE)
@@ -703,8 +767,9 @@ MODULE CHIRALITY
                ! we add the number of atoms bonded
                ! for H, we get +1, i.e. accounting for the atom
                ! for anything else, we get 2+, accounting for the atom+other bonded atoms
-               DO J2=1,NBONDED(ATID)
+               DO J2=1,6
                   ATID2 = BONDEDATS(ATID,J2)
+                  IF (ATID2.LE.0) CYCLE              ! -1 = empty slot, 0 = ghost atom
                   TOTAL_BONDED = TOTAL_BONDED + NBONDED(ATID2)
                END DO
                !we are counting the chiral centre here as well, so we subtract the number of bonds from the chiral centre to correct for this 
@@ -713,15 +778,20 @@ MODULE CHIRALITY
                GROUPSIZE(J1) = TOTAL_BONDED
                IF (TOTAL_BONDED.LE.NSWAPCUT) THEN
                   GROUPIDS(J1,1) = ATID
-                  DO J3=2,TOTAL_BONDED
-                     GROUPIDS(J1,J3) = BONDEDATS(ATID,J3)  
+                  J3 = 1
+                  DO J2=1,6
+                     ATID2 = BONDEDATS(ATID,J2)
+                     IF ((ATID2.LE.0).OR.(ATID2.EQ.CHIR_INFO(CENTRE,1))) CYCLE
+                     J3 = J3 + 1
+                     IF (J3.GT.NSWAPCUT) EXIT
+                     GROUPIDS(J1,J3) = ATID2
                   END DO
                END IF
             END IF
          END DO
       END SUBROUTINE GET_ATTACHED_SIZE
 
-      SUBROUTINE SORT_BONDEDATS()
+     SUBROUTINE SORT_BONDEDATS()
          IMPLICIT NONE
          INTEGER :: J1, J2, ENDL, MAXPOS, NDUMMY
          INTEGER :: DUMMY_ATS(6), DUMMY_ELS(6)
