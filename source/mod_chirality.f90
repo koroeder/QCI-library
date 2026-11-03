@@ -191,7 +191,10 @@ MODULE CHIRALITY
          REAL(KIND = REAL64) :: N1(3), N2(3), LEN1, LEN2, ROTAX(3)
          REAL(KIND = REAL64) :: COSTH, SINTH, ANGLE, RX, RY, RZ, DP, AXLEN
          REAL(KIND = REAL64) :: ATOMX(3)
+         REAL(KIND = REAL64) :: ROTX(3) !< temp vector to avoid overwriting atoms 
          INTEGER :: ATID, J1
+         REAL(KIND = REAL64), PARAMETER :: AXTOL = 1.0D-6   ! threshold on sin(theta)
+         REAL(KIND = REAL64) :: TRIAL(3)
 
          CHIRALCENTRE = CHIR_INFO(CENTRE,1)
          ATOMS1(1:NSWAPCUT) = SWAPGROUPS(CENTRE,1,1:NSWAPCUT)
@@ -219,15 +222,45 @@ MODULE CHIRALITY
          CALL NORM_VEC(VEC2,N2,LEN2)
 
          !get perpendicular axis for rotation
-         ROTAX = CROSS_PROD(N1,N2)
-         
-         AXLEN = EUC_NORM(ROTAX)
-         ROTAX = ROTAX/AXLEN
-         RX = ROTAX(1); RY = ROTAX(2); RZ = ROTAX(3)
+         !ROTAX = CROSS_PROD(N1,N2)
+         !AXLEN = EUC_NORM(ROTAX)
+         !ROTAX = ROTAX/AXLEN
+         !RX = ROTAX(1); RY = ROTAX(2); RZ = ROTAX(3)
          !get the rotation angle N1->N2
+         !COSTH = DOTP(3,N1,N2)
+         !SINTH = AXLEN !EUC_NORM(ROTAX)
+         !ANGLE = ATAN2(SINTH,COSTH)
+
+         ROTAX = CROSS_PROD(N1,N2)
+         AXLEN = EUC_NORM(ROTAX)
          COSTH = DOTP(3,N1,N2)
-         SINTH = AXLEN !EUC_NORM(ROTAX)
+
+         IF (AXLEN.LT.AXTOL) THEN
+            IF (COSTH.GT.0.0D0) THEN
+               ! parallel: both groups point the same way, a rotation cannot swap them
+               WRITE(*,*) " switch_small_groups> Warning: Swap-group bond vectors are parallel for centre ", &
+                        CHIRALCENTRE, " image ", IMAGE, " - skipping swap"
+               RETURN
+            ELSE
+               ! antiparallel: rotate by pi about any axis perpendicular to N1
+               ! pick the Cartesian axis least aligned with N1 so the cross product is well conditioned
+               IF (ABS(N1(1)).LT.0.9D0) THEN
+                  TRIAL = (/1.0D0, 0.0D0, 0.0D0/)
+               ELSE
+                  TRIAL = (/0.0D0, 1.0D0, 0.0D0/)
+               END IF
+               ROTAX = CROSS_PROD(N1,TRIAL)
+               ROTAX = ROTAX/EUC_NORM(ROTAX)  ! norm >= ~0.43 by construction
+               COSTH = -1.0D0
+               SINTH = 0.0D0
+            END IF
+         ELSE
+            ROTAX = ROTAX/AXLEN
+            SINTH = AXLEN
+         END IF
+         RX = ROTAX(1); RY = ROTAX(2); RZ = ROTAX(3)
          ANGLE = ATAN2(SINTH,COSTH)
+
 
          DO J1=1,NSWAPCUT
             ATID = ATOMS1(J1)
@@ -240,13 +273,13 @@ MODULE CHIRALITY
                ATOMX(1:3) = ATOMX(1:3) - C(1:3)
                ! apply rotation
                DP = DOTP(3,ATOMX,ROTAX)
-               ATOMX(1) = RX*DP*(1.0D0-COSTH) + ATOMX(1)*COSTH + (-RZ*ATOMX(2) + RY*ATOMX(3))*SINTH
-               ATOMX(2) = RY*DP*(1.0D0-COSTH) + ATOMX(2)*COSTH + ( RZ*ATOMX(1) - RX*ATOMX(3))*SINTH
-               ATOMX(3) = RZ*DP*(1.0D0-COSTH) + ATOMX(3)*COSTH + (-RY*ATOMX(1) + RX*ATOMX(2))*SINTH
+               ROTX(1) = RX*DP*(1.0D0-COSTH) + ATOMX(1)*COSTH + (-RZ*ATOMX(2) + RY*ATOMX(3))*SINTH
+               ROTX(2) = RY*DP*(1.0D0-COSTH) + ATOMX(2)*COSTH + ( RZ*ATOMX(1) - RX*ATOMX(3))*SINTH
+               ROTX(3) = RZ*DP*(1.0D0-COSTH) + ATOMX(3)*COSTH + (-RY*ATOMX(1) + RX*ATOMX(2))*SINTH
                !write new coordinates back to XYZ array
-               XYZ(3*NATOMS*(IMAGE-1)+3*ATID-2) =  ATOMX(1) + C(1)
-               XYZ(3*NATOMS*(IMAGE-1)+3*ATID-1) =  ATOMX(2) + C(2)
-               XYZ(3*NATOMS*(IMAGE-1)+3*ATID) =  ATOMX(3) + C(3)
+               XYZ(3*NATOMS*(IMAGE-1)+3*ATID-2) =  ROTX(1) + C(1)
+               XYZ(3*NATOMS*(IMAGE-1)+3*ATID-1) =  ROTX(2) + C(2)
+               XYZ(3*NATOMS*(IMAGE-1)+3*ATID)   =  ROTX(3) + C(3)
             END IF
          END DO
 
@@ -264,13 +297,12 @@ MODULE CHIRALITY
                ATOMX(1:3) = ATOMX(1:3) - C(1:3)
                ! apply rotation
                DP = DOTP(3,ATOMX,ROTAX)
-               ATOMX(1) = RX*DP*(1.0D0-COSTH) + ATOMX(1)*COSTH + (-RZ*ATOMX(2) + RY*ATOMX(3))*SINTH
-               ATOMX(2) = RY*DP*(1.0D0-COSTH) + ATOMX(2)*COSTH + ( RZ*ATOMX(1) - RX*ATOMX(3))*SINTH
-               ATOMX(3) = RZ*DP*(1.0D0-COSTH) + ATOMX(3)*COSTH + (-RY*ATOMX(1) + RX*ATOMX(2))*SINTH
-               !write new coordinates back to XYZ array
-               XYZ(3*NATOMS*(IMAGE-1)+3*ATID-2) =  ATOMX(1) + C(1)
-               XYZ(3*NATOMS*(IMAGE-1)+3*ATID-1) =  ATOMX(2) + C(2)
-               XYZ(3*NATOMS*(IMAGE-1)+3*ATID) =  ATOMX(3) + C(3)
+               ROTX(1) = RX*DP*(1.0D0-COSTH) + ATOMX(1)*COSTH + (-RZ*ATOMX(2) + RY*ATOMX(3))*SINTH
+               ROTX(2) = RY*DP*(1.0D0-COSTH) + ATOMX(2)*COSTH + ( RZ*ATOMX(1) - RX*ATOMX(3))*SINTH
+               ROTX(3) = RZ*DP*(1.0D0-COSTH) + ATOMX(3)*COSTH + (-RY*ATOMX(1) + RX*ATOMX(2))*SINTH
+               XYZ(3*NATOMS*(IMAGE-1)+3*ATID-2) = ROTX(1) + C(1)
+               XYZ(3*NATOMS*(IMAGE-1)+3*ATID-1) = ROTX(2) + C(2)
+               XYZ(3*NATOMS*(IMAGE-1)+3*ATID)   = ROTX(3) + C(3)
             END IF
          END DO
       END SUBROUTINE SWITCH_SMALL_GROUPS
