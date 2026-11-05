@@ -1299,7 +1299,7 @@ MODULE CONSTR_E_GRAD
             
             ! V_QCI = 1/2 * K_SPR * |X_i - X_{i-1}|^2
             DUMMY = KINT*0.5D0*DPLUS/KINTSCALED
-            !DUMMY = K_SPRING(J1)*0.5D0*DPLUS/KINTSCALED
+           
 
             !QUESTION this adds energy to X_0 and X_n+1? How should the energy be divided? 
             !WARNING adding if statement to make sure E(1) & E(NIMAGES+2) = 0 ... not sure this is right
@@ -1321,8 +1321,7 @@ MODULE CONSTR_E_GRAD
             ESPR = ESPR + DUMMY
             ! get gradient
             DUMMY=KINT/KINTSCALED
-            !DUMMY = K_SPRING(J1) / KINTSCALED
-            
+                        
             !original spring force
             DO J2=1,NATOMS
                SPGRAD = 0.0D0
@@ -1503,24 +1502,19 @@ MODULE CONSTR_E_GRAD
       END SUBROUTINE INTMIN_CONSTRAINT
 
       !> Adjust K_SPRING by image distances 
-      SUBROUTINE GET_SPRING_CONSTANTS(XYZ)
+      SUBROUTINE GET_IMAGE_DIST()
          
-         USE QCIKEYS, ONLY: NATOMS, NIMAGES, KINT
+         USE QCIKEYS, ONLY: NATOMS, NIMAGES
          USE HELPER_FNCTS, ONLY: DISTANCE_ATOM_DIFF_IMAGES
-         USE INTERPOLATION_KEYS, ONLY: ATOMACTIVE, K_SPRING, IMAGE_DIST, NACTIVE
+         USE INTERPOLATION_KEYS, ONLY: ATOMACTIVE, IMAGE_DIST, NACTIVE, XYZ
 
          IMPLICIT NONE
-
-         REAL(KIND = REAL64), INTENT(IN)  :: XYZ(3*NATOMS*(NIMAGES+2))  !< input coordinates
-                  
+            
          REAL(KIND=REAL64) :: IMAGE_DISTANCE(NIMAGES+1)
-
          REAL(KIND = REAL64) :: DISTATOM, DISTTOTAL, X1(3*NATOMS), X2(3*NATOMS)
          REAL(KIND=REAL64) ::  DMAX, DMIN
          INTEGER :: J1, J2
-
-         K_SPRING = KINT
-         
+                  
          DMAX = 0.0D0
          DMIN = 1.0D100
          
@@ -1544,20 +1538,11 @@ MODULE CONSTR_E_GRAD
                DMIN = DISTTOTAL
             END IF
 
-         END DO
+         END DO       
          
-         
-         
-         !IMAGE_DIST is later used for statistics!
          IMAGE_DIST = IMAGE_DISTANCE / NACTIVE
-
-         !Normalise 
-         IMAGE_DISTANCE = IMAGE_DISTANCE / DMAX
-
-         K_SPRING =  IMAGE_DISTANCE * KINT          
-
-      
-      END SUBROUTINE GET_SPRING_CONSTANTS
+               
+      END SUBROUTINE GET_IMAGE_DIST
 
       SUBROUTINE GET_AVE_BOND_LENGTH(AVE_BL)
          USE QCIKEYS, ONLY: NATOMS

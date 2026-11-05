@@ -98,9 +98,9 @@ MODULE COMPARELIST
                IF (GT13T) THEN
                   PRIORITY(:) = (/1,3,2/)
                
-               ! (1>2) & (3>2) & (3>1) =>  (3>1>2)
-               ELSE
-                  PRIORITY(:) = (/3,1,2/) 
+               ! (1>2) & (3>2) & (3>1) =>  (3>1>2) - cyclical one
+               ELSE 
+                  PRIORITY(:) = (/2,3,1/) 
                ENDIF
             
             !(2>1) & (3>1) =>  (2>1>3)
@@ -110,10 +110,9 @@ MODULE COMPARELIST
                !(2>1) & (3>1) => two options
             ELSE IF (.NOT.GT12T.AND.(.NOT.GT13T)) THEN
                
-               !(2>1) & (3>1) & (2>3) => (2>3>1)
+               !(2>1) & (3>1) & (2>3) => (2>3>1) - cyclical one
                IF (GT23T) THEN
-                  PRIORITY(:) = (/2,3,1/)
-               
+                  PRIORITY(:) = (/3,1,2/)
                !(2>1) & (3>1) & (3>2) => (3>2>1)
                ELSE
                   PRIORITY(:) = (/3,2,1/)

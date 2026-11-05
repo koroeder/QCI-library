@@ -17,7 +17,7 @@ MODULE QCIINTERPOLATION
                             NMINAFTERADD, OPTIMISEAFTERADDITION, DETECTBBCROSSING, CHECKCROSSFREQ, CALC_BOND_E
          USE MOD_FREEZE, ONLY: ADD_CONSTR_AND_REP_NBEST
          USE CONSTR_E_GRAD, ONLY: CONGRAD, CONVERGECONTEST, CONVERGEREPTEST, &
-                                  FCONMAX, FREPMAX, GET_SPRING_CONSTANTS
+                                  FCONMAX, FREPMAX, GET_IMAGE_DIST
         
 
          
@@ -98,7 +98,7 @@ MODULE QCIINTERPOLATION
                CALL UPDATE_REPULSIONS(J)
                NACTIVE = NACTIVE + 1
             END DO                    
-            CALL GET_SPRING_CONSTANTS(XYZ) 
+            
          ELSE
 
             ! get constraint with smallest distance between endpoints (respecting QCILINEAR and QCIDOBACK)
@@ -242,19 +242,8 @@ MODULE QCIINTERPOLATION
                   KINT=MIN(KINT*QCIADJUSTKFRAC,QCIKINTMAX)
                   WRITE(*,*) " QCIinterp> Increasing spring constant from ", KINT, " to ", MIN(KINT*QCIADJUSTKFRAC,QCIKINTMAX)
                END IF
-
-               CALL GET_SPRING_CONSTANTS(XYZ) 
-
             END IF
-
-            !Check for backbone crossings - DOES NOT WORK
-            !IF (DETECTBBCROSSING.AND.(MOD(NITERDONE,CHECKCROSSFREQ).EQ.0)) THEN
-               !For now only do a passive check 
-               ! TODO: Develop strategy to deal resolve bond crossings 
-               !CALL DETECT_BOND_CROSSINGS(XYZ)
-                           
-            !END IF
-            
+           
             !if not all atoms are active, we add an atom now to the active set and hence the images
             IF (ADDATOMT.AND.(NACTIVE.LT.NATOMS)) THEN
                WRITE(*,*) " QCIinterp> Adding the next atom to active set" 
@@ -552,10 +541,11 @@ MODULE QCIINTERPOLATION
          END IF
          
          CALL GET_STATISTIC_INTERP()
+         CALL GET_IMAGE_DIST()
          CALL WRITE_BAND(XYZFILE)
          CALL WRITE_ACTIVE_BAND(ADJUSTL(TRIM(XYZFILE))//".active")
          CALL WRITE_PROFILE(EEEFILE,EEE)
-         !DEBUG write distance between imahes as a profile
+         !DEBUG write distance between images as a profile
          CALL WRITE_IMAGE_DIST('plot_image_dist.txt')
          CALL WRITE_IMAGE_E('plot_energy_profile.txt', EEE)
 
@@ -784,8 +774,8 @@ MODULE QCIINTERPOLATION
             RETURN
          END IF
 
-         !QUESTION: MUPDATE is number of stored information about previous step, so we don't go above this number 
-         !BOUND is the current number of prev info?
+         !MUPDATE is number of stored information about previous step, so we don't go above this number 
+         !BOUND is the current number of prev info
          
          !Step1
          IF (NITERDONE.GT.MUPDATE) THEN

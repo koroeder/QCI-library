@@ -857,7 +857,7 @@ MODULE CHIRALITY
 
          PROCESSED(1:NCSP2) = .FALSE.
          NDOUBLE = 0
-         DOUBLEB(1:NATOMS,1:2) = -1
+         DOUBLEB = -1
          ! we iterate over the list of C sp2 atoms and find their binding partner
          DO I=1,NCSP2
             ! for C=C bonds we have two atoms in the list and have to avoid adding the bond twice
@@ -878,7 +878,7 @@ MODULE CHIRALITY
                      ENDIF
                   END IF
                END DO
-               ! at this stage we have either accounted for the dopuble bond or it is not a C=C bond,
+               ! at this stage we have either accounted for the double bond or it is not a C=C bond,
                ! so we check if it is a C=O bond
                IF (.NOT.PROCESSED(I)) THEN
                   DO J=1,3

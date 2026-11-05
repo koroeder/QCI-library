@@ -16,7 +16,7 @@ MODULE ADDREMOVE_IMAGES
          INTEGER, INTENT(IN) :: IDXMAX   !< Image gets added between IDXMAX and IDXMAX+1
          REAL(KIND=REAL64), INTENT(OUT) :: ETOTAL, RMS
          REAL(KIND=REAL64), ALLOCATABLE :: TEMPXYZ(:), TEMPSTEP(:,:), TEMPGDIF(:,:)
-         INTEGER :: OFFSET1, OFFSET2, OFFSET3, J1, NIMAGEDUMMY, NIMGPREV
+         INTEGER :: OFFSET1, OFFSET2, OFFSET3, J1, NIMGPREV
 
          !allocate temporary arrays to save current values
          ALLOCATE(TEMPXYZ(3*NATOMS*(NIMAGES+2)))
@@ -115,15 +115,10 @@ MODULE ADDREMOVE_IMAGES
          CALL ALLOC_STEPTAKING()        
          !write search step and gdif back into the correct variables
          DO J1=1,MUPDATE
-            SEARCHSTEP(J1,1:OFFSET3)=TEMPSTEP(J1,1:OFFSET3)
-            SEARCHSTEP(J1,OFFSET3+1:3*NATOMS*NIMAGES) = TEMPSTEP(J1,OFFSET1+1:3*NATOMS*(NIMAGES-1))
-            
-            !WARNING double check the indeces are correct here
-            !GDIF(J1,1:OFFSET1)=TEMPGDIF(J1,1:OFFSET1)
-            !GDIF(J1,OFFSET3+1:3*NATOMS*NIMAGES) = TEMPGDIF(J1,OFFSET1+1:3*NATOMS*(NIMAGES-1))
-            
-            GDIF(J1,1:OFFSET3)=TEMPGDIF(J1,1:OFFSET3)
-            GDIF(J1,OFFSET3+1:3*NATOMS*NIMAGES) = TEMPGDIF(J1,OFFSET1+1:3*NATOMS*(NIMAGES-1))
+            SEARCHSTEP(J1,1:OFFSET3) = TEMPSTEP(J1,1:OFFSET3)
+            SEARCHSTEP(J1,OFFSET3+1:3*NATOMS*NIMAGES) = TEMPSTEP(J1,OFFSET1+1:3*NATOMS*(NIMAGES+1))
+            GDIF(J1,1:OFFSET3) = TEMPGDIF(J1,1:OFFSET3)
+            GDIF(J1,OFFSET3+1:3*NATOMS*NIMAGES) = TEMPGDIF(J1,OFFSET1+1:3*NATOMS*(NIMAGES+1))
          END DO
 
          ! before we continue check repulsion neighbour list
