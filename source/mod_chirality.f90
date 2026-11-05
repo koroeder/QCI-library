@@ -63,17 +63,14 @@ MODULE CHIRALITY
 
       SUBROUTINE CHECK_SINGLE_CHIRAL_CENTRE(CHIRALGROUP,XYZ)
          USE INTERPOLATION_KEYS, ONLY: ATOMACTIVE
-         USE QCIKEYS, ONLY: NATOMS, DEBUG, NIMAGES, ATOMS2RES
+         USE QCIKEYS, ONLY: NATOMS, NIMAGES
          USE AMBER_CONSTRAINTS, ONLY: NBOND, BONDS, ELEMENT
          INTEGER, INTENT(IN) :: CHIRALGROUP
          REAL(KIND = REAL64), INTENT(INOUT) :: XYZ((3*NATOMS)*(NIMAGES+2))
          INTEGER :: CHIRALCENTRE
          INTEGER :: J1, J2, J3, IDX1, IDX2
          REAL(KIND = REAL64) :: NEIGHBOUR_COORDS(12), CENTRE_COORDS(3)
-         REAL(KIND = REAL64) :: COORDSA(3*NATOMS), COORDSB(3*NATOMS)
          INTEGER :: ATOMID
-         INTEGER :: NCHANGE, CHANGEAT(NATOMS), THISIMAGE, PREVIMAGE, OFFSET, OFFSET2
-         LOGICAL :: CENTREACTIVE
          LOGICAL :: THIS_SR, PREV_SR
          INTEGER :: NCONSTPERATOM(4), SORTED_IDX(4), SORTED_NB(4), SORTED_ELS(4), NB, EL
          INTEGER :: SWITCH1, SWITCH2
@@ -147,9 +144,14 @@ MODULE CHIRALITY
             ! S/R assignment for current image
             THIS_SR = ASSIGNMENT_SR(NEIGHBOUR_COORDS,CENTRE_COORDS)
             IF (THIS_SR.NEQV.PREV_SR) THEN
-               WRITE(*,*) " check_single_centre> Atom ", CHIRALCENTRE, " image ", J1, " chirality changed"
-               WRITE(*,*) " check_single_centre> Attempting to switch atom pair: ", SWITCH1, SWITCH2
-               CALL SWITCH_PAIR(CHIRALCENTRE,SWITCH1,SWITCH2,XYZ(3*NATOMS*(J1-1)+1:3*NATOMS*J1))                  
+               IF (POTENTIAL_SWAPT(CHIRALGROUP)) THEN
+                  CALL SWITCH_SMALL_GROUPS(XYZ,CHIRALGROUP,J1)
+                  WRITE(*,*) " check_single_centre> Attempting to switch small group"
+               ELSE 
+                  WRITE(*,*) " check_single_centre> Atom ", CHIRALCENTRE, " image ", J1, " chirality changed"
+                  WRITE(*,*) " check_single_centre> Attempting to switch atom pair: ", SWITCH1, SWITCH2
+                  CALL SWITCH_PAIR(CHIRALCENTRE,SWITCH1,SWITCH2,XYZ(3*NATOMS*(J1-1)+1:3*NATOMS*J1))    
+               END IF     
             END IF
          END DO
       END SUBROUTINE CHECK_SINGLE_CHIRAL_CENTRE
@@ -245,7 +247,6 @@ MODULE CHIRALITY
 
       SUBROUTINE SWITCH_SMALL_GROUPS(XYZ,CENTRE,IMAGE)
          USE QCIKEYS, ONLY: NATOMS, NIMAGES
-         USE INTERPOLATION_KEYS, ONLY: ATOMACTIVE
          USE HELPER_FNCTS, ONLY: NORM_VEC, CROSS_PROD, DOTP, EUC_NORM
          REAL(KIND = REAL64), INTENT(INOUT) :: XYZ((3*NATOMS)*(NIMAGES+2))
          INTEGER, INTENT(IN) :: CENTRE, IMAGE

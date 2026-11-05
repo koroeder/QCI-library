@@ -258,7 +258,7 @@ MODULE CONSTR_E_GRAD
 
 
       SUBROUTINE GET_CONSTRAINT_E_NOINTERNAL(XYZ,GGG,EEE,ECON)
-         USE QCIKEYS, ONLY: NIMAGES, NATOMS, K_CONST, INTMINFAC, CHECKCONINT, &
+         USE QCIKEYS, ONLY: NIMAGES, NATOMS, K_CONST, INTMINFAC, &
                             CONACTINACT, USECONACTINACT
          USE QCI_CONSTRAINT_KEYS, ONLY: NCONSTRAINT, CONI, CONJ, CONDISTREFLOCAL
          USE INTERPOLATION_KEYS, ONLY: CONACTIVE, ATOMACTIVE
@@ -274,7 +274,7 @@ MODULE CONSTR_E_GRAD
          REAL(KIND=REAL64) :: XA(3), XB(3)           !< coordinates for atoms A and B 
          REAL(KIND=REAL64) :: DIST, DUMMY, DUMMY2    !< distance and related measure
          REAL(KIND=REAL64) :: G2(3), GRADAB(3)
-         REAL(KIND=REAL64) :: EMAX, FMIN, FMAX
+         REAL(KIND=REAL64) :: EMAX, FMIN, FMAX, AVE_BL, E
          REAL(KIND=REAL64) :: LOCALCONFACTOR, DIST_MAXE
          INTEGER :: IMAX, JMAX
 
@@ -328,27 +328,23 @@ MODULE CONSTR_E_GRAD
                ! now check whether we are beyond the constraint cutoff
                ! Condition: |G2| - mean(d_AB) > C_AB
                IF (DUMMY.GT.CCLOCAL) THEN
-                    
-
-                  ! calculate gradient and energy
-                                                     
-                 
+                   
+                  ! calculate gradient and energy                   
                   GRADAB(1:3)=2.0D0*K_CONST*LOCALCONFACTOR*((DUMMY2-CCLOCAL2)/CCLOCAL2**2)*DUMMY*G2(1:3)
                   
                   ! Eq(8) J.Chem.Theory Comput. 2012, 8, 5020-5034
                   ! Deviation from published equation ... added /CCLOCAL**2  
-                  
                   ! new: V_con(d^i_AB) = (k_con* ((d^i_AB - ave(d_AB))^2 -(C^con_AB)^2 )^2 )/ 2*(C^con_AB)^4
-                  DUMMY = K_CONST*LOCALCONFACTOR*((DUMMY2-CCLOCAL2)**2/(2.0D0*CCLOCAL2**2))
+                  E = K_CONST*LOCALCONFACTOR*((DUMMY2-CCLOCAL2)**2/(2.0D0*CCLOCAL2**2))
                                     
-                  EEE(J1) = EEE(J1) + DUMMY
-                  ECON = ECON + DUMMY
+                  EEE(J1) = EEE(J1) + E
+                  ECON = ECON + E
                    
                   ! save largest contribution to EMAX
-                  IF (DUMMY.GT.EMAX) THEN
+                  IF (E.GT.EMAX) THEN
                      IMAX = J1
                      JMAX = J2
-                     EMAX = DUMMY
+                     EMAX = E
                      DIST_MAXE = DIST
                   END IF
                   
@@ -357,6 +353,32 @@ MODULE CONSTR_E_GRAD
                   
                   FMIN=MIN(FMIN,MINVAL(GRADAB))
                   FMAX=MAX(FMAX,MAXVAL(GRADAB))
+               
+               !ELSE IF (DIST.LT.CONDISTREFLOCAL(J2)) THEN
+               !   
+               !Simple harmonic potential (keep k=k_const for now)
+               !E = K_CONST* (DIST-CONDISTREFLOCAL(J2))**2
+               !
+               !GRADAB(1:3) = 2.0D0*K_CONST*(DIST-CONDISTREFLOCAL(J2))*(XA-XB)/DIST
+               ! calculate gradient and energy
+               !                     
+               !   EEE(J1) = EEE(J1) + E
+               !   ECON = ECON + E
+               !    
+               !   ! save largest contribution to EMAX
+               !   IF (E.GT.EMAX) THEN
+               !      IMAX = J1
+               !      JMAX = J2
+               !      EMAX = E
+               !      DIST_MAXE = DIST
+               !   END IF
+                  
+               !   GGG(NI1+1:NI1+3)=GGG(NI1+1:NI1+3)+GRADAB(1:3)
+               !   GGG(NJ1+1:NJ1+3)=GGG(NJ1+1:NJ1+3)-GRADAB(1:3)
+                  
+               !   FMIN=MIN(FMIN,MINVAL(GRADAB))
+               !   FMAX=MAX(FMAX,MAXVAL(GRADAB))
+
 
                END IF
             END DO
@@ -369,7 +391,10 @@ MODULE CONSTR_E_GRAD
          MAXCONSTR = JMAX
 
          IF (JMAX.GT.0) THEN
-            WRITE(*,*) ' congrad1> Highest constraint for image ',IMAX, ', con ',JMAX, ', atoms ',CONI(JMAX),CONJ(JMAX),' value=',EMAX, 'dist=', DIST_MAXE
+            WRITE(*,'(A,I5,A,I8,A,2I7,A,ES12.4,A,F8.3,A,F8.3)') &
+                  ' congrad1> Highest constraint: image ', IMAX, ', con ', JMAX,      &
+                  ', atoms ', CONI(JMAX), CONJ(JMAX), ', E = ', EMAX,                 &
+                  ', dist = ', DIST_MAXE, ', ref = ', CONDISTREFLOCAL(JMAX)
          ENDIF
       END SUBROUTINE GET_CONSTRAINT_E_NOINTERNAL
 
@@ -1354,13 +1379,12 @@ MODULE CONSTR_E_GRAD
          IMPLICIT NONE
          INTEGER, INTENT(IN) :: CONID
          REAL(KIND=REAL64), INTENT(OUT) :: CCLOCAL
-         !QUERY: this seems odd - why are they applied consecutively?
+        
          CCLOCAL=CONCUTLOCAL(CONID)
          IF (CONCUTABST) THEN
             CCLOCAL=CCLOCAL+CONCUTABS
          ELSE IF (CONCUTFRACT) THEN
-            !CCLOCAL=CCLOCAL+CONCUTFRAC*CONDISTREFLOCAL(CONID)
-            CCLOCAL=CONCUTFRAC*CONDISTREFLOCAL(CONID)
+            CCLOCAL=CCLOCAL*(1.0D0+CONCUTFRAC)
          END IF
       END SUBROUTINE GET_CCLOCAL
 
@@ -1557,5 +1581,6 @@ MODULE CONSTR_E_GRAD
 
 
       END SUBROUTINE GET_AVE_BOND_LENGTH
+
      
 END MODULE CONSTR_E_GRAD

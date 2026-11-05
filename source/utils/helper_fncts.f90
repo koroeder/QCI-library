@@ -99,19 +99,14 @@ MODULE HELPER_FNCTS
       REAL(KIND=REAL64) FUNCTION DIHEDRAL_DIFF(A, B) RESULT(DIH_DIFF)
          REAL(KIND = REAL64), PARAMETER :: PI = 3.141592653589793D0
          REAL(KIND=REAL64) :: A, B
-         !DIH_DIFF = ABS(MOD(A - B + PI, 2.0D0*PI) - PI)
          DIH_DIFF = DABS(ATAN2(DSIN(A-B), DCOS(A-B)))
       END FUNCTION
 
-
-
-    
       SUBROUTINE DISTANCE_SIMPLE(X1, X2, DIST)
          IMPLICIT NONE
          REAL(KIND = REAL64), INTENT(IN) :: X1(3), X2(3)
          REAL(KIND = REAL64), INTENT(OUT) :: DIST
          INTEGER :: I
-
          DIST = 0.0D0
          DO I=1,3
             DIST = DIST + (X1(I) - X2(I))**2
@@ -125,15 +120,9 @@ MODULE HELPER_FNCTS
          REAL(KIND = REAL64), INTENT(IN) :: X(3*NATOMS)
          INTEGER, INTENT(IN) :: IDX1, IDX2
          REAL(KIND = REAL64), INTENT(OUT) :: DIST
-         REAL(KIND = REAL64) :: DX, DY, DZ, D(3)
+         REAL(KIND = REAL64) :: D(3)
          INTEGER :: I1, I2
          
-         !INTEGER :: J
-         !DO J = 1,3
-         !   XYZ1(J) = X(3*(IDX1-1)+J)
-         !   XYZ2(J) = X(3*(IDX2-1)+J)
-         !END DO
-
          I1 = 3*(IDX1-1)
          I2 = 3*(IDX2-1)
    

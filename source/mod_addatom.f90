@@ -73,13 +73,12 @@ MODULE ADDINGATOM
                             QCITRILATERATION, QCIDOBACKALL, ATOMS2RES, ISBBATOM, CHECKCHIRAL, QCIUSEGROUPS, &
                             USEINTERNALST, QCITRILATERATION2
          USE REPULSION, ONLY: NNREPULSIVE, NREPULSIVE, CHECKREP
-         USE CONSTR_E_GRAD, ONLY: CONGRAD
+         !USE CONSTR_E_GRAD, ONLY: CONGRAD 
          USE QCI_LINEAR, ONLY: NQCILINEAR
          USE QCI_CONSTRAINT_KEYS, ONLY: NCONSTRAINT, CONI, CONJ
          USE INTERPOLATION_KEYS, ONLY: CONACTIVE, NACTIVE, TURNONORDER, ATOMACTIVE
          USE MOD_INTCOORDS, ONLY: WRITE_ACTIVE_BAND
-         USE CHIRALITY, ONLY: GET_ACTIVE_CHIRAL_CENTRES, NCHIRAL, CHIRALITY_CHECK, CHECK_SINGLE_CHIRAL_CENTRE, ONLY_CHECK_SINGLE_CHIRAL_CENTRE !, &
-                              !CHIRALITY_CHECK_ONLY
+         USE CHIRALITY, ONLY: GET_ACTIVE_CHIRAL_CENTRES, NCHIRAL, CHIRALITY_CHECK, CHECK_SINGLE_CHIRAL_CENTRE, ONLY_CHECK_SINGLE_CHIRAL_CENTRE 
          USE AMBER_CONSTRAINTS, ONLY: GROUPLOOKUP, CURRENT_GROUP, CURRENTLY_ADDING_GROUP, INGROUP, PLACINGGROUPS, SIZEPLACINGGROUPS
          IMPLICIT NONE
          INTEGER :: NTOADD, NADDED                          !< number to be added and number already added
@@ -107,20 +106,21 @@ MODULE ADDINGATOM
          
          LOGICAL :: FAILED !< Have we failed to place the atom (via trilateration)? 
          LOGICAL :: SWAPPED, SSWAPPED
-         INTEGER :: SAVENEXTATOM
-         REAL(KIND = REAL64) :: SAVEXYZ(3*NATOMS*(NIMAGES+2)), TRYXYZ(3*NATOMS*(NIMAGES+2))
+         !REAL(KIND = REAL64) :: SAVEXYZ(3*NATOMS*(NIMAGES+2)), TRYXYZ(3*NATOMS*(NIMAGES+2))
 
          FAILED = .FALSE.
          SWAPPED = .FALSE.
          SSWAPPED = .FALSE.
-         !save current coords
-         SAVEXYZ = XYZ
-         TRYXYZ = XYZ
+         
+         !IF (DEBUG) THEN!save current coords
+         !   SAVEXYZ = XYZ
+         !   TRYXYZ = XYZ
+         !END iF
 
 
          ! setup book keeping
          NTOADD = 1
-         IF (QCILINEART) NTOADD = MIN(NQCILINEAR - 2,NQCILINEAR-NACTIVE)
+         !IF (QCILINEART) NTOADD = MIN(NQCILINEAR - 2,NQCILINEAR-NACTIVE)
          NADDED = 0
          CHOSENACID = .FALSE.
          ! check whether we have more backbone atoms to add
@@ -232,12 +232,12 @@ MODULE ADDINGATOM
                ! before we continue check repulsion neighbour list
                CALL CHECKREP(XYZ,NNREPSAVE,NREPSAVE+1)
                ! call congrad routine
-               CALL CONGRAD(ETOTAL, XYZ, GGG, EEE, RMS)
-               ECON = ETOTAL
-               DO J1=1,NIMAGES
-                  NEWATOMOFFSET = J1*3*NATOMS + 3*(NEXTATOM-1)
-                  XCON(J1,1:3) = XYZ((NEWATOMOFFSET+1):(NEWATOMOFFSET+3)) 
-               END DO
+               !CALL CONGRAD(ETOTAL, XYZ, GGG, EEE, RMS)
+               !ECON = ETOTAL
+               !DO J1=1,NIMAGES
+               !   NEWATOMOFFSET = J1*3*NATOMS + 3*(NEXTATOM-1)
+               !   XCON(J1,1:3) = XYZ((NEWATOMOFFSET+1):(NEWATOMOFFSET+3)) 
+               !END DO
       
             END IF
             !if we haven't suceeded in adding the atom or it is QCIlinear, go for a linear interpolation for new atom based on the tightest constraint
@@ -245,7 +245,7 @@ MODULE ADDINGATOM
                CALL PLACE_LINEAR_ATOM(NEXTATOM,NLOCAL,LOCALIDX)
                CALL CHECKREP(XYZ,NNREPSAVE,NREPSAVE+1)
                ! call congrad routine
-               CALL CONGRAD(ETOTAL, XYZ, GGG, EEE, RMS)
+               !CALL CONGRAD(ETOTAL, XYZ, GGG, EEE, RMS)
                ELIN = ETOTAL
                DO J1=1,NIMAGES
                   NEWATOMOFFSET = J1*3*NATOMS + 3*(NEXTATOM-1)
@@ -299,21 +299,21 @@ MODULE ADDINGATOM
             !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
             !select which interpolation is used based on energy if multiple are used (we shouldn't have this case except for QCIlinear)
-            IF (DEBUG) WRITE(*,*) "ECON, ELIST: ", ECON, ELIN
-            IF (QCILINEART) THEN
-               WRITE(*,*) " addatom> Using linear interpolation for new atom ", NEXTATOM, " from linear list"
-            ELSE 
-               IF ((ELIN.LT.ECON)) THEN
-                  WRITE(*,*) " addatom> Using linear interpolation for new atom ", NEXTATOM
-               ELSE
-                  WRITE(*,*) " addatom> Using interpolation from preserved distances for new atom ", NEXTATOM
-                  ETOTAL = ECON
-                  DO J1=1,NIMAGES
-                     NEWATOMOFFSET = J1*3*NATOMS + 3*(NEXTATOM-1)
-                     XYZ(NEWATOMOFFSET+1:NEWATOMOFFSET+3) = XCON(J1,1:3)
-                  END DO
-               END IF
-            END IF
+            !IF (DEBUG) WRITE(*,*) "ECON, ELIST: ", ECON, ELIN
+            !IF (QCILINEART) THEN
+            !   WRITE(*,*) " addatom> Using linear interpolation for new atom ", NEXTATOM, " from linear list"
+            !ELSE 
+            !   IF ((ELIN.LT.ECON)) THEN
+            !      WRITE(*,*) " addatom> Using linear interpolation for new atom ", NEXTATOM
+            !   ELSE
+            !      WRITE(*,*) " addatom> Using interpolation from preserved distances for new atom ", NEXTATOM
+            !      ETOTAL = ECON
+            !      DO J1=1,NIMAGES
+            !         NEWATOMOFFSET = J1*3*NATOMS + 3*(NEXTATOM-1)
+            !         XYZ(NEWATOMOFFSET+1:NEWATOMOFFSET+3) = XCON(J1,1:3)
+            !      END DO
+            !   END IF
+            !END IF
 
             NADDED = NADDED + 1
             IF (NADDED.LT.NTOADD) CYCLE !if we already know we need to add more, skip ahead and add the next atom
@@ -907,7 +907,7 @@ MODULE ADDINGATOM
       SUBROUTINE PLACE_INTERNALS(NEWATOM,NLOCAL,CONIDXLIST)
          USE QCIFILEHANDLER, ONLY: FILE_OPEN
          USE HELPER_FNCTS, ONLY: DOTP, EUC_NORM, NORM_VEC, DIHEDRAL, ANGLE, DISTANCE_SIMPLE, CROSS_PROD
-         USE QCIKEYS, ONLY: NATOMS, DEBUG, NIMAGES
+         USE QCIKEYS, ONLY: NATOMS, NIMAGES
          USE MOD_INTCOORDS, ONLY: XYZ
          IMPLICIT NONE
          INTEGER, INTENT(IN) :: NEWATOM
@@ -917,11 +917,11 @@ MODULE ADDINGATOM
          REAL(KIND=REAL64) :: D1, D2, ANG1, ANG2, DIH1, DIH2
          REAL(KIND=REAL64) :: COORDS(12)
          REAL(KIND=REAL64) :: ALPHA
-         REAL(KIND=REAL64) :: DNEW, ANGNEW, DIHNEW
-         REAL(KIND=REAL64) :: C(3), V1(3), V2(3), V3(3), POS(3)
+         REAL(KIND=REAL64) :: DNEW, ANGNEW, DIHNEW, DDIH
+         REAL(KIND=REAL64) :: C(3), V1(3), V2(3), V3(3), POS(3), U(3), N(3)
          REAL(KIND=REAL64) :: SINTH, COSTH, SINPHI, COSPHI
 
-         REAL(KIND=REAL64) :: BC(3), BA(3), A(3), B(3), D(3), N(3), M(3), NORM
+         REAL(KIND=REAL64) :: BC(3), BA(3), A(3), B(3), NORM
 
          INTEGER :: IDX1, IDX2, IDX3, IMAGEOFFSET
          INTEGER :: J1, I
@@ -952,36 +952,45 @@ MODULE ADDINGATOM
          CALL DISTANCE_SIMPLE(COORDS(7:9), COORDS(10:12), D2)
          ANG2 = ANGLE(COORDS(4:12))
          DIH2 = DIHEDRAL(COORDS)
-
+         DDIH = ATAN2(SIN(DIH2-DIH1), COS(DIH2-DIH1)) 
          ! iterate over all images and place the new atom
          DO J1=2,NIMAGES+1
             IMAGEOFFSET = (J1-1)*3*NATOMS
             ! get linear interpolation in internal coordinates
             ALPHA = 1.0D0*(J1-1)/(NIMAGES+1)
-            DNEW = (1-ALPHA)*D1 + ALPHA*D2
-            ANGNEW = (1-ALPHA)*ANG1 + ALPHA*ANG2
-            DIHNEW = (1-ALPHA)*DIH1 + ALPHA*DIH2
-            
+            DNEW = (1.0D0-ALPHA)*D1 + ALPHA*D2
+            ANGNEW = (1.0D0-ALPHA)*ANG1 + ALPHA*ANG2
+            !DIHNEW = (1.0D0-ALPHA)*DIH1 + ALPHA*DIH2       
+            DIHNEW = DIH1 + ALPHA*DDIH          
+               
             !!translate back into Cartesians
             ! orthogonal basis 
             A(1:3) = XYZ((IMAGEOFFSET+3*(IDX3-1)+1):(IMAGEOFFSET+3*(IDX3-1)+3))
             B(1:3) = XYZ((IMAGEOFFSET+3*(IDX2-1)+1):(IMAGEOFFSET+3*(IDX2-1)+3))
             C(1:3) = XYZ((IMAGEOFFSET+3*(IDX1-1)+1):(IMAGEOFFSET+3*(IDX1-1)+3))
-            BC(1:3) = C(1:3) - B(1:3)
-            BA(1:3) = A(1:3) - B(1:3)
+            
+            !BC(1:3) = C(1:3) - B(1:3)
+            !BA(1:3) = A(1:3) - B(1:3)
 
-            CALL NORM_VEC(BC,V1,NORM)
-            CALL NORM_VEC(CROSS_PROD(BA,BC),V2,NORM)
-            CALL NORM_VEC(CROSS_PROD(BC,V2),V3,NORM)
+            !CALL NORM_VEC(BC,V1,NORM)
+            !CALL NORM_VEC(CROSS_PROD(BA,BC),V2,NORM)
+            !CALL NORM_VEC(CROSS_PROD(BC,V2),V3,NORM)
 
+            CALL NORM_VEC(C-B, V1, NORM)                 ! e along B->C
+            CALL NORM_VEC(CROSS_PROD(B-A, C-B), N, NORM) ! normal to ABC
+            U = CROSS_PROD(N, V1)                        ! in-plane, A side
+            
             COSTH = COS(ANGNEW)
             SINTH = SIN(ANGNEW)
 
             COSPHI = COS(DIHNEW)
             SINPHI = SIN(DIHNEW)
 
+            !DO I=1,3
+            !   POS(I) = C(I) + DNEW*(-V1(I)*COSTH + V2(I)*SINTH*COSPHI + V3(I)*SINTH*SINPHI)
+            !END DO
             DO I=1,3
-               POS(I) = C(I) + DNEW*(-V1(I)*COSTH + V2(I)*SINTH*COSPHI + V3(I)*SINTH*SINPHI)
+               POS(I) = C(I) + DNEW*(-V1(I)*COSTH + SINTH*(COSPHI*U(I) + SINPHI*N(I)))
             END DO
             XYZ((IMAGEOFFSET+3*(NEWATOM-1)+1):(IMAGEOFFSET+3*(NEWATOM-1)+3)) =  POS(1:3)
          END DO
@@ -1010,7 +1019,7 @@ MODULE ADDINGATOM
          WRITE(*,'(A,I8)') " place_atom> New atom: ", NEWATOM
 
          !Setting up local axis system for the start image
-         IF ((NLOCAL.GT.3)) THEN !.AND.(USEFOURATOMST)) THEN
+         IF ((NLOCAL.GT.3).AND.(USEFOURATOMST)) THEN
             CALL GET_LOCAL_AXIS2(IDX1,IDX2,IDX3,IDX4,1,B1,B2,B3)
             WRITE(*,'(A)') " place_atom> Using four atoms for placement"
             IF (DEBUG) THEN
