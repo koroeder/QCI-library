@@ -20,7 +20,7 @@ MODULE ADDINGATOM
          IF (ALLOCATED(NCONTOACTIVE)) DEALLOCATE(NCONTOACTIVE)
       END SUBROUTINE DEALLOC_ADDATOM
 
-      !debugging function
+      !> debugging function
       SUBROUTINE CHECK_DIFF_FINAL()
          USE MOD_INTCOORDS, ONLY: XYZ, XFINAL
          USE QCIKEYS, ONLY: NATOMS, NIMAGES
@@ -32,7 +32,7 @@ MODULE ADDINGATOM
          WRITE(*,*) " COMPARING FINISH COORDS: ", SUM(DIFF)
       END SUBROUTINE CHECK_DIFF_FINAL
 
-     !> Check wherer we are adding a single atom or a linear group and call appropriate routine
+     !> Check wheter we are adding a single atom or a linear group and call appropriate routine
       SUBROUTINE ADDATOM()
          
          USE QCI_LINEAR, ONLY:ATOM2LINGROUP
@@ -94,11 +94,10 @@ MODULE ADDINGATOM
          INTEGER :: NLOCAL, LOCALIDX(4)
          LOGICAL :: ADDEDTHISCYCLE                          !< have we added an atom this cycle?
          REAL(KIND = REAL64), PARAMETER :: FRAC = 1.0D0     !< fraction for linear interpolation
-         INTEGER :: THISIMAGE, NEWATOMOFFSET, CONONEOFFSET, ENDPOINT !< offsets used to simplify linear interpolation
-         REAL(KIND = REAL64) :: STARTWEIGHT, ENDWEIGHT      !< weights of endpoints in linear interpolation
-         REAL(KIND = REAL64) :: ELIN, ECON, EDIST, ETOTAL   !< linear, constraint and distance measure-based energies
-         REAL(KIND = REAL64) :: XLIN(NIMAGES,3), XCON(NIMAGES,3), XDIST(NIMAGES,3) !< saved coordinates for interpolations
-         INTEGER :: J1, IDX1, IDX2, IDX3, IDX4
+         INTEGER ::  NEWATOMOFFSET                          !< offsets used to simplify linear interpolation
+         REAL(KIND = REAL64) :: ELIN, ECON, ETOTAL          !< linear, constraint and distance measure-based energies
+         REAL(KIND = REAL64) :: XLIN(NIMAGES,3)             !< saved coordinates for interpolations
+         INTEGER :: J1
          CHARACTER(LEN=6) :: ATOMSTRING
          INTEGER :: INIT_NCHIRACTIVE, FINAL_NCHIRACTIVE, CHIRALCENTRE
          LOGICAL :: INIT_ACTIVE_CHIR_CENTRES(NCHIRAL), FINAL_ACTIVE_CHIR_CENTRES(NCHIRAL)
@@ -116,7 +115,6 @@ MODULE ADDINGATOM
          !   SAVEXYZ = XYZ
          !   TRYXYZ = XYZ
          !END iF
-
 
          ! setup book keeping
          NTOADD = 1
@@ -144,7 +142,6 @@ MODULE ADDINGATOM
             
             WRITE(*,'(A,I6,A,I4,A,I4)') "  addatom> Adding atom ", NEXTATOM, ", which has ", NCONTOACT, " constraints to active set out of maximum ", NMAXCON
             WRITE(*,'(A,F8.4)') "           Shortest distance constraint to active set is: ", SHORTESTCON
-
           
             ! We get a list of constraint and closest atoms to construct local axis
             ! We update constraint later
@@ -179,53 +176,7 @@ MODULE ADDINGATOM
                      WRITE(*,*) "addatom> Failed to add atom via trilateration"
                   ELSE 
                      WRITE(*,*) "addatom> Added atom via trilateration"
-                  END IF
-
-                  !check have we changed chirality by adding the atom
-                  !WRITE(*,*) " addatom> Call chirality check after adding the atom.... "
-                  !CALL CHIRALITY_CHECK_ONLY(XYZ,SWAPPED,NEXTATOM)
-      
-                  !IF (SWAPPED) THEN
-                  !   
-                  !   !Save next atom and new coordinates and also revert to old coordinates, so we can try again
-                  !   SAVENEXTATOM = NEXTATOM
-                  !   TRYXYZ = XYZ
-                  !
-                  !   XYZ = SAVEXYZ
-                  !   NEXTATOM = 0
-                  !   FAILED = .FALSE.
-                  !   !Try adding alternative atom
-                  !   WRITE(*,*) "addatom> Changed chirality while adding atom"
-                  !   WRITE(*,*) "addatom> Attempting to find alternative atom to add to preserve chirality"
-                  !   CALL FIND_NEXT_ATOM_FALLBACK(CHOSENACID,ACID,SAVENEXTATOM, NEXTATOM,NCONTOACT,SHORTESTCON)
-                  !   IF( NEXTATOM.EQ.0 ) THEN
-                  !      WRITE(*,*) "addatom> FAILED to find a better atom to add. ... go back to original choice. "
-                  !      XYZ = TRYXYZ
-                  !      NEXTATOM = SAVENEXTATOM
-                  !   ELSE
-                  !      WRITE(*,*) "addatom> Found alternative atom ", NEXTATOM, " to add. Attempting to add this atom instead."
-                  !      CALL GET_ATOMS_FOR_LOCAL_AXIS(NEXTATOM,NLOCAL,LOCALIDX,LOCALDIST)    
-                  !      CALL PLACE_LINEAR_ATOM(NEXTATOM,NLOCAL,LOCALIDX)
-                  !      CALL TRILATERATE_ATOMS2(NEXTATOM,LOCALIDX,LOCALDIST, FAILED)
-                  !   ENDIF   
-                  !   
-                  !    !check have we changed chirality by adding the atom
-                  !    WRITE(*,*) " addatom> Call chirality check after adding the atom.... "
-                  !    CALL CHIRALITY_CHECK_ONLY(XYZ,FAILED,NEXTATOM)
-                  !
-                  !   !If we failed again revert to previous coordinates and continue.
-                  !   IF (FAILED) THEN 
-                  !      XYZ = TRYXYZ
-                  !      NEXTATOM = SAVENEXTATOM
-                  !      WRITE(*,*) "addatom> Failed to add fallback atom, going back to original choice."
-                  !   ELSE 
-                  !      WRITE(*,*) "addatom> added atom: ", NEXTATOM, " after adding atom ", SAVENEXTATOM, " failed."
-                  !   END IF
-                  !
-                  !ELSE 
-                  !   WRITE(*,*) " addatom> Chirality check ok"
-                  !END IF
-                  
+                  END IF                  
                ELSE
                   CALL PLACE_ATOM(NEXTATOM,NLOCAL,LOCALIDX)
                END IF
@@ -370,7 +321,7 @@ MODULE ADDINGATOM
                END IF
             END IF
             WRITE(*,*) "Addatom> Call chirality check after adding the atom. "
-            CALL CHIRALITY_CHECK(XYZ)
+            !CALL CHIRALITY_CHECK(XYZ)
          END IF
          
 
@@ -660,8 +611,7 @@ MODULE ADDINGATOM
          INTEGER :: N1, N2, N3, IDX1, IDX2, IDX3, J1
          LOGICAL :: FTEST
 
-         FAILED = .FALSE.
-         
+         FAILED = .FALSE.   
 
          !set initial guess to the best three constrained atoms
          N1=1; N2=2; N3=3
@@ -1607,14 +1557,6 @@ MODULE ADDINGATOM
             IF (QCIUSEGROUPS.AND.CURRENTLY_ADDING_GROUP) THEN
                IF (.NOT.CHECK_IN_GROUP(IDXINACTIVE)) CYCLE
             END IF
-
-            !IF (NCONTOACTIVE(IDXINACTIVE).GE.NCONTOACT) THEN
-            !   IF (CONDISTREF(J1).LT.SHORTESTCON) THEN
-            !      SHORTESTCON = CONDISTREF(J1)
-            !      NEWATOM = IDXINACTIVE
-            !      NCONTOACT = NCONTOACTIVE(IDXINACTIVE)
-            !   END IF
-            !END IF
 
             IF (NCONTOACTIVE(IDXINACTIVE).GT.NCONTOACT) THEN
                ! New atom has more constraints, so higher priority
