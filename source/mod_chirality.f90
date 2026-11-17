@@ -7,6 +7,7 @@ MODULE CHIRALITY
    
    !!DEBUG
    INTEGER, SAVE :: NCHIRALBANDS = 0
+   INTEGER :: N_CHIRAL_SWAPS
    CHARACTER(LEN=4) :: NBAND
    INTEGER :: NCSP2                                          !<number of sp2 hybridised carbons
    INTEGER :: NDOUBLE                                        !<number of double bonds
@@ -144,6 +145,7 @@ MODULE CHIRALITY
             ! S/R assignment for current image
             THIS_SR = ASSIGNMENT_SR(NEIGHBOUR_COORDS,CENTRE_COORDS)
             IF (THIS_SR.NEQV.PREV_SR) THEN
+               N_CHIRAL_SWAPS = N_CHIRAL_SWAPS + 1
                IF (POTENTIAL_SWAPT(CHIRALGROUP)) THEN
                   CALL SWITCH_SMALL_GROUPS(XYZ,CHIRALGROUP,J1)
                   WRITE(*,*) " check_single_centre> Attempting to switch small group"
@@ -373,7 +375,7 @@ MODULE CHIRALITY
       END SUBROUTINE SWITCH_SMALL_GROUPS
 
 
-      SUBROUTINE CHIRALITY_CHECK(XYZ)
+      SUBROUTINE CHIRALITY_CHECK(XYZ, CHIR_CHANGED)
          USE INTERPOLATION_KEYS, ONLY: ATOMACTIVE
          USE MOD_INTCOORDS, ONLY: WRITE_BAND
          USE QCIKEYS, ONLY: NATOMS, DEBUG, NIMAGES, ATOMS2RES
@@ -382,6 +384,7 @@ MODULE CHIRALITY
          
          IMPLICIT NONE
          REAL(KIND = REAL64), INTENT(INOUT) :: XYZ((3*NATOMS)*(NIMAGES+2)) !< all atom coordinates
+         LOGICAL, OPTIONAL, INTENT(OUT) :: CHIR_CHANGED !< did chirality change occur
          REAL(KIND = REAL64) :: NEIGHBOUR_COORDS(12), CENTRE_COORDS(3) !intent needed?
          REAL(KIND = REAL64) :: COORDSA(3*NATOMS), COORDSB(3*NATOMS)
          INTEGER :: CHIRALCENTRE
@@ -390,6 +393,7 @@ MODULE CHIRALITY
          LOGICAL :: CENTREACTIVE
          LOGICAL :: THIS_SR, PREV_SR
 
+         IF (PRESENT (CHIR_CHANGED)) CHIR_CHANGED = .FALSE.
          IF (DEBUG) WRITE(*,*) " chirality-check> Running check for chirality conservation across all images"
 
          IF (NCHIRAL.EQ.-1) THEN
@@ -413,7 +417,7 @@ MODULE CHIRALITY
             IF (.NOT.CENTREACTIVE) CYCLE
             !now apply the actual check   
             !QUESTION here we go from J3=1 to NIMAGES+2?  
-            DO J3=1,NIMAGES+2
+            DO J3=1,NIMAGES+1
 
                NEIGHBOUR_COORDS = 0.0D0
                CENTRE_COORDS = 0.0D0
@@ -436,6 +440,8 @@ MODULE CHIRALITY
                ! S/R assignment for current image
                THIS_SR = ASSIGNMENT_SR(NEIGHBOUR_COORDS,CENTRE_COORDS)
                IF (THIS_SR.NEQV.PREV_SR) THEN
+                  IF (PRESENT (CHIR_CHANGED)) CHIR_CHANGED = .TRUE.
+                  N_CHIRAL_SWAPS = N_CHIRAL_SWAPS + 1
                   WRITE(*,*) " chirality_check> Atom ", CHIRALCENTRE, " image ", J3, " chirality changed"
 
                   IF (DEBUG) THEN
@@ -519,6 +525,8 @@ MODULE CHIRALITY
          LOGICAL :: GT12T,ID12T,GT23T,ID23T,GT34T,ID34T,CHECKUNIQUE(4),IDFOUND
          INTEGER :: DUMMY_CHIR_INFO(NATOMS,5)     !array for chiral centres
          INTEGER :: C3AT1
+
+         N_CHIRAL_SWAPS = 0 !initiate chirality swap tracking
          !get the number of atoms bonded to each atom 
          !anything with four bonds is considered a possible chiral centre
          CALL NBONDED_ATOMS()

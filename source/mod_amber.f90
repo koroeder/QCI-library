@@ -197,14 +197,18 @@ MODULE AMBER_CONSTRAINTS
          INTEGER, PARAMETER :: MAXGROUPSIZE = 14 !RNA or DNA sugar, AA groups are smaller
          INTEGER :: J1, CURRENT, RESID, PREV_RESID
          LOGICAL :: ADDED
+         LOGICAL :: ELIGIBLE(NRES)
          CHARACTER(4) :: ATNAME
 
          WRITE(*,*) "DEBUG> GET_ATOM_GROUPS> NRES ", NRES
          DO J1=1,NRES
-            IF (RESTYPE(J1).EQ."AA".OR.RESTYPE(J1).EQ."RNA".OR.RESTYPE(J1).EQ."DNA".OR.RESTYPE(J1).EQ."FANA") THEN
-               NPLACINGGROUPS = NPLACINGGROUPS + 1
-            END IF
+            ELIGIBLE(J1) = (RESTYPE(J1).EQ."AA")  .OR. (RESTYPE(J1).EQ."RNA") .OR. &
+                           (RESTYPE(J1).EQ."DNA") .OR. (RESTYPE(J1).EQ."FANA")
+            !IF (RESTYPE(J1).EQ."AA".OR.RESTYPE(J1).EQ."RNA".OR.RESTYPE(J1).EQ."DNA".OR.RESTYPE(J1).EQ."FANA") THEN
+            !   NPLACINGGROUPS = NPLACINGGROUPS + 1
+            !END IF
          END DO
+         NPLACINGGROUPS = COUNT(ELIGIBLE)
          WRITE(*,*) " get_atom_groups> Identified ", NPLACINGGROUPS, " groups of atoms to be placed consecutively"
          ALLOCATE(GROUPLOOKUP(NATOMS), INGROUP(NATOMS), GROUPS_ADDED(NPLACINGGROUPS))
          ALLOCATE(SIZEPLACINGGROUPS(NPLACINGGROUPS),PLACINGGROUPS(NPLACINGGROUPS,MAXGROUPSIZE)) 
@@ -221,6 +225,7 @@ MODULE AMBER_CONSTRAINTS
          ADDED = .FALSE.
          DO J1=1,NATOMS
             RESID = ATOMS2RES(J1)
+            !WRITE(*,*) "get_atom_groups> curent atom ", J1, " resid ", RESID
             ! if we have a new residue we need to go to a new group number, as long as we added something in the previous round.
             IF (RESID.NE.PREV_RESID) THEN
                IF (ADDED) CURRENT = CURRENT + 1
@@ -228,6 +233,8 @@ MODULE AMBER_CONSTRAINTS
                ADDED = .FALSE.
             END IF
             ATNAME = ADJUSTL(TRIM(AMBER_NAMES(J1)))
+            ! only residues counted above get a group (caps are skipped)
+            IF (.NOT.ELIGIBLE(RESID)) CYCLE
             IF ((ATNAME.EQ.'C').OR.(ATNAME.EQ.'O').OR.(ATNAME.EQ.'N').OR.(ATNAME.EQ.'H').OR.(ATNAME.EQ.'CA') &
             .OR.(ATNAME.EQ.'HA').OR.(ATNAME.EQ.'CB').OR.(ATNAME.EQ."C5'").OR.(ATNAME.EQ."C4'").OR.(ATNAME.EQ."H4'") &
             .OR.(ATNAME.EQ."O4'").OR.(ATNAME.EQ."C3'").OR.(ATNAME.EQ."H3'").OR.(ATNAME.EQ."C2'").OR.(ATNAME.EQ."O3'") &
@@ -291,7 +298,7 @@ MODULE AMBER_CONSTRAINTS
          END DO
 
          WRITE(*,*) "Get_backbone> N backbone: ", NBACKBONE 
-         IF (DEBUG) WRITE(*,*) "BBATOMS: ", BACKBONE
+         
 
       END SUBROUTINE GET_BACKBONE
 
@@ -301,6 +308,7 @@ MODULE AMBER_CONSTRAINTS
         
          INTEGER :: NDUMMY, J1, OPOS1, CPOS1, CPOS2, HPOS2, ATOMID
          LOGICAL :: AAT, RNAT, DNAT, FANAT, CAPT, AALIST(NRES), ISTER(NRES), ISCAP(NRES), ISNA(NRES)
+         LOGICAL :: ISNTER(NRES), ISCTER(NRES)
          INTEGER, ALLOCATABLE :: DUMMYC(:,:)
 
 
@@ -314,6 +322,9 @@ MODULE AMBER_CONSTRAINTS
          NDUMMY = 0
          AALIST(1:NRES) = .FALSE.
          ISTER(1:NRES) = .FALSE.
+         ISNTER(1:NRES) = .FALSE.
+         ISCTER(1:NRES) = .FALSE.
+
          ISCAP(1:NRES) = .FALSE.
          ISNA(1:NRES) = .FALSE.
 
@@ -561,7 +572,7 @@ MODULE AMBER_CONSTRAINTS
                ELSE IF (NAMEJ.EQ."G") THEN
                   CALL GET_ATOMID("N1",J,ATOM2)
                ELSE
-                  CALL GET_ATOMID("O4",J,ATOM2)
+                  CALL GET_ATOMID("N3",J,ATOM2)
                END IF
                CALL DISTANCE_TWOATOMS(NATOMS, XSTART, ATOM1, ATOM2, DS)
                CALL DISTANCE_TWOATOMS(NATOMS, XFINAL, ATOM1, ATOM2, DF)
@@ -1028,10 +1039,11 @@ MODULE AMBER_CONSTRAINTS
       IMPLICIT NONE
       INTEGER, INTENT(IN) :: RESID
       LOGICAL, INTENT(OUT) :: AAT, DNAT, RNAT, FANAT, CAPT
-      CHARACTER(4) :: DNAME
+      CHARACTER(4) :: DNAME, ORIGNAME
       LOGICAL :: MATCHED
-
-      DNAME = ADJUSTL(TRIM(RESNAMES(RESID)))
+      
+      ORIGNAME = ADJUSTL(TRIM(RESNAMES(RESID)))
+      DNAME = ORIGNAME
       AAT   = .FALSE.
       RNAT  = .FALSE.
       DNAT  = .FALSE.
@@ -1047,8 +1059,9 @@ MODULE AMBER_CONSTRAINTS
       ENDIF
 
       IF (.NOT.MATCHED) THEN
-         WRITE(*,*) "CHEC_RES: FOUND NON STANDARD RESIDUE"
-         WRITE(*,*) DNAME
+         WRITE(*,*) "CHEC_RES> FOUND NON STANDARD RESIDUE"
+         WRITE(*,*) ORIGNAME
+         CALL INT_ERR_TERMINATE()
       ENDIF
 
       CONTAINS

@@ -22,7 +22,7 @@ MODULE QCIINTERPOLATION
 
          
          USE QCI_CONSTRAINT_KEYS
-         USE CHIRALITY, ONLY: ASSIGNMENT_SR, CHIRALITY_CHECK
+         USE CHIRALITY, ONLY: ASSIGNMENT_SR, CHIRALITY_CHECK, N_CHIRAL_SWAPS
          USE ADDINGATOM, ONLY: ADDATOM, UPDATE_CONSTRAINTS, UPDATE_REPULSIONS
          USE REPULSION, ONLY: NREPULSIVE, CHECKREP, REPI, REPJ
          USE ADDREMOVE_IMAGES, ONLY: ADD_IMAGE, REMOVE_IMAGE
@@ -32,6 +32,7 @@ MODULE QCIINTERPOLATION
                   
          use lpermdist, only: check_perm_band, UPDATE_ACTIVE_PERMGROUPS
          use perm_defs, only: npermgroup, npermsize , groupactive
+         
         
          
          IMPLICIT NONE
@@ -62,7 +63,7 @@ MODULE QCIINTERPOLATION
          INTEGER :: IM_N_MIN, IM_N_MAX
          !DEGBUG
          INTEGER :: UNITCONSTR
-
+         LOGICAL :: PERMCHANGED, BANDCHANGED, CHIRALITYCHANGED
          
          
          ETOTAL = 0.0D0
@@ -205,9 +206,11 @@ MODULE QCIINTERPOLATION
             ! members are active. See if we have any new complete groups. MUST update NDUMMY
             ! counter to step through permutable atom list.
             IF (QCIPERMT.AND.(MOD(NITERDONE,QCIPERMCHECKINT).EQ.0)) THEN
+               CHIRALITYCHANGED = .FALSE.
+               BANDCHANGED = .FALSE.
                IF (CHECKCHIRAL) THEN
                   WRITE(*,*) " QCIinterp> Checking chirality across band"
-                  CALL CHIRALITY_CHECK(XYZ) 
+                  CALL CHIRALITY_CHECK(XYZ, CHIRALITYCHANGED) 
                END IF
 
                !update active permutational groups
@@ -216,19 +219,36 @@ MODULE QCIINTERPOLATION
 
                ! Checking all active groups across the band - do we have the best alignement?
                FIRSTATOM = 1
+               
                WRITE(*,*) " QCIinterp> Checking permutational alignment across the band, NPERMGROUPS: ", NPERMGROUP
                DO J1=1,NPERMGROUP
                   IF (GROUPACTIVE(J1)) THEN
                      !check permutational consistency forward
-                     CALL CHECK_PERM_BAND(J1, FIRSTATOM, .FALSE.)
+                     CALL CHECK_PERM_BAND(J1, FIRSTATOM, .FALSE., PERMCHANGED)
+                     BANDCHANGED = BANDCHANGED .OR. PERMCHANGED
                      !check permutational consistency in reverse
-                     CALL CHECK_PERM_BAND(J1, FIRSTATOM, .TRUE.)
+                     CALL CHECK_PERM_BAND(J1, FIRSTATOM, .TRUE., PERMCHANGED)
+                     BANDCHANGED = BANDCHANGED .OR. PERMCHANGED
                   END IF
                   FIRSTATOM = FIRSTATOM + NPERMSIZE(J1)
                END DO
                !we check repulsions before we continue
                CALL CHECKREP(XYZ,0,1)
+
+               ! band was relabelled: refresh E/gradient and the saved state, restart L-BFGS
+               IF (BANDCHANGED.OR.CHIRALITYCHANGED) THEN
+                  WRITE(*,*) " QCIinterp> Band relabelled - resetting L-BFGS"
+                  CALL CONGRAD(ETOTAL, XYZ, GGG, EEE, RMS)
+                  IF (MAXGRADCOMP.GT.0.0D0) CALL SCALEGRAD(DIMS,G,RMS,MAXGRADCOMP)
+                  GPREV(:) = GGG(:)
+                  XPREV(:) = XYZ(:)
+                  EPREV = ETOTAL
+                  NITERUSE = 1
+               END IF
+
             END IF
+
+            
             !end of permutational checks of band
 
             ! spring constant dynamic adjustment
@@ -275,14 +295,15 @@ MODULE QCIINTERPOLATION
            
                      GTMP(1:DIMS)=G(1:DIMS)
                      ! Take the minimum scale factor for all images for LBFGS step to avoid discontinuities
-                     STPMIN = 1.0D0
+                     STPMIN = STP(1) !1.0D0
                      DO J1=1,NIMAGES
                         ! |SEARCHSTEP| along dimension POINT
                         STEPIMAGE(J1) = SQRT(DOTP(3*NATOMS,SEARCHSTEP(POINT,(3*NATOMS)*(J1-1)+1:(3*NATOMS)*J1), &
                                                          SEARCHSTEP(POINT,(3*NATOMS)*(J1-1)+1:(3*NATOMS)*J1)))
                         IF (STEPIMAGE(J1).GT.MAXQCIBFGS) THEN
-                           STP((3*NATOMS)*(J1-1)+1:(3*NATOMS)*J1) = MAXQCIBFGS/STEPIMAGE(J1)
-                           STPMIN=MIN(STPMIN,STP((3*NATOMS)*(J1-1)+1))
+                           !STP((3*NATOMS)*(J1-1)+1:(3*NATOMS)*J1) = MAXQCIBFGS/STEPIMAGE(J1)
+                           !STPMIN=MIN(STPMIN,STP((3*NATOMS)*(J1-1)+1))
+                           STPMIN = MIN(STPMIN, MAXQCIBFGS/STEPIMAGE(J1))
                         END IF
                      END DO
                      STP(1:DIMS) = STPMIN
@@ -377,13 +398,14 @@ MODULE QCIINTERPOLATION
             GTMP(1:DIMS)=G(1:DIMS)
 
             ! Take the minimum scale factor for all images for LBFGS step to avoid discontinuities
-            STPMIN = 1.0D0
+            STPMIN = STP(1) !1.0D0
             DO J1=1,NIMAGES
                STEPIMAGE(J1) = SQRT(DOTP(3*NATOMS,SEARCHSTEP(POINT,(3*NATOMS)*(J1-1)+1:(3*NATOMS)*J1), &
                                                   SEARCHSTEP(POINT,(3*NATOMS)*(J1-1)+1:(3*NATOMS)*J1)))
                IF (STEPIMAGE(J1).GT.MAXQCIBFGS) THEN
-                  STP((3*NATOMS)*(J1-1)+1:(3*NATOMS)*J1) = MAXQCIBFGS/STEPIMAGE(J1)
-                  STPMIN=MIN(STPMIN,STP((3*NATOMS)*(J1-1)+1))
+                  !STP((3*NATOMS)*(J1-1)+1:(3*NATOMS)*J1) = MAXQCIBFGS/STEPIMAGE(J1)
+                  !STPMIN=MIN(STPMIN,STP((3*NATOMS)*(J1-1)+1))
+                  STPMIN = MIN(STPMIN, MAXQCIBFGS/STEPIMAGE(J1))
                END IF
             END DO
             STP(1:DIMS) = STPMIN
@@ -540,6 +562,7 @@ MODULE QCIINTERPOLATION
             QCICOMPLETE = .FALSE.                     
          END IF
          
+
          CALL GET_STATISTIC_INTERP()
          CALL GET_IMAGE_DIST()
          CALL WRITE_BAND(XYZFILE)
@@ -552,6 +575,7 @@ MODULE QCIINTERPOLATION
          !WRITE(*,*) "GRADIENT CHECK"
          !CALL CHECK_GRAD(XYZ)
          WRITE(*,*) " QCIinterp> Leaving interpolation"
+         WRITE(*,*) "There were ", N_CHIRAL_SWAPS, "chirality inversions during the interpolation."
       END SUBROUTINE RUN_QCI_INTERPOLATION
 
 

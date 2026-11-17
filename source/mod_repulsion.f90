@@ -44,37 +44,6 @@ MODULE REPULSION
          NREPCURR = 2*NREPCURR
       END SUBROUTINE DOUBLE_ALLOC_REP
 
-      !SUBROUTINE CHECKREP(XYZ, NNSTART, NSTART)
-      !   USE QCIKEYS, ONLY: NATOMS, NIMAGES
-      !   USE HELPER_FNCTS, ONLY: DISTANCE_TWOATOMS
-      !   IMPLICIT NONE
-      !   REAL(KIND = REAL64), INTENT(IN) :: XYZ(3*NATOMS*(NIMAGES+2))
-      !   INTEGER, INTENT(IN) :: NSTART, NNSTART
-      !   INTEGER :: J, K, NI, NJ
-      !   REAL(KIND = REAL64) :: COMPARE, LDIST
-
-      !   NNREPULSIVE = NNSTART
-
-         ! loop over part of the repulsion list
-      !   DO J = NSTART, NREPULSIVE
-      !      COMPARE = (CHECKREPCUTOFF*REPCUT(J))
-      !      NI = REPI(J)
-      !      NJ = REPJ(J)
-      !      ! now check for the distance between atoms in all images
-      !      DO K=1,NIMAGES+2
-      !         CALL DISTANCE_TWOATOMS(NATOMS, XYZ((K-1)*3*NATOMS+1:3*K*NATOMS) , NI, NJ, LDIST)
-      !         IF (LDIST.LT.COMPARE) THEN
-      !            NNREPULSIVE = NNREPULSIVE + 1
-      !            NREPI(NNREPULSIVE) = NI
-      !            NREPJ(NNREPULSIVE) = NJ
-      !            NREPCUT(NNREPULSIVE) = REPCUT(J)
-      !            EXIT
-      !         END IF
-      !      END DO
-      !   END DO
-      !   WRITE(*,'(A,2I8)') ' checkrep> number of active repulsions and total=',NNREPULSIVE,NREPULSIVE
-      !END SUBROUTINE CHECKREP
-
       SUBROUTINE CHECKREP(XYZ, NNSTART, NSTART)
          USE QCIKEYS, ONLY: NATOMS, NIMAGES, QCIINTREPMINSEP
          IMPLICIT NONE

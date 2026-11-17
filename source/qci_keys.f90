@@ -64,7 +64,7 @@ MODULE QCIKEYS
    
    REAL(KIND=REAL64) :: K_REP=0.2D0   !<scaling constant for repuslion
    REAL(KIND=REAL64) :: QCIREPCUT = 1.0D-3   !< Minimum repulsion cutoff
-   INTEGER ::  QCIINTREPMINSEP=4  !< Minimum separation in atom index for internal minimum check in repulsion. Changed default value from 20 to 4 M.H
+   INTEGER ::  QCIINTREPMINSEP=10  !< Minimum separation in atom index for internal minimum check in repulsion. Changed default value from 20 to 4 M.H
    REAL(KIND = REAL64) :: CHECKREPCUTOFF=1.25D0   !< factor used for checking repulsion neighbourhood 
    INTEGER :: CHECKREPINTERVAL = 1
    

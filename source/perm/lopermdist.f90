@@ -366,7 +366,9 @@ module lpermdist
             if (nsets(j1).gt.0) then
                do j2=1,patoms
                   do j3=1,nsets(j1)
-                     updateperm(sets(permgroup(ndummy+j2-1),j1,j3)) = sets( newperm(permgroup(ndummy+lperm(j2)-1)) , j1, j3)
+                     !updateperm(sets(permgroup(ndummy+j2-1),j1,j3)) = sets( newperm(permgroup(ndummy+lperm(j2)-1)) , j1, j3)
+                     updateperm(sets(permgroup(ndummy+j2-1),j1,j3)) = &
+                          newperm(sets(permgroup(ndummy+lperm(j2)-1),j1,j3))
                   end do
                end do
             end if
@@ -477,28 +479,27 @@ module lpermdist
          rotinv(1,1:3) = xvec(1:3); rotinv(2,1:3) = yvec(1:3); rotinv(3,1:3) = zvec(1:3)
       end subroutine standard_orient
 
-      subroutine check_perm_band(permgroupidx, firstatom, reverset)
-            use qcikeys, only: debug, natoms, nimages, qcipermcut
+      subroutine check_perm_band(permgroupidx, firstatom, reverset, changed)
+            use qcikeys, only: debug, natoms, nimages
             use mod_intcoords, only: xyz
-            use perm_defs, only: groupactive, npermgroup, npermsize, permgroup, localpermcut
+            use perm_defs, only: groupactive, npermgroup
             
             implicit none
             integer, intent(in) :: permgroupidx   !< number of permutational group
             integer, intent(in) :: firstatom      !< first atom id in permutational group
             logical, intent(in) :: reverset       !< stepping direction through images
 
-            integer :: j1, j2, idx, firstimage, secondimage
+            integer :: j1, j2, firstimage, secondimage
             integer :: startidx, endidx, step
             real(kind=real64) :: coordsa(3*natoms), coordsb(3*natoms), coordsa_orig(3*natoms)
             real(kind=real64) :: xbestnop(3*natoms)
             integer :: permp(natoms), nmovep
             real(kind=real64) :: rmatbest(3,3), rmatnop(3,3)
             real(kind=real64) :: distance, dist2, nopdistance, dworst
-            real(kind=real64) :: savelocalpermcut
             logical :: saveactive(npermgroup)
-            logical :: pbetter
+            logical :: pbetter, changed
 
-  
+            changed = .false.
 
             ! --- emulate v1's dogroup by restricting active groups to just this one ---
             saveactive(1:npermgroup) = groupactive(1:npermgroup)
@@ -542,15 +543,29 @@ module lpermdist
                end if
 
                !swap atoms only if we found a genuinely better permutational alignment
-               !if (.not.pbetter) then
-                  
+               !if (.not.pbetter) then 
                !   coordsa(1:3*natoms) = coordsa_orig(1:3*natoms)  ! back to original (un-rotated) coords
-                  
                !endif
+
+               if (pbetter .and. nmovep > 0) then
+                  !do j2=1,natoms
+                  !      xyz(3*natoms*(secondimage-1)+3*j2-2 : 3*natoms*(secondimage-1)+3*j2) = &
+                  !         coordsa_orig(3*permp(j2)-2 : 3*permp(j2))
+                  !end do
+                  xyz((3*natoms*(secondimage-1)+1):3*natoms*secondimage) = coordsa(1:3*natoms)
+                   changed = .true.
+               end if
+
+               !if (pbetter .and. nmovep > 0) then
+               !   xyz((3*natoms*(secondimage-1)+1):3*natoms*secondimage) = coordsa(1:3*natoms)
+               !   changed = .true.
+               !else
+               !   xyz((3*natoms*(secondimage-1)+1):3*natoms*secondimage) = xbestnop(1:3*natoms)
+               !end if
             end do
 
             
-            xyz((3*natoms*(secondimage-1)+1):3*natoms*secondimage) = coordsa(1:3*natoms)
+            !xyz((3*natoms*(secondimage-1)+1):3*natoms*secondimage) = coordsa(1:3*natoms)
 
             groupactive(1:npermgroup) = saveactive(1:npermgroup)  ! restore caller's active-group state
            
