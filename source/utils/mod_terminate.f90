@@ -17,6 +17,7 @@ MODULE MOD_TERMINATE
          USE ADDINGATOM, ONLY: DEALLOC_ADDATOM
          USE MOD_INTCOORDS, ONLY: XSTART, XFINAL
          USE QCIKEYS, ONLY: DEALLOC_QCIKEYS
+         USE QCI_CONSTRAINT_KEYS, ONLY: DEALLOC_BONDS
          use perm_setup, only: dealloc_perm
 
          IMPLICIT NONE
@@ -34,6 +35,7 @@ MODULE MOD_TERMINATE
          CALL DEALLOC_REP_VARS()
          CALL DEALLOC_ADDATOM()
          CALL DEALLOC_QCIKEYS()
+         CALL DEALLOC_BONDS()
          call dealloc_perm()
 
          ! XSTART and XFINAL are special cases, and are allocated outside of a specific ALLOC routine

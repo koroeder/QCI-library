@@ -1,5 +1,9 @@
 # Standalone Quasi-Continious Interpolation (QCI) code
 
+### 24.11.2026
+- Various bug fixes
+- Add angle potential (use: `K_BOND` <double>)
+
 ### 15.09.2026
 - Implement new permutations modules
 - Add harmonic bond potential which can be used for refining QCI interpolation reusl

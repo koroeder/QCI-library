@@ -206,6 +206,13 @@ MODULE OUT_PRINT
             WRITE(IU,FMT_REAL) 'K_BOND', K_BOND
         END IF     
 
+        WRITE(IU,FMT_SEC) ''
+        WRITE(IU,FMT_SEC) '--- Angle constraints ---'
+        WRITE(IU,FMT_BOOL) 'CALC_ANGLE_E', CALC_ANGLE_E
+        IF (CALC_ANGLE_E) THEN
+            WRITE(IU,FMT_REAL) 'K_ANGLE', K_ANGLE
+        END IF     
+
         !============================================================================
         ! Dihedral constraints
         !============================================================================

@@ -1,6 +1,7 @@
 MODULE AMBER_CONSTRAINTS
    USE QCIPREC
    USE QCIKEYS, ONLY: DEBUG, USE_EXTRA_AMBER_CONSTRAINS, AMBERCONSTRFILE, TOPFILENAME
+   USE QCI_CONSTRAINT_KEYS, ONLY: NBONDS, BOND_LIST, NANGLES, ANGLE_LIST
    IMPLICIT NONE
    INTEGER :: NRES
    INTEGER, ALLOCATABLE :: BACKBONE(:)
@@ -8,16 +9,14 @@ MODULE AMBER_CONSTRAINTS
    INTEGER, ALLOCATABLE :: AMBER_CONI(:), AMBER_CONJ(:)
    REAL(KIND = REAL64), ALLOCATABLE :: AMBER_CONDISTREF(:)
    REAL(KIND = REAL64), ALLOCATABLE :: AMBER_CONCUT(:)
-   
-  
-   
+    
    CHARACTER(LEN=1), ALLOCATABLE :: NASIMPLE(:)
-   INTEGER, ALLOCATABLE :: BONDS(:,:)
-   INTEGER, ALLOCATABLE :: ANGLES(:,:)
+   !INTEGER, ALLOCATABLE :: BONDS(:,:)
+   !INTEGER, ALLOCATABLE :: ANGLES(:,:)
    INTEGER, ALLOCATABLE :: BIOCONSTR(:,:)   
    INTEGER, ALLOCATABLE :: ELEMENT(:)
-   INTEGER :: NBOND = 0 !< number of bonds
-   INTEGER :: NANGLE = 0
+   !INTEGER :: NBOND = 0 !< number of bonds
+   !INTEGER :: NANGLE = 0
    INTEGER :: NBIOCONSTR = 0 ! biological constraints - cis-trans and planarity
    INTEGER, ALLOCATABLE :: RES_START(:), RES_END(:)
    CHARACTER(LEN=4), ALLOCATABLE :: AMBER_NAMES(:), RESNAMES(:), RESTYPE(:)
@@ -65,19 +64,18 @@ MODULE AMBER_CONSTRAINTS
          CALL GET_BIOCONSTR()
 
          ! allocate arrays
-         AMBER_NCONST = NBOND + NANGLE + NBIOCONSTR + NADDCONSTR
+         !AMBER_NCONST = NBOND + NANGLE + NBIOCONSTR + NADDCONSTR
+         AMBER_NCONST = NBONDS + NANGLES + NBIOCONSTR + NADDCONSTR
+
          ! allocate the required arrays
          CALL ALLOC_AMBER_CONSTR()
          NDUMMY = 0
-         
-         !Save bonds to later use for linear groups detection
-         IF(USELINGROUPS) CALL SAVE_BONDS(BONDS,NBOND)
-         
+                  
          ! add bond constraints
-         DO J1=1,NBOND
+         DO J1=1,NBONDS
             NDUMMY = NDUMMY + 1
-            IDX1 = BONDS(J1,1)
-            IDX2 = BONDS(J1,2)
+            IDX1 = BOND_LIST(1,J1)
+            IDX2 = BOND_LIST(2,J1)
             CALL DISTANCE_TWOATOMS(NATOMS, XSTART, IDX1, IDX2, DS)
             CALL DISTANCE_TWOATOMS(NATOMS, XFINAL, IDX1, IDX2, DF)
             IF (IDX1.LT.IDX2) THEN
@@ -91,10 +89,10 @@ MODULE AMBER_CONSTRAINTS
             AMBER_CONCUT(NDUMMY) = ABS(DF-DS)/2.0D0
          END DO
          ! add angle constraints
-         DO J1=1,NANGLE
+         DO J1=1,NANGLES
             NDUMMY = NDUMMY + 1
-            IDX1 = ANGLES(J1,1)
-            IDX2 = ANGLES(J1,2)
+             IDX1 = ANGLE_LIST(1,J1)   ! atom i
+             IDX2 = ANGLE_LIST(3,J1)   ! atom k -> 1-3 distance constraint
             CALL DISTANCE_TWOATOMS(NATOMS, XSTART, IDX1, IDX2, DS)
             CALL DISTANCE_TWOATOMS(NATOMS, XFINAL, IDX1, IDX2, DF)
             IF (IDX1.LT.IDX2) THEN
@@ -150,7 +148,7 @@ MODULE AMBER_CONSTRAINTS
          END IF
          
          WRITE(*,*) " amber_constraints> Identified ", AMBER_NCONST, " constraints"
-         WRITE(*,*) "                    Bonds: ", NBOND, ", angles: ", NANGLE, ", additional constraints: ", NADDCONSTR + NBIOCONSTR
+         WRITE(*,*) "                    Bonds: ", NBONDS, ", angles: ", NANGLES, ", additional constraints: ", NADDCONSTR + NBIOCONSTR
 
       END SUBROUTINE AMBER_QCI_CONSTRAINTS
 
@@ -176,8 +174,6 @@ MODULE AMBER_CONSTRAINTS
          IF (ALLOCATED(BACKBONE)) DEALLOCATE(BACKBONE)
          IF (ALLOCATED(ISBBATOM)) DEALLOCATE(ISBBATOM)
          IF (ALLOCATED(BIOCONSTR)) DEALLOCATE(BIOCONSTR)
-         IF (ALLOCATED(BONDS)) DEALLOCATE(BONDS)
-         IF (ALLOCATED(ANGLES)) DEALLOCATE(ANGLES)
          IF (ALLOCATED(RESNAMES)) DEALLOCATE(RESNAMES)
          IF (ALLOCATED(RES_START)) DEALLOCATE(RES_START)
          IF (ALLOCATED(RES_END)) DEALLOCATE(RES_END)
@@ -781,14 +777,17 @@ MODULE AMBER_CONSTRAINTS
                
                READ(ENTRIES(3),'(I8)') NBONDH
                READ(ENTRIES(4),'(I8)') NBONDA
-               NBOND = NBONDH + NBONDA
-               WRITE(*,'(A,I8)') ' readtopology> Number of bonds:',NBOND
-               ALLOCATE(BONDS(NBOND,2))
+               NBONDS = NBONDH + NBONDA
+               WRITE(*,'(A,I8)') ' readtopology> Number of bonds:',NBONDS
+               IF (ALLOCATED(BOND_LIST)) DEALLOCATE(BOND_LIST)
+               ALLOCATE(BOND_LIST(2,NBONDS))
+               
                READ(ENTRIES(5),'(I8)') NANGH
                READ(ENTRIES(6),'(I8)') NANGA
-               NANGLE = NANGH + NANGA
-               WRITE(*,'(A,I8)') ' readtopology> Number of angles:',NANGLE
-               ALLOCATE(ANGLES(NANGLE,2))
+               NANGLES = NANGH + NANGA
+               WRITE(*,'(A,I8)') ' readtopology> Number of angles:',NANGLES
+               IF (ALLOCATED(ANGLE_LIST)) DEALLOCATE(ANGLE_LIST)
+               ALLOCATE(ANGLE_LIST(3,NANGLES))
                READ(TOPUNIT,'(A)') ENTRY
                LINECOUNTER = LINECOUNTER + 1
                CALL READ_LINE(ENTRY,NWORDS,ENTRIES)
@@ -896,8 +895,8 @@ MODULE AMBER_CONSTRAINTS
                END DO
                DO J1=1,NBONDH
                   IDX = (J1-1)*3
-                  BONDS(J1,1) = INDICES(IDX+1)/3+1
-                  BONDS(J1,2) = INDICES(IDX+2)/3+1
+                  BOND_LIST(1,J1) = INDICES(IDX+1)/3+1
+                  BOND_LIST(2,J1) = INDICES(IDX+2)/3+1
                END DO
                DEALLOCATE(INDICES)
             END IF
@@ -918,8 +917,8 @@ MODULE AMBER_CONSTRAINTS
                END DO
                DO J1=1,NBONDA
                   IDX = (J1-1)*3
-                  BONDS(NBONDH+J1,1) = INDICES(IDX+1)/3+1
-                  BONDS(NBONDH+J1,2) = INDICES(IDX+2)/3+1
+                  BOND_LIST(1,NBONDH+J1) = INDICES(IDX+1)/3+1
+                  BOND_LIST(2,NBONDH+J1) = INDICES(IDX+2)/3+1
                END DO
                DEALLOCATE(INDICES)
             END IF
@@ -940,8 +939,9 @@ MODULE AMBER_CONSTRAINTS
                END DO
                DO J1=1,NANGH
                   IDX = (J1-1)*4
-                  ANGLES(J1,1) = INDICES(IDX+1)/3+1 ! atom i 
-                  ANGLES(J1,2) = INDICES(IDX+3)/3+1 ! atom k
+                  ANGLE_LIST(1,J1) = INDICES(IDX+1)/3+1 ! atom i
+                  ANGLE_LIST(2,J1) = INDICES(IDX+2)/3+1 ! atom j (central)
+                  ANGLE_LIST(3,J1) = INDICES(IDX+3)/3+1 ! atom k
                END DO
                DEALLOCATE(INDICES)
             END IF
@@ -962,8 +962,9 @@ MODULE AMBER_CONSTRAINTS
                END DO
                DO J1=1,NANGA
                   IDX = (J1-1)*4
-                  ANGLES(NANGH+J1,1) = INDICES(IDX+1)/3+1 ! atom i 
-                  ANGLES(NANGH+J1,2) = INDICES(IDX+3)/3+1 ! atom k
+                  ANGLE_LIST(1,NANGH+J1) = INDICES(IDX+1)/3+1 ! atom i
+                  ANGLE_LIST(2,NANGH+J1) = INDICES(IDX+2)/3+1 ! atom j (central)
+                  ANGLE_LIST(3,NANGH+J1) = INDICES(IDX+3)/3+1 ! atom k
                END DO
                DEALLOCATE(INDICES)
             END IF
@@ -1143,38 +1144,5 @@ MODULE AMBER_CONSTRAINTS
          ENDDO
          RETURN
       END SUBROUTINE GET_ATOMID
-
-   !> Allocate and save bonds to qci_constraint_keys
-   SUBROUTINE SAVE_BONDS(BONDS_IN, NBOND_IN)
-      
-      USE QCI_CONSTRAINT_KEYS, ONLY: NBONDS, BOND_LIST
-      IMPLICIT NONE
-
-      ! === Inputs ===
-      INTEGER, INTENT(IN) :: NBOND_IN
-      INTEGER, INTENT(IN) :: BONDS_IN(NBOND_IN,2)
-
-      ! === Local ===
-      INTEGER :: I
-
-      ! === Sanity checks ===
-      IF (NBOND_IN <= 0) THEN
-         PRINT *, "SAVE_BONDS: nbonds <= 0, nothing to store"
-         RETURN
-      END IF
-
-      ! === Deallocate old storage if present ===
-      IF (ALLOCATED(BOND_LIST)) DEALLOCATE(BOND_LIST) 
-
-      ! === Allocate new storage ===
-      ALLOCATE(BOND_LIST(2, NBOND_IN))
-      NBONDS = NBOND_IN
-
-      DO I=1, NBONDS
-         BOND_LIST( 1, I) = BONDS_IN(I,1)
-         BOND_LIST( 2, I) = BONDS_IN(I,2)
-      END DO
-
-   END SUBROUTINE SAVE_BONDS
 
 END MODULE AMBER_CONSTRAINTS

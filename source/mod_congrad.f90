@@ -62,7 +62,8 @@ MODULE CONSTR_E_GRAD
 
       SUBROUTINE CONGRAD1(ETOTAL, XYZ, GGG, EEE, RMS)
          USE QCIKEYS, ONLY: NIMAGES, NATOMS, KINT, QCIFREEZET, &
-                            USEDIHEDRALCONST, K_CONST, K_REP, CALC_BOND_E
+                            USEDIHEDRALCONST, K_CONST, K_REP, CALC_BOND_E, &
+                            CALC_ANGLE_E
          USE OUT_PRINT, ONLY: SAVE_OUT
          IMPLICIT NONE
          REAL(KIND = REAL64), INTENT(IN) :: XYZ(3*NATOMS*(NIMAGES+2))   !< input coordinates
@@ -71,12 +72,13 @@ MODULE CONSTR_E_GRAD
          REAL(KIND = REAL64), INTENT(OUT) :: ETOTAL                    !< overall energy
          REAL(KIND = REAL64), INTENT(OUT) :: RMS                       !< total force
         
-         REAL(KIND = REAL64) :: ECON, EREP, ESPR, EDIH, EBOND     ! QUERY: should these be globals in keys?
+         REAL(KIND = REAL64) :: ECON, EREP, ESPR, EDIH, EBOND, E_ANG     ! QUERY: should these be globals in keys?
          REAL(KIND = REAL64) :: EEEC(NIMAGES+2), GGGC(3*NATOMS*(NIMAGES+2))
          REAL(KIND = REAL64) :: EEER(NIMAGES+2), GGGR(3*NATOMS*(NIMAGES+2))
          REAL(KIND = REAL64) :: EEES(NIMAGES+2), GGGS(3*NATOMS*(NIMAGES+2))
          REAL(KIND = REAL64) :: EEED(NIMAGES+2), GGGD(3*NATOMS*(NIMAGES+2))
          REAL(KIND = REAL64) :: EEEB(NIMAGES+2), GGGB(3*NATOMS*(NIMAGES+2))
+         REAL(KIND = REAL64) :: EEEA(NIMAGES+2), GGGA(3*NATOMS*(NIMAGES+2))
          INTEGER :: J1, J2
 
          REAL(KIND = REAL64) :: GGG_SUM(NATOMS*(NIMAGES+2)), FSQ
@@ -90,13 +92,16 @@ MODULE CONSTR_E_GRAD
          EEES(1:NIMAGES+2)=0.0D0
          EEED(1:NIMAGES+2)=0.0D0
          EEEB(1:NIMAGES+2)=0.0D0
+         EEEA(1:NIMAGES+2)=0.0D0
          GGG(1:(3*NATOMS)*(NIMAGES+2))=0.0D0
          GGGC(1:(3*NATOMS)*(NIMAGES+2))=0.0D0
          GGGR(1:(3*NATOMS)*(NIMAGES+2))=0.0D0
          GGGS(1:(3*NATOMS)*(NIMAGES+2))=0.0D0
          GGGD(1:(3*NATOMS)*(NIMAGES+2))=0.0D0
          GGGB(1:(3*NATOMS)*(NIMAGES+2))=0.0D0
-         ECON = 0.0D0; EREP = 0.0D0; ESPR = 0.0D0; EDIH = 0.0D0; EBOND = 0.0D0
+         GGGA(1:(3*NATOMS)*(NIMAGES+2))=0.0D0
+         ECON = 0.0D0; EREP = 0.0D0; ESPR = 0.0D0 
+         EDIH = 0.0D0; EBOND = 0.0D0; E_ANG = 0.0D0
 
          
          IF (.NOT.(K_CONST.EQ.0.0D0)) THEN
@@ -128,11 +133,14 @@ MODULE CONSTR_E_GRAD
          IF (CALC_BOND_E) THEN
             CALL GET_BOND_E(XYZ, GGGB, EEEB, EBOND)
          END IF
-         
+         IF (CALC_ANGLE_E) THEN
+            CALL GET_ANGLE_E(XYZ,GGGA,EEEA,E_ANG)
+         END IF
+
          ! add all contributions
-         EEE    = EEEC + EEER + EEES + EEED + EEEB
-         GGG    = GGGC + GGGR + GGGS + GGGD + GGGB
-         ETOTAL = ECON + EREP + ESPR + EDIH + EBOND
+         EEE    = EEEC + EEER + EEES + EEED + EEEB + EEEA
+         GGG    = GGGC + GGGR + GGGS + GGGD + GGGB + GGGA
+         ETOTAL = ECON + EREP + ESPR + EDIH + EBOND + E_ANG
          
          ! Set gradients to zero for start and finish images.
          GGG(1:(3*NATOMS))=0.0D0
@@ -159,9 +167,9 @@ MODULE CONSTR_E_GRAD
          !Save outputs, so we can choose when to print
          CALL SAVE_OUT(ETOTAL, RMS, EREP, ECON, ESPR, EDIH, FCONMAX, FREPMAX, FDIHMAX, CONVERGECONTEST, CONVERGEREPTEST, CONVERGENCEDIHTEST, FSPRINGMAX)
 
-         IF (CALC_BOND_E) THEN
-            WRITE(*,*) "congrad> Bond energy: ", EBOND
-         END IF
+         !IF (CALC_BOND_E) THEN
+            WRITE(*,*) "congrad> Bond energy: ", EBOND, "Angle E", E_ANG
+         !END IF
          !   WRITE(*,*) " congrad1> E total: ", ETOTAL, "RMS: ", RMS, " E rep: ", SUM(EEER), " E constr: ", SUM(EEEC)
          !   WRITE(*,*) "                                              E spring: ", SUM(EEES), " E dih: ", SUM(EEED)
          !   WRITE(*,*) " congrad1> FCONMAX: ", FCONMAX, " FREPMAX: ", FREPMAX
@@ -1172,7 +1180,7 @@ MODULE CONSTR_E_GRAD
 
    SUBROUTINE GET_BOND_E(XYZ,GGG,EEE,EBOND)
          USE QCIKEYS, ONLY: NIMAGES, NATOMS, K_BOND
-         USE QCI_CONSTRAINT_KEYS, ONLY: BOND_LIST, NBONDS
+         USE QCI_CONSTRAINT_KEYS, ONLY: BOND_LIST, NBONDS, AVE_BL_LENGTH
          USE INTERPOLATION_KEYS, ONLY: ATOMACTIVE
          USE HELPER_FNCTS, ONLY: DISTANCE_SIMPLE
          IMPLICIT NONE
@@ -1182,7 +1190,7 @@ MODULE CONSTR_E_GRAD
          REAL(KIND = REAL64), INTENT(OUT) :: EBOND                      !< energy for constraints
          INTEGER :: J1, J2
          INTEGER :: NI1, NJ1                         !< indices for atoms A and B in XYZ and GGG
-         REAL(KIND=REAL64) :: AVE_BL(NBONDS)          !< average bond legth between (start+finish)/2
+         
          REAL(KIND=REAL64) :: XA(3), XB(3)           !< coordinates for atoms A and B 
          REAL(KIND=REAL64) :: E
          REAL(KIND=REAL64) :: DIST, DUMMY2    !< distance and related measure
@@ -1203,7 +1211,7 @@ MODULE CONSTR_E_GRAD
 
          IF(.NOT.ALL(ATOMACTIVE(1:NATOMS))) RETURN
 
-         CALL GET_AVE_BOND_LENGTH(AVE_BL)
+         
          
 
          DO J2=1,NBONDS
@@ -1223,9 +1231,9 @@ MODULE CONSTR_E_GRAD
 
                !Simple harmonic potential (keep k=k_const for now)
                
-               E = K_BOND * (DIST - AVE_BL(J2))**2
+               E = K_BOND * (DIST - AVE_BL_LENGTH(J2))**2
                
-               GRADAB(1:3) = 2.0D0*K_BOND*(DIST-AVE_BL(J2))*(XB-XA)/DIST
+               GRADAB(1:3) = 2.0D0*K_BOND*(DIST-AVE_BL_LENGTH(J2))*(XB-XA)/DIST
                ! calculate gradient and energy
                                                 
                                  
@@ -1252,6 +1260,100 @@ MODULE CONSTR_E_GRAD
          END DO
 
       END SUBROUTINE GET_BOND_E
+
+      SUBROUTINE GET_ANGLE_E(XYZ,GGG,EEE,E_ANGLE)
+         USE QCIKEYS, ONLY: NIMAGES, NATOMS, K_ANGLE
+         USE QCI_CONSTRAINT_KEYS, ONLY: ANGLE_LIST, NANGLES, AVE_ANGLE
+         USE INTERPOLATION_KEYS, ONLY: ATOMACTIVE
+         USE HELPER_FNCTS, ONLY: ANGLE, NORM_VEC
+         IMPLICIT NONE
+         REAL(KIND = REAL64), INTENT(IN) :: XYZ(3*NATOMS*(NIMAGES+2))   !< input coordinates
+         REAL(KIND = REAL64), INTENT(OUT) :: GGG(3*NATOMS*(NIMAGES+2))  !< gradient for each atom in each image
+         REAL(KIND = REAL64), INTENT(OUT) :: EEE(NIMAGES+2)             !< energy for constraints in each image
+         REAL(KIND = REAL64), INTENT(OUT) :: E_ANGLE                      !< energy for constraints
+         
+         INTEGER :: J1, J2
+         INTEGER :: A, B, C                         !< indices for atoms A and B in XYZ and GGG
+         REAL(KIND=REAL64) :: V1(3), V2(3), E1(3), E2(3), V1_NORM, V2_NORM
+
+         REAL(KIND=REAL64) :: XA(3), XB(3), XC(3), COORDS(9)           !< coordinates for atoms A and B 
+         REAL(KIND=REAL64) :: E
+         REAL(KIND=REAL64) :: ANG, DUMMY2    !< distance and related measure
+         REAL(KIND=REAL64) :: GRAD1(3), GRAD2(3)
+         REAL(KIND=REAL64) :: FA(3), FB(3), FC(3)
+         REAL(KIND=REAL64) :: EMAX, FMIN, FMAX
+         REAL(KIND=REAL64) :: DIST_MAXE
+         INTEGER :: IMAX, JMAX
+
+         EMAX = -(HUGE(1.0D0))
+         FMAX = -(HUGE(1.0D0))
+         FMIN = HUGE(1.0D0)
+         IMAX = -1
+         JMAX = -1
+         EEE(1:NIMAGES+2)=0.0D0
+         GGG(1:(3*NATOMS)*(NIMAGES+2))=0.0D0
+         E_ANGLE = 0.0D0
+         
+         IF(.NOT.ALL(ATOMACTIVE(1:NATOMS))) RETURN
+      
+
+         DO J2=1,NANGLES
+            
+            ! go through all images
+            DO J1=2,NIMAGES+1
+               A=(3*NATOMS)*(J1-1)+3*(ANGLE_LIST(1,J2)-1)
+               B=(3*NATOMS)*(J1-1)+3*(ANGLE_LIST(2,J2)-1)
+               C=(3*NATOMS)*(J1-1)+3*(ANGLE_LIST(3,J2)-1)
+               ! get coordinates for atoms involved in constraint
+               
+               COORDS(1:3) = XYZ(A+1:A+3) 
+               COORDS(4:6) = XYZ(B+1:B+3)
+               COORDS(7:9) = XYZ(C+1:C+3)
+               
+               V1 = COORDS(1:3) - COORDS(4:6)
+               V2 = COORDS(7:9) - COORDS(4:6)
+
+               CALL NORM_VEC(V1, E1, V1_NORM)
+               CALL NORM_VEC(V2, E2, V2_NORM)
+
+               ! get distance and various related measures
+               ANG = ANGLE(COORDS)
+               
+
+               !Simple harmonic potential (keep k=k_const for now)
+               
+               E = K_ANGLE * (ANG - AVE_ANGLE(J2))**2
+               
+               FA(1:3) = -(2.0D0*K_ANGLE*(ANG-AVE_ANGLE(J2)) * (E2-DCOS(ANG)*E1)) / (V1_NORM*DSIN(ANG))
+               FC(1:3) = -(2.0D0*K_ANGLE*(ANG-AVE_ANGLE(J2)) * (E1-DCOS(ANG)*E2)) / (V2_NORM*DSIN(ANG))
+               FB(1:3) = -(FA(1:3)+FC(1:3))
+               ! calculate gradient and energy
+                                                
+                                 
+               EEE(J1) = EEE(J1) + E
+               E_ANGLE = E_ANGLE + E
+               
+               ! save largest contribution to EMAX
+               IF (E.GT.EMAX) THEN
+                  IMAX = J1
+                  JMAX = J2
+                  EMAX = E
+                  DIST_MAXE = ANG
+               END IF
+               
+               GGG(A+1:A+3)=GGG(A+1:A+3) + FA(1:3)
+               GGG(B+1:B+3)=GGG(B+1:B+3) + FB(1:3)
+               GGG(C+1:C+3)=GGG(C+1:C+3) + FC(1:3)
+               
+               DUMMY2=MINVAL(FA)
+               IF (DUMMY2.LT.FMIN) FMIN=DUMMY2
+               DUMMY2=MAXVAL(FA)
+               IF (DUMMY2.GT.FMAX) FMAX=DUMMY2
+               
+            END DO
+         END DO
+
+      END SUBROUTINE GET_ANGLE_E
 
 
       SUBROUTINE GET_SPRING_E(XYZ, GGG, EEE, ESPR)
@@ -1544,28 +1646,62 @@ MODULE CONSTR_E_GRAD
                
       END SUBROUTINE GET_IMAGE_DIST
 
-      SUBROUTINE GET_AVE_BOND_LENGTH(AVE_BL)
+      SUBROUTINE GET_AVE_BOND_LENGTH()
          USE QCIKEYS, ONLY: NATOMS
-         USE qci_constraint_keys, only: BOND_LIST, NBONDS
+         USE qci_constraint_keys, only: BOND_LIST, NBONDS, AVE_BL_LENGTH
          USE HELPER_FNCTS, ONLY: DISTANCE_TWOATOMS
          USE INTERPOLATION_KEYS, ONLY: XSTART, XFINAL
 
          IMPLICIT NONE
-
-         REAL(KIND = REAL64), INTENT(OUT) :: AVE_BL(NBONDS)
+         
          REAL(KIND = REAL64) :: S, F 
          INTEGER :: J1
+
+         IF (ALLOCATED(AVE_BL_LENGTH)) DEALLOCATE(AVE_BL_LENGTH) 
+         ALLOCATE(AVE_BL_LENGTH(NBONDS))
 
          DO J1 = 1, NBONDS
             
             CALL DISTANCE_TWOATOMS(NATOMS, XSTART, BOND_LIST(1,J1), BOND_LIST(2,J1), S)
             CALL DISTANCE_TWOATOMS(NATOMS, XFINAL, BOND_LIST(1,J1), BOND_LIST(2,J1), F)
-            AVE_BL(J1) = (S + F) / 2
+            AVE_BL_LENGTH(J1) = (S + F) / 2
 
          END DO
 
-
       END SUBROUTINE GET_AVE_BOND_LENGTH
+
+      SUBROUTINE GET_AVE_ANGLE()
+         USE qci_constraint_keys, only: ANGLE_LIST, NANGLES, AVE_ANGLE
+         USE HELPER_FNCTS, ONLY: ANGLE
+         USE INTERPOLATION_KEYS, ONLY: XSTART, XFINAL
+
+         IMPLICIT NONE
+         
+         REAL(KIND = REAL64) :: S, F , COORDS(9)
+         INTEGER :: J1
+
+         IF (ALLOCATED(AVE_ANGLE)) DEALLOCATE(AVE_ANGLE) 
+         ALLOCATE(AVE_ANGLE(NANGLES))
+
+         DO J1 = 1, NANGLES
+            
+            COORDS(1:3) = XSTART(3*(ANGLE_LIST(1,J1))-2:3*(ANGLE_LIST(1,J1)))
+            COORDS(4:6) = XSTART(3*(ANGLE_LIST(2,J1))-2:3*(ANGLE_LIST(2,J1)))
+            COORDS(7:9) = XSTART(3*(ANGLE_LIST(3,J1))-2:3*(ANGLE_LIST(3,J1)))
+
+            S = ANGLE(COORDS)
+            
+            COORDS(1:3) = XFINAL(3*(ANGLE_LIST(1,J1))-2:3*(ANGLE_LIST(1,J1)))
+            COORDS(4:6) = XFINAL(3*(ANGLE_LIST(2,J1))-2:3*(ANGLE_LIST(2,J1)))
+            COORDS(7:9) = XFINAL(3*(ANGLE_LIST(3,J1))-2:3*(ANGLE_LIST(3,J1)))
+
+            F = ANGLE(COORDS)
+
+            AVE_ANGLE(J1) = (S + F) / 2
+
+         END DO
+
+      END SUBROUTINE GET_AVE_ANGLE
 
      
 END MODULE CONSTR_E_GRAD

@@ -149,6 +149,13 @@
     * Units: Energy/Angstrom^2
     * Example: `K_BOND 2.5`
 
+### Angle potential - Experimental 
+  * `K_ANGLE <double>`
+    * Strength of the harmonic angle potential. Use for QCI refinement 
+    * Units: Energy/Rad2
+    * Example: `K_ANGLE 0.2`
+
+
 #### **Congeom ONLY settings** 
 
 * `QCICONSTRAINTTOL <double>` 

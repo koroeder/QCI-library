@@ -1,7 +1,8 @@
 MODULE CHIRALITY
    USE QCIPREC
    USE QCIKEYS, ONLY: NATOMS, DEBUG
-   USE AMBER_CONSTRAINTS, ONLY: NRES, NBOND, BONDS, RESNAMES, RES_START, RES_END, AMBER_NAMES, ELEMENT
+   USE AMBER_CONSTRAINTS, ONLY: NRES, RESNAMES, RES_START, RES_END, AMBER_NAMES, ELEMENT
+   USE QCI_CONSTRAINT_KEYS, ONLY: NBONDS, BOND_LIST
    IMPLICIT NONE
    INTEGER, SAVE :: NCHIRAL = -1
    
@@ -65,7 +66,7 @@ MODULE CHIRALITY
       SUBROUTINE CHECK_SINGLE_CHIRAL_CENTRE(CHIRALGROUP,XYZ)
          USE INTERPOLATION_KEYS, ONLY: ATOMACTIVE
          USE QCIKEYS, ONLY: NATOMS, NIMAGES
-         USE AMBER_CONSTRAINTS, ONLY: NBOND, BONDS, ELEMENT
+         USE AMBER_CONSTRAINTS, ONLY: ELEMENT
          INTEGER, INTENT(IN) :: CHIRALGROUP
          REAL(KIND = REAL64), INTENT(INOUT) :: XYZ((3*NATOMS)*(NIMAGES+2))
          INTEGER :: CHIRALCENTRE
@@ -79,9 +80,9 @@ MODULE CHIRALITY
          !we set the number initially to -1 to discount the bond to the chiral centre
          NCONSTPERATOM(1:4) = -1
          !get the number of bonds to active atoms for the four connected atoms
-         DO J1=1,NBOND
-            IDX1 = BONDS(J1,1)
-            IDX2 = BONDS(J1,2)
+         DO J1=1,NBONDS
+            IDX1 = BOND_LIST(1,J1)
+            IDX2 = BOND_LIST(2,J1)
             IF (ATOMACTIVE(IDX1).AND.ATOMACTIVE(IDX2)) THEN
                DO J2=1,4
                   ATOMID = CHIR_INFO(CHIRALGROUP,J2+1)
@@ -959,7 +960,7 @@ MODULE CHIRALITY
          IMPLICIT NONE
          INTEGER :: J1, ATOMID1, ATOMID2
          
-         ALLOCATE(DOUBLEB(NBOND,2))
+         ALLOCATE(DOUBLEB(NBONDS,2))
          ALLOCATE(NBONDED(NATOMS))
          ALLOCATE(BONDEDATS(NATOMS,6))
          ALLOCATE(BONDEDELS(NATOMS,6))   
@@ -968,9 +969,9 @@ MODULE CHIRALITY
          NBONDED(1:NATOMS) = 0
          BONDEDATS(1:NATOMS,1:6) = -1
          BONDEDELS(1:NATOMS,1:6) = -1    
-         DO J1=1,NBOND
-            ATOMID1 = BONDS(J1,1)
-            ATOMID2 = BONDS(J1,2)
+         DO J1=1,NBONDS
+            ATOMID1 = BOND_LIST(1,J1)
+            ATOMID2 = BOND_LIST(2,J1)
             NBONDED(ATOMID1) = NBONDED(ATOMID1) + 1 
             NBONDED(ATOMID2) = NBONDED(ATOMID2) + 1        
             BONDEDATS(ATOMID1,NBONDED(ATOMID1)) = ATOMID2
@@ -1027,9 +1028,9 @@ MODULE CHIRALITY
          INTEGER :: J1
          
          BONDEDT = .FALSE.
-         DO J1=1,NBOND
-            IF (((BONDS(J1,1).EQ.ATOM1).AND.(BONDS(J1,2).EQ.ATOM2)).OR.  &
-               ((BONDS(J1,1).EQ.ATOM2).AND.(BONDS(J1,2).EQ.ATOM1))) THEN
+          DO J1=1,NBONDS
+            IF (((BOND_LIST(1,J1).EQ.ATOM1).AND.(BOND_LIST(2,J1).EQ.ATOM2)).OR.  &
+               ((BOND_LIST(1,J1).EQ.ATOM2).AND.(BOND_LIST(2,J1).EQ.ATOM1))) THEN
                BONDEDT = .TRUE.
                EXIT
             ENDIF
@@ -1041,7 +1042,7 @@ MODULE CHIRALITY
       SUBROUTINE ONLY_CHECK_SINGLE_CHIRAL_CENTRE(CHIRALGROUP, XYZ, CHANGED)
          USE INTERPOLATION_KEYS, ONLY: ATOMACTIVE
          USE QCIKEYS, ONLY: NATOMS, DEBUG, NIMAGES, ATOMS2RES
-         USE AMBER_CONSTRAINTS, ONLY: NBOND, BONDS, ELEMENT
+         USE AMBER_CONSTRAINTS, ONLY: ELEMENT
          INTEGER, INTENT(IN) :: CHIRALGROUP
          REAL(KIND = REAL64), INTENT(IN) :: XYZ((3*NATOMS)*(NIMAGES+2))
          LOGICAL, INTENT(OUT) :: CHANGED
@@ -1060,9 +1061,9 @@ MODULE CHIRALITY
          !we set the number initially to -1 to discount the bond to the chiral centre
          NCONSTPERATOM(1:4) = -1
          !get the number of bonds to active atoms for the four connected atoms
-         DO J1=1,NBOND
-            IDX1 = BONDS(J1,1)
-            IDX2 = BONDS(J1,2)
+         DO J1=1,NBONDS
+            IDX1 = BOND_LIST(1,J1)
+            IDX2 = BOND_LIST(2,J1)
             IF (ATOMACTIVE(IDX1).AND.ATOMACTIVE(IDX2)) THEN
                DO J2=1,4
                   ATOMID = CHIR_INFO(CHIRALGROUP,J2+1)

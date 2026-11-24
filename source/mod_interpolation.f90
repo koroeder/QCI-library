@@ -14,10 +14,11 @@ MODULE QCIINTERPOLATION
                             DUMPQCIXYZFRQS, DUMPQCIXYZ, QCIADJUSTKFRQ, QCIADJUSTKT, QCIAVDEV, &
                             QCIKINTMIN, QCIKINTMAX, QCIADJUSTKFRAC, QCIADJUSTKTOL, QCIIMAGECHECK, &
                             QCIPERMCHECKINT, QCIPERMT, QCIRMSTOL, QCIRESET, QCIRESETINT1, &
-                            NMINAFTERADD, OPTIMISEAFTERADDITION, DETECTBBCROSSING, CHECKCROSSFREQ, CALC_BOND_E
+                            NMINAFTERADD, OPTIMISEAFTERADDITION, DETECTBBCROSSING, CHECKCROSSFREQ, &
+                            CALC_BOND_E, CALC_ANGLE_E
          USE MOD_FREEZE, ONLY: ADD_CONSTR_AND_REP_NBEST
          USE CONSTR_E_GRAD, ONLY: CONGRAD, CONVERGECONTEST, CONVERGEREPTEST, &
-                                  FCONMAX, FREPMAX, GET_IMAGE_DIST
+                                  FCONMAX, FREPMAX, GET_IMAGE_DIST, GET_AVE_BOND_LENGTH, GET_AVE_ANGLE
         
 
          
@@ -64,7 +65,6 @@ MODULE QCIINTERPOLATION
          !DEGBUG
          INTEGER :: UNITCONSTR
          LOGICAL :: PERMCHANGED, BANDCHANGED, CHIRALITYCHANGED
-         
          
          ETOTAL = 0.0D0
          !initiate variables for the interpolation, including image density set nimage
@@ -139,6 +139,9 @@ MODULE QCIINTERPOLATION
          ! before we continue check repulsion neighbour list
          CALL CHECKREP(XYZ,0,1)
 
+         !If we are using bonds potential, calculate average bond length
+         IF (CALC_BOND_E) CALL GET_AVE_BOND_LENGTH()
+         IF (CALC_ANGLE_E) CALL GET_AVE_ANGLE()
          ! call congrad routine
          CALL CONGRAD(ETOTAL, XYZ, GGG, EEE, RMS)
 

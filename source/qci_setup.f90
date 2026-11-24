@@ -270,11 +270,15 @@ MODULE QCISETUP
          !-----------------Constraints---------------------------------!
          ELSE IF (ENTRY.EQ."K_CONST") THEN
             READ(VAL,*) K_CONST
-         !----------------- Bonds --------------------------------------!
+         !----------------- Bonds -------------------------------------!
          ELSE IF (ENTRY.EQ."K_BOND") THEN
             READ(VAL,*) K_BOND
             CALC_BOND_E = .TRUE. 
-         
+         !----------------- Angles ------------------------------------!
+         ELSE IF (ENTRY.EQ."K_ANGLE") THEN
+            READ(VAL,*) K_ANGLE
+            CALC_ANGLE_E = .TRUE.
+
          ! check for internal minima in constraints?
          ELSE IF (ENTRY.EQ."CHECKINTMINCONSTR") THEN
             CHECKCONINT = .TRUE.

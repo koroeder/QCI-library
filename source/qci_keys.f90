@@ -77,13 +77,19 @@ MODULE QCIKEYS
    !> conactinact settings - scale active-inactive atom interaction
    REAL(KIND = REAL64) :: CONACTINACT = 0.2D0
 
-   !--------------------- Bonds ---------------------------------------!
+   !--------------------- Bonds --------------------------------------!
 
    !> Calculate bond energy, use for refining QCI
    LOGICAL :: CALC_BOND_E = .FALSE.
    !> strenght of the bond potential
    REAl(KIND = REAL64) :: K_BOND = 2.5D0
 
+   !---------------------- Angle -------------------------------------!
+   
+   !> Calculate angle potential energy
+   LOGICAL :: CALC_ANGLE_E = .FALSE.
+   REAL(KIND=REAL64) :: K_ANGLE = 0.2D0
+ 
    !--------------------- Dihedrals ----------------------------------!
    !> use dihedral cosnstraints for chiral atoms and planarity
    LOGICAL :: USEDIHEDRALCONST = .FALSE.
