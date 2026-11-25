@@ -48,6 +48,7 @@ module perm_setup
          read(funit,*) npermgroup
 
          call alloc_perm()
+         groupactive(:) = .false.
          npermsize(:) = 0
          permgroup(:) = 0
          nsets(:) = 0

@@ -580,7 +580,7 @@ module lpermdist
          integer :: ndummy
          integer :: j1, j2
          logical :: currentgroup
-
+         
          ndummy = 1
          do j1=1,npermgroup
             if (.not.groupactive(j1)) then

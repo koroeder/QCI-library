@@ -45,7 +45,7 @@ MODULE ADDREMOVE_IMAGES
          CALL ALLOC_STEPTAKING()
          !write search step and gdif back into the correct variables
 
-         DO J1=1,MUPDATE
+         DO J1=0,MUPDATE
             !new version of setting up SEARCHSTEP and GDIF
             ! if IDMAX is 1, then we have to add the new image to the start
             IF (IDXMAX.EQ.1) THEN
@@ -114,7 +114,7 @@ MODULE ADDREMOVE_IMAGES
          !reallocate all associated variables now
          CALL ALLOC_STEPTAKING()        
          !write search step and gdif back into the correct variables
-         DO J1=1,MUPDATE
+         DO J1=0,MUPDATE
             SEARCHSTEP(J1,1:OFFSET3) = TEMPSTEP(J1,1:OFFSET3)
             SEARCHSTEP(J1,OFFSET3+1:3*NATOMS*NIMAGES) = TEMPSTEP(J1,OFFSET1+1:3*NATOMS*(NIMAGES+1))
             GDIF(J1,1:OFFSET3) = TEMPGDIF(J1,1:OFFSET3)

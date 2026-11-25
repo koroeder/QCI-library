@@ -270,7 +270,9 @@ MODULE AMBER_CONSTRAINTS
          CHARACTER(LEN=4) :: ATNAME
          INTEGER :: J1
 
+         IF (ALLOCATED(ISBBATOM)) DEALLOCATE(ISBBATOM)
          ALLOCATE(ISBBATOM(NATOMS))
+         ISBBATOM(:) = .FALSE.
 
          NDUMMY = 0
          DO J1=1,NATOMS
@@ -335,11 +337,11 @@ MODULE AMBER_CONSTRAINTS
             ELSE IF (AAT) THEN
                CALL GET_ATOMID("OXT",J1,ATOMID)
                IF (ATOMID.NE.0) THEN
-                  ISTER(J1) = .TRUE.
+                  ISCTER(J1) = .TRUE.
                ELSE
                   CALL GET_ATOMID("H1",J1,ATOMID)
                   IF (ATOMID.NE.0) THEN
-                     ISTER(J1) = .TRUE.
+                     ISNTER(J1) = .TRUE.
                   END IF
                END IF
                AALIST(J1) = .TRUE.
@@ -354,7 +356,7 @@ MODULE AMBER_CONSTRAINTS
          DO J1=1,NRES-1
             IF (AALIST(J1)) THEN
                ! check we are not looking at capping groups
-               IF ((.NOT.ISCAP(J1)).AND.(.NOT.ISCAP(J1+1))) THEN
+              IF ((.NOT.ISCTER(J1)).AND.(.NOT.ISNTER(J1+1))) THEN
                   IF (.NOT.ISTER(J1)) THEN
                      CALL GET_ATOMID("O",J1,OPOS1)
                      CALL GET_ATOMID("CA",J1,CPOS1)

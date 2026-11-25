@@ -430,6 +430,7 @@ MODULE QCIINTERPOLATION
                      IF ((CURRMAXSEP.GT.IMSEPMAX).AND.(NIMAGES.LT.MAXINTIMAGE)) THEN
                         WRITE(*,*) " QCIinterp> Adding image between images ", IDXMAX, " and ", IDXMAX+1
                         CALL ADD_IMAGE(IDXMAX,ETOTAL,RMS)
+                        EPREV = ETOTAL
                         NITERUSE = 0
                         !scale gradient if necessary
                         IF (MAXGRADCOMP.GT.0.0D0) CALL SCALEGRAD(DIMS,G,RMS,MAXGRADCOMP)
@@ -440,6 +441,7 @@ MODULE QCIINTERPOLATION
                         IF (IDXMIN.EQ.1) IDXMIN = 2
                         WRITE(*,*) " QCIinterp> Removing image ", IDXMIN
                         CALL REMOVE_IMAGE(IDXMIN,ETOTAL,RMS)
+                        EPREV = ETOTAL
                         NITERUSE = 0
                         !scale gradient if necessary
                         IF (MAXGRADCOMP.GT.0.0D0) CALL SCALEGRAD(DIMS,G,RMS,MAXGRADCOMP)
